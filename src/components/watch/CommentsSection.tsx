@@ -5,6 +5,8 @@ import { Chip } from "../ui/Chip";
 import { ToggleSwitch } from "../ui/ToggleSwitch";
 import { CommentItem } from "./CommentItem";
 import { useVideoComments } from "../../lib/useVideoComments";
+import { useGoogleAccount } from "../../lib/useGoogleAccount";
+import { useUiStore } from "../../store/useUiStore";
 import { useTimedComments } from "../../lib/useTimedComments";
 import { useTimedFollow } from "../../lib/useTimedFollow";
 import { useBoolPref } from "../../lib/usePreference";
@@ -41,8 +43,13 @@ export function CommentsSection({
   onClose,
 }: CommentsSectionProps) {
   const thread = useVideoComments(videoId, { postId, postCommentParams });
+  const { status } = useGoogleAccount();
   const [filter, setFilter] = useState<CommentFilter>("top");
-  useEffect(() => setFilter("top"), [videoId]);
+  const [draft, setDraft] = useState("");
+  useEffect(() => {
+    setFilter("top");
+    setDraft("");
+  }, [videoId]);
   // Community posts have no playback to follow and keep YouTube's own orders.
   const filtersShown = !postId && thread.sortOptions.length >= 2;
   const isTimed = filtersShown && filter === "timed";
@@ -124,6 +131,43 @@ export function CommentsSection({
           <ToggleSwitch checked={follow} onChange={setFollow} />
         </div>
       )}
+
+      {!thread.disabled && !loading && thread.createCommentParams ? (
+        <div className="space-y-2">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={getString("comment_post_placeholder")}
+            rows={2}
+            className="w-full resize-none rounded-lg border border-chrome-neutral-800 bg-surface-container-low p-3 text-sm text-chrome-neutral-100 outline-none transition-colors duration-200 ease-out placeholder:text-chrome-neutral-600 focus:border-chrome-neutral-700"
+          />
+          {thread.postError ? (
+            <p className="text-sm text-chrome-red-400">{getString("comment_post_failed")}</p>
+          ) : null}
+          <div className="flex justify-end">
+            <Button
+              onClick={async () => {
+                const ok = await thread.postComment(draft);
+                if (!ok) return;
+                setDraft("");
+                useUiStore.getState().showToast({ variant: "success", message: getString("comment_posted") });
+              }}
+              disabled={!draft.trim() || thread.posting}
+            >
+              {thread.posting ? <Loader2 className="animate-spin" size={14} /> : null}
+              {getString("comment_post")}
+            </Button>
+          </div>
+        </div>
+      ) : !thread.disabled && !loading && !thread.createCommentParams && status === "signed-out" ? (
+        <button
+          type="button"
+          onClick={() => useUiStore.getState().openSignInDialog()}
+          className="text-sm font-medium text-primary hover:underline"
+        >
+          {getString("comment_sign_in")}
+        </button>
+      ) : null}
 
       {loading ? (
         <Loader2 className="animate-spin text-chrome-neutral-500" size={24} />

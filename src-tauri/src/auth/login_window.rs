@@ -5,8 +5,8 @@
 //!
 //! Steps:
 //! 1. "Sign in" opens the window at [`sapisid::LOGIN_URL`].
-//! 2. A background task polls the window's `Webview::cookies()` every 1.5 s.
-//!    `cookies()` is synchronous and **deadlocks on Windows when called from
+//! 2. A background task polls the window's **youtube.com** cookies every
+//!    1.5 s. `cookies()` is synchronous and **deadlocks on Windows when called from
 //!    a synchronous command or event handler**, so it is only ever called
 //!    from a `spawn_blocking` thread — never from a command body and never
 //!    from the main thread.
@@ -18,6 +18,15 @@
 //!    half-finished sign-in can never leave the app half-logged-in, because
 //!    the session only flips inside `AuthSession::sign_in` after validation
 //!    + persistence.
+//!
+//! The cookies are read **for youtube.com only** (`cookies_for_url`), as
+//! Android (`CookieManager.getCookie(YOUTUBE_URL)`) and the CMP flow do.
+//! The store-wide `cookies()` also returns accounts.google.com cookies,
+//! whose SAPISID is a *different value* — capturing it poisons the
+//! session: SAPISIDHASH is computed from the wrong SAPISID, so every
+//! signed-in InnerTube call answers as anonymous while the app still
+//! shows "Signed in". The poll can also fire while the window is still
+//! on accounts.google.com, before any youtube.com cookie exists at all.
 //!
 //! Events emitted to the frontend: `google-sign-in-completed`,
 //! `google-sign-in-failed` (payload: the message), `google-sign-in-cancelled`.
@@ -109,8 +118,20 @@ pub async fn spawn_sign_in_poll(
             };
             // cookies() is synchronous and deadlocks on Windows in sync
             // commands / event handlers — a dedicated blocking thread only.
+            // Scoped to youtube.com: the store-wide cookies() also returns
+            // accounts.google.com cookies, whose SAPISID is a different
+            // value, and the poll can fire while the window is still on
+            // accounts.google.com — either captures a session YouTube does
+            // not recognise (see the module docs).
             let window_for_cookies = window.clone();
-            let cookies = tokio::task::spawn_blocking(move || window_for_cookies.cookies()).await;
+            let cookies = tokio::task::spawn_blocking(move || {
+                window_for_cookies.cookies_for_url(
+                    sapisid::YOUTUBE_ORIGIN
+                        .parse()
+                        .expect("YOUTUBE_ORIGIN is a valid URL"),
+                )
+            })
+            .await;
             let Ok(Ok(cookies)) = cookies else {
                 // Transient read failure (e.g. the window is mid-navigation):
                 // keep polling; the window closing is what ends the flow.
@@ -125,6 +146,20 @@ pub async fn spawn_sign_in_poll(
                     // A fresh visitor identity for the new session (Android
                     // resets visitorData whenever a session applies).
                     extractor.reset_visitor_identity();
+                    // Fetch the display identity now, as part of sign-in —
+                    // Android's `AccountSessionManager` identifies the
+                    // account during login too. Best-effort: when the menu
+                    // call fails (transient network, shape change), the
+                    // frontend refetches it on launch while the cached
+                    // identity has no displayable name, so sign-in itself
+                    // still succeeds and the name lands later.
+                    match extractor.account_info().await {
+                        Ok(info) => auth.set_identity(info),
+                        Err(error) => tracing::warn!(
+                            %error,
+                            "signed in, but the account name could not be fetched yet"
+                        ),
+                    }
                     // Wipe the login window's cookies so the stored cookie
                     // is the only copy, like Android does. Best-effort:
                     // on Linux this clears the shared WebKit context,

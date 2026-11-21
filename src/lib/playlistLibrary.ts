@@ -110,6 +110,20 @@ export const storedPlaylistToCardSummary = (playlist: StoredPlaylist): PlaylistS
   };
 };
 
+/** An account playlist as a stored one, for rows that only read the card fields. */
+export const serverPlaylistToStored = (playlist: PlaylistSummary): StoredPlaylist =>
+  normalizePlaylist({
+    id: playlist.id,
+    name: playlist.title,
+    sourceTitle: playlist.title,
+    tracks: [],
+    createdAt: new Date().toISOString(),
+    source: "Owned",
+    thumbnailUrl: playlist.thumbnailUrl ?? null,
+    videoCount: parseVideoCountFromText(playlist.videoCountText),
+    videoCountText: playlist.videoCountText ?? null,
+  });
+
 export const getPlaylistTimestamp = (playlist: StoredPlaylist) => {
   if (playlist.createdAt) {
     const timestamp = Date.parse(playlist.createdAt);
@@ -524,6 +538,28 @@ export const updateStoredPlaylistDetails = async (
     // The title captured on saving outranks the name, so it has to follow a rename.
     sourceTitle: target.sourceTitle ? name.trim() || target.sourceTitle : target.sourceTitle,
     description: description.trim(),
+  });
+  await persistStoredPlaylists(playlists.map((playlist) => (playlist.id === playlistId ? updated : playlist)));
+  return updated;
+});
+
+/**
+ * Renames a stored playlist of any source. A server rename keeps a local
+ * copy of the playlist in step, so the old name cannot linger after the
+ * account's title changed.
+ */
+export const updateStoredPlaylistName = async (
+  playlistId: string,
+  name: string,
+): Promise<StoredPlaylist | null> => withLibraryWrite(async () => {
+  const playlists = await loadStoredPlaylists();
+  const target = playlists.find((playlist) => playlist.id === playlistId);
+  if (!target || isProtectedPlaylistId(playlistId)) return null;
+
+  const updated = normalizePlaylist({
+    ...target,
+    name: name.trim() || target.name,
+    sourceTitle: name.trim() || target.sourceTitle,
   });
   await persistStoredPlaylists(playlists.map((playlist) => (playlist.id === playlistId ? updated : playlist)));
   return updated;

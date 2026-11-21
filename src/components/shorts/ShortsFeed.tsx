@@ -1,7 +1,7 @@
 import { getString } from "../../lib/i18n/index";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { useShortsFeed, type ShortsQueueEnd } from "../../lib/useShortsFeed";
 import { listenForShortsKeys } from "../../lib/shortsKeys";
 import { prefetchShortStreams } from "../../lib/useShortStream";
@@ -36,11 +36,12 @@ export function ShortsFeed() {
     if (!candidate.some((short) => short.id === videoId)) return null;
     return candidate;
   }, [routeState, videoId]);
-  const { items, loading, error, loadMore, moreLikeThis } = useShortsFeed(
+  const queueEnd = initialQueue ? routeState?.queueEnd : undefined;
+  const { items, loading, loadingMore, error, loadMore, moreLikeThis } = useShortsFeed(
     videoId,
     initialShort,
     initialQueue,
-    initialQueue ? routeState?.queueEnd : undefined,
+    queueEnd,
   );
   const [activeIndex, setActiveIndex] = useState(0);
   const [panelState, setPanelState] = useState<ShortsPanelState>("none");
@@ -274,10 +275,17 @@ export function ShortsFeed() {
         </NavButton>
         <NavButton
           ariaLabel={getString('shorts_next_short')}
-          disabled={activeIndex >= items.length - 1}
-          onClick={() => scrollToIndex(activeIndex + 1)}
+          // At the last loaded item the button fetches more, like a swipe or
+          // the keyboard does, instead of going dead; it only disables while
+          // that fetch is running, or when the queue deliberately ends here.
+          disabled={activeIndex >= items.length - 1 && (loadingMore || queueEnd === "stop")}
+          onClick={advanceToNext}
         >
-          <ChevronDown className="h-5 w-5" />
+          {activeIndex >= items.length - 1 && loadingMore ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <ChevronDown className="h-5 w-5" />
+          )}
         </NavButton>
       </div>
     </div>

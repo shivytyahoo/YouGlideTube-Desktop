@@ -3,17 +3,20 @@ import { ListVideo, Plus, X } from "lucide-react";
 import { getString } from "../../lib/i18n/index";
 import { Button } from "../ui/Button";
 import { PlaylistChoiceCard } from "./PlaylistChoiceCard";
+import { getAccountSignedIn } from "../../lib/api/account";
 import {
   addVideoToStoredPlaylist,
   createStoredPlaylist,
   isProtectedPlaylistId,
   loadStoredPlaylists,
   PLAYLIST_LIBRARY_UPDATED_EVENT,
-  removeVideoFromWatchLater,
+  serverPlaylistToStored,
   updateStoredPlaylistTracks,
   type StoredPlaylist,
 } from "../../lib/playlistLibrary";
 import { usePlaylistModalStore } from "../../store/usePlaylistModalStore";
+import { useServerPlaylistsStore, isSystemServerPlaylistId } from "../../store/useServerPlaylistsStore";
+import { useWatchLaterStore } from "../../store/useWatchLaterStore";
 import { useUiStore } from "../../store/useUiStore";
 import { showSaveFailedToast, showSaveToast, type SaveDestination } from "../../lib/saveToast";
 
@@ -25,11 +28,21 @@ export function AddToPlaylistModal() {
   const [playlists, setPlaylists] = useState<StoredPlaylist[]>([]);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const serverPlaylists = useServerPlaylistsStore((s) => s.playlists);
+  const loadServerPlaylists = useServerPlaylistsStore((s) => s.load);
 
-  const selectablePlaylists = useMemo(
-    () => playlists.filter((playlist) => playlist.source === "Owned"),
-    [playlists],
-  );
+  // The account's playlists join this device's own: a save here is a
+  // server save, so the video shows on the playlist page and on the phone.
+  // System lists are not save targets here — Watch Later has its own row
+  // and Liked videos is a like, not a playlist.
+  const selectablePlaylists = useMemo(() => {
+    const local = playlists.filter((playlist) => playlist.source === "Owned");
+    const localIds = new Set(local.map((playlist) => playlist.id));
+    const server = serverPlaylists
+      .filter((playlist) => !isSystemServerPlaylistId(playlist.id) && !localIds.has(playlist.id))
+      .map(serverPlaylistToStored);
+    return [...local, ...server];
+  }, [playlists, serverPlaylists]);
 
   const load = async () => {
     try {
@@ -43,10 +56,11 @@ export function AddToPlaylistModal() {
   useEffect(() => {
     if (!addTarget) return;
     void load();
+    void loadServerPlaylists();
 
     window.addEventListener(PLAYLIST_LIBRARY_UPDATED_EVENT, load);
     return () => window.removeEventListener(PLAYLIST_LIBRARY_UPDATED_EVENT, load);
-  }, [addTarget]);
+  }, [addTarget, loadServerPlaylists]);
 
   if (!addTarget) return null;
 
@@ -63,24 +77,41 @@ export function AddToPlaylistModal() {
     isProtectedPlaylistId(playlistId) ? { kind: "watchLater" } : { kind: "playlist", id: playlistId, name }
   );
 
-  const undoAdd = (playlistId: string) => (
-    isProtectedPlaylistId(playlistId)
-      ? removeVideoFromWatchLater(video.id)
-      : updateStoredPlaylistTracks(playlistId, (tracks) => tracks.filter((track) => track.id !== video.id))
-  );
+  const undoAdd = (playlistId: string) => {
+    if (isProtectedPlaylistId(playlistId)) {
+      return useWatchLaterStore.getState().remove(video.id);
+    }
+    if (useServerPlaylistsStore.getState().isServerPlaylist(playlistId)) {
+      return useServerPlaylistsStore.getState().removeVideo(playlistId, video.id);
+    }
+    return updateStoredPlaylistTracks(playlistId, (tracks) => tracks.filter((track) => track.id !== video.id));
+  };
 
   const handleAdd = async (playlistId: string) => {
-    const playlist = playlists.find((stored) => stored.id === playlistId);
+    const playlist = selectablePlaylists.find((stored) => stored.id === playlistId);
     const destination = destinationFor(playlistId, playlist?.name ?? "");
-    const alreadyThere = !!playlist?.tracks.some((track) => track.id === video.id);
+    const isServer = useServerPlaylistsStore.getState().isServerPlaylist(playlistId);
+    // Watch Later membership is known from the store's server-synced set;
+    // a server playlist's rows are not read here, so membership is
+    // unknown and no undo is offered for it — undoing an add of a video
+    // that was already there would remove the row that was there before.
+    const alreadyThere = isProtectedPlaylistId(playlistId)
+      ? useWatchLaterStore.getState().ids.has(video.id)
+      : !!playlist?.tracks.some((track) => track.id === video.id);
     try {
-      const updated = await addVideoToStoredPlaylist(playlistId, video);
-      if (!updated) throw new Error("Playlist not found");
+      if (isProtectedPlaylistId(playlistId)) {
+        await useWatchLaterStore.getState().add(video);
+      } else if (isServer) {
+        await useServerPlaylistsStore.getState().addVideo(playlistId, video.id);
+      } else {
+        const updated = await addVideoToStoredPlaylist(playlistId, video);
+        if (!updated) throw new Error("Playlist not found");
+      }
 
       showSaveToast({
         destination,
         item,
-        undo: alreadyThere ? undefined : () => undoAdd(playlistId),
+        undo: alreadyThere || isServer ? undefined : () => void undoAdd(playlistId),
       });
       close();
     } catch (error) {
@@ -95,13 +126,24 @@ export function AddToPlaylistModal() {
     if (!name) return;
 
     try {
-      const playlist = await createStoredPlaylist(name);
-      await addVideoToStoredPlaylist(playlist.id, video);
-      showSaveToast({
-        destination: destinationFor(playlist.id, playlist.name),
-        item,
-        undo: () => undoAdd(playlist.id),
-      });
+      if (await getAccountSignedIn().catch(() => false)) {
+        // Signed in, the playlist is created on the account, as Android
+        // does — not a local list the phone never sees.
+        const playlist = await useServerPlaylistsStore.getState().create(name);
+        await useServerPlaylistsStore.getState().addVideo(playlist.id, video.id);
+        showSaveToast({
+          destination: destinationFor(playlist.id, playlist.title),
+          item,
+        });
+      } else {
+        const playlist = await createStoredPlaylist(name);
+        await addVideoToStoredPlaylist(playlist.id, video);
+        showSaveToast({
+          destination: destinationFor(playlist.id, playlist.name),
+          item,
+          undo: () => void undoAdd(playlist.id),
+        });
+      }
       close();
     } catch (error) {
       console.error("Failed to create playlist", error);

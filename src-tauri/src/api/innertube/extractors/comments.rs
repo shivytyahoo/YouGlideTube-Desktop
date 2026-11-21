@@ -12,6 +12,7 @@ use crate::api::innertube::json::text::text_of;
 use crate::api::innertube::json::thumbnail::{
     normalize_youtube_image_url, thumbnail_url_from_array,
 };
+use crate::api::innertube::transport::error::{TransportError, to_app_error};
 use crate::errors::{AppError, AppResult};
 use crate::models::comment::{Comment, CommentSort, CommentsResponse};
 
@@ -184,6 +185,28 @@ pub fn parse_comments_json(val: &Value, own_video_id: Option<&str>) -> CommentsR
         comment_count_text: find_comment_count_text(val),
         sort_options: header.map(sort_options).unwrap_or_default(),
         comments_disabled: comments_disabled(val),
+        create_comment_params: find_create_comment_params(val),
+    }
+}
+
+/// The comment box token (`createCommentParams`) anywhere in the response,
+/// as Android's `findCreateCommentParams` does: the first non-blank one.
+/// The box only renders for a signed-in session, so an anonymous page
+/// carries no token and the composer stays hidden.
+fn find_create_comment_params(node: &Value) -> Option<String> {
+    match node {
+        Value::Object(map) => {
+            if let Some(params) = map
+                .get("createCommentParams")
+                .and_then(|params| params.as_str())
+                .filter(|params| !params.trim().is_empty())
+            {
+                return Some(params.to_string());
+            }
+            map.values().find_map(find_create_comment_params)
+        }
+        Value::Array(items) => items.iter().find_map(find_create_comment_params),
+        _ => None,
     }
 }
 
@@ -644,11 +667,139 @@ impl InnertubeClient {
 
         Ok(comments_res)
     }
+
+    /// Posts a top-level comment: `comment/create_comment` on the main
+    /// site, `{context, createCommentParams, commentText}`, as Android's
+    /// `InnerTube.createComment` does. A delegated (brand) channel's box
+    /// token is bound to the account-slot identity the web sends as
+    /// `X-Goog-AuthUser`, so a bare 404 is retried once carrying it.
+    pub async fn create_comment(
+        &self,
+        create_comment_params: &str,
+        comment_text: &str,
+    ) -> AppResult<()> {
+        self.require_signed_in()?;
+        let params = create_comment_params.trim();
+        if params.is_empty() {
+            return Err(AppError::Validation(
+                "This video has no comment box to post with — sign in and open the comments again."
+                    .to_string(),
+            ));
+        }
+        let text = comment_text.trim();
+        if text.is_empty() {
+            return Err(AppError::Validation(
+                "Write something before posting the comment.".to_string(),
+            ));
+        }
+        if text.chars().count() > 10_000 {
+            return Err(AppError::Validation(
+                "A comment can be at most 10,000 characters.".to_string(),
+            ));
+        }
+        match self.post_create_comment(params, text, false).await {
+            Ok(()) => Ok(()),
+            Err(TransportError::Status { code: 404, .. }) => {
+                tracing::info!(
+                    "comment create answered 404; retrying with X-Goog-AuthUser"
+                );
+                self.post_create_comment(params, text, true)
+                    .await
+                    .map_err(|error| to_app_error("comment/create_comment", &error))?;
+                Ok(())
+            }
+            Err(error) => Err(to_app_error("comment/create_comment", &error)),
+        }
+    }
+
+    /// One `comment/create_comment` attempt, with the account-slot header
+    /// only when `auth_user` asks for it.
+    async fn post_create_comment(
+        &self,
+        params: &str,
+        text: &str,
+        auth_user: bool,
+    ) -> Result<(), TransportError> {
+        let mut payload = serde_json::json!({
+            "createCommentParams": params,
+            "commentText": text,
+        });
+        let extra: &[(&'static str, &'static str)] = if auth_user {
+            &[("X-Goog-AuthUser", "0")]
+        } else {
+            &[]
+        };
+        self.post_innertube_extra("comment/create_comment", &clients::WEB, &mut payload, extra)
+            .await?;
+        Ok(())
+    }
+
+    /// Likes or unlikes a community post: `comment/perform_comment_action`
+    /// with the toggle endpoint's actions, as Android's `YouTube.likePost`
+    /// does. A delegated (brand) channel's token is bound to the
+    /// account-slot identity the web sends as `X-Goog-AuthUser`, so a bare
+    /// 404 is retried once carrying it.
+    pub async fn like_post(&self, endpoint_json: &str) -> AppResult<()> {
+        self.require_signed_in()?;
+        let actions = post_like_actions(endpoint_json).ok_or_else(|| {
+            AppError::Validation(
+                "This post has no like button to use — open the channel again.".to_string(),
+            )
+        })?;
+        match self.post_comment_action(&actions, false).await {
+            Ok(()) => Ok(()),
+            Err(TransportError::Status { code: 404, .. }) => {
+                tracing::info!("post like answered 404; retrying with X-Goog-AuthUser");
+                self.post_comment_action(&actions, true)
+                    .await
+                    .map_err(|error| to_app_error("comment/perform_comment_action", &error))?;
+                Ok(())
+            }
+            Err(error) => Err(to_app_error("comment/perform_comment_action", &error)),
+        }
+    }
+
+    /// One `comment/perform_comment_action` attempt, with the account-slot header
+    /// only when `auth_user` asks for it.
+    async fn post_comment_action(
+        &self,
+        actions: &Value,
+        auth_user: bool,
+    ) -> Result<(), TransportError> {
+        let mut payload = serde_json::json!({ "actions": actions });
+        let extra: &[(&'static str, &'static str)] = if auth_user {
+            &[("X-Goog-AuthUser", "0")]
+        } else {
+            &[]
+        };
+        self.post_innertube_extra(
+            "comment/perform_comment_action",
+            &clients::WEB,
+            &mut payload,
+            extra,
+        )
+        .await?;
+        Ok(())
+    }
+}
+
+/// The actions a post-like endpoint carries: `performCommentActionEndpoint`
+/// holds an array of them, or a single `action`, which is wrapped the way
+/// Android's `performCommentAction` wraps it.
+fn post_like_actions(endpoint_json: &str) -> Option<Value> {
+    let outer: Value = serde_json::from_str(endpoint_json).ok()?;
+    let inner = outer.get("performCommentActionEndpoint")?;
+    if let Some(actions) = inner.get("actions") {
+        return Some(actions.clone());
+    }
+    inner
+        .get("action")
+        .map(|action| Value::Array(vec![action.clone()]))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{build_comment_from_view_model, parse_comments_json};
+    use super::{build_comment_from_view_model, parse_comments_json, post_like_actions};
     use std::collections::HashMap;
 
     fn view_model() -> serde_json::Value {
@@ -805,5 +956,48 @@ mod tests {
         }] });
         let parsed = parse_comments_json(&response, None);
         assert_eq!(parsed.next_page_token.as_deref(), Some("MORE_REPLIES"));
+    }
+
+    #[test]
+    fn the_comment_box_token_is_harvested_for_posting() {
+        // The create box lives deep in the watch response, under the
+        // comments section's simplebox renderer; the composer needs the
+        // token it carries, and a signed-out page carries none.
+        let response = serde_json::json!({ "contents": { "twoColumnWatchNextResults": {
+            "results": { "results": { "contents": [
+                { "itemSectionRenderer": {
+                    "sectionIdentifier": "comments-section",
+                    "contents": [{ "commentSimpleboxRenderer": {
+                        "createCommentParams": "CREATE_BOX_TOKEN"
+                    } }]
+                } }
+            ] } }
+        } } });
+        let parsed = parse_comments_json(&response, None);
+        assert_eq!(
+            parsed.create_comment_params.as_deref(),
+            Some("CREATE_BOX_TOKEN")
+        );
+        assert_eq!(
+            parse_comments_json(&serde_json::json!({}), None).create_comment_params,
+            None
+        );
+    }
+
+    #[test]
+    fn post_like_actions_come_from_the_toggle_endpoint() {
+        let actions = post_like_actions(
+            r#"{"performCommentActionEndpoint":{"actions":[{"type":"like"}]}}"#,
+        )
+        .expect("actions");
+        assert_eq!(actions, serde_json::json!([{"type":"like"}]));
+        // A lone action is wrapped the way Android wraps it.
+        let single = post_like_actions(
+            r#"{"performCommentActionEndpoint":{"action":{"type":"like"}}}"#,
+        )
+        .expect("single action");
+        assert_eq!(single, serde_json::json!([{"type":"like"}]));
+        assert!(post_like_actions(r#"{"somethingElse":{}}"#).is_none());
+        assert!(post_like_actions("not json").is_none());
     }
 }

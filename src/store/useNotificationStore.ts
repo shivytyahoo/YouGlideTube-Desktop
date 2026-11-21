@@ -1,22 +1,37 @@
 import { create } from "zustand";
 import { getSetting, setSetting } from "../lib/api/db";
 import {
+  checkSubscriptionsNow,
   clearNotifications,
   deleteNotification,
   getNotifications,
   getUnreadNotificationCount,
-  markNotificationsRead,
+  markNotificationRead,
   restoreNotification,
   type NotificationRecord,
 } from "../lib/api/notifications";
 
 const CHANNEL_NOTIFICATIONS_KEY = "subscription_notifications";
+/** Opening the bell refreshes at most this often, as Android does. */
+const AUTO_REFRESH_MIN_MS = 5 * 60 * 1000;
+
+/** The master switch and the New Videos toggle gate a check, as Android's refresh does. */
+async function notificationsCheckAllowed(): Promise<boolean> {
+  const [master, newVideos] = await Promise.all([
+    getSetting("notifications_enabled"),
+    getSetting("notif_new_videos_enabled"),
+  ]);
+  return master !== "false" && newVideos !== "false";
+}
 
 interface NotificationState {
   notifications: NotificationRecord[];
   unreadCount: number;
   loading: boolean;
   loaded: boolean;
+  /** Last time a subscription check ran; opening the bell refreshes at most every 5 minutes. */
+  lastCheckedAt: number | null;
+  checking: boolean;
 
   channelNotifications: Record<string, boolean>;
   channelPrefsLoaded: boolean;
@@ -24,11 +39,16 @@ interface NotificationState {
   loadNotifications: () => Promise<void>;
   refreshUnreadCount: () => Promise<void>;
   prependNotifications: (records: NotificationRecord[]) => void;
-  markAllRead: () => Promise<void>;
+  /** Tapping a notification to watch it is what clears its badge. */
+  markRead: (id: number) => Promise<void>;
   removeNotification: (id: number) => Promise<void>;
   /** Undoes a removal, in its old place. */
   restoreRemoved: (notification: NotificationRecord) => Promise<void>;
   clearAll: () => Promise<void>;
+  /** Runs a subscription check now and reloads the inbox; false when it could not run. */
+  checkNow: () => Promise<boolean>;
+  /** A check on open, at most once per `AUTO_REFRESH_MIN_MS`. */
+  refreshIfStale: () => Promise<void>;
 
   loadChannelPreferences: () => Promise<void>;
   isChannelNotificationEnabled: (channelId: string) => boolean;
@@ -48,6 +68,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   unreadCount: 0,
   loading: false,
   loaded: false,
+  lastCheckedAt: null,
+  checking: false,
   channelNotifications: {},
   channelPrefsLoaded: false,
 
@@ -86,18 +108,44 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     });
   },
 
-  markAllRead: async () => {
-    if (get().unreadCount === 0) return;
+  markRead: async (id) => {
+    const target = get().notifications.find((item) => item.id === id);
+    if (!target || target.isRead) return;
     set({
-      unreadCount: 0,
-      notifications: get().notifications.map((item) => ({ ...item, isRead: true })),
+      notifications: get().notifications.map((item) =>
+        item.id === id ? { ...item, isRead: true } : item,
+      ),
+      unreadCount: Math.max(0, get().unreadCount - 1),
     });
     try {
-      await markNotificationsRead();
+      await markNotificationRead(id);
     } catch (error) {
-      console.error("Failed to mark notifications read", error);
+      console.error("Failed to mark notification read", error);
       await get().loadNotifications();
     }
+  },
+
+  checkNow: async () => {
+    if (get().checking) return false;
+    if (!(await notificationsCheckAllowed().catch(() => true))) return false;
+    set({ checking: true });
+    try {
+      await checkSubscriptionsNow();
+      await get().loadNotifications();
+      set({ lastCheckedAt: Date.now() });
+      return true;
+    } catch (error) {
+      console.error("Failed to check subscriptions", error);
+      return false;
+    } finally {
+      set({ checking: false });
+    }
+  },
+
+  refreshIfStale: async () => {
+    const lastCheckedAt = get().lastCheckedAt;
+    if (lastCheckedAt !== null && Date.now() - lastCheckedAt < AUTO_REFRESH_MIN_MS) return;
+    await get().checkNow();
   },
 
   removeNotification: async (id) => {

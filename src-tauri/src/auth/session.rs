@@ -159,7 +159,7 @@ impl AuthSession {
         }
         if let Some(id) = self.account_id_with_cookie(header) {
             if let Some(cookie) = self.read_account_cookie(&id) {
-                let identity = self.read_stored(&id).map(|stored| stored.info);
+                let identity = self.read_identity(&id);
                 self.activate(&id, cookie, identity);
                 return Ok(id);
             }
@@ -167,6 +167,13 @@ impl AuthSession {
         let id = new_account_id();
         self.write_session_file(&id, header)
             .map_err(|error| error.to_string())?;
+        // The empty identity file is the ordering record (`added_at` lives
+        // in it): without it, two never-identified accounts would both
+        // sort as 0 and the list order would depend on directory order.
+        // The in-memory identity still stays `None` until the account menu
+        // answers — `read_identity` below drops an identity with no
+        // displayable fields — so the frontend refetches the name instead
+        // of reading an empty identity as "already known".
         let _ = self.write_identity_file(&id, &AccountInfo::default(), self.next_added_at());
         self.activate(&id, header.to_string(), None);
         Ok(id)
@@ -186,7 +193,7 @@ impl AuthSession {
                 "That account's session has expired. Sign in again to use it.".to_string(),
             );
         }
-        let identity = self.read_stored(id).map(|stored| stored.info);
+        let identity = self.read_identity(id);
         self.activate(id, cookie, identity);
         self.summary(id)
             .ok_or_else(|| "Unknown account.".to_string())
@@ -397,6 +404,18 @@ impl AuthSession {
         serde_json::from_str::<StoredAccount>(&text).ok()
     }
 
+    /// The stored display identity, if it actually identifies the
+    /// account. A file with no name, handle or email (written by the
+    /// sign-in before the first menu fetch, or by an older build) reads
+    /// as "not fetched yet", so the frontend refetches the name instead
+    /// of showing a generic label forever. The file itself stays: it is
+    /// the ordering record (`added_at`).
+    fn read_identity(&self, id: &str) -> Option<AccountInfo> {
+        self.read_stored(id)
+            .map(|stored| stored.info)
+            .filter(|info| info.display_name().is_some())
+    }
+
     fn account_id_with_cookie(&self, cookie: &str) -> Option<String> {
         self.list_account_dirs()
             .into_iter()
@@ -469,7 +488,7 @@ impl AuthSession {
     fn activate_stored(&self, id: &str) -> bool {
         match self.read_account_cookie(id) {
             Some(cookie) if Self::is_valid_cookie(&cookie) => {
-                let identity = self.read_stored(id).map(|stored| stored.info);
+                let identity = self.read_identity(id);
                 self.activate(id, cookie, identity);
                 true
             }
@@ -487,7 +506,7 @@ impl AuthSession {
         for id in self.list_account_dirs() {
             match self.read_account_cookie(&id) {
                 Some(cookie) if Self::is_valid_cookie(&cookie) => {
-                    let identity = self.read_stored(&id).map(|stored| stored.info);
+                    let identity = self.read_identity(&id);
                     return Some((id, cookie, identity));
                 }
                 Some(_) => {
@@ -577,6 +596,7 @@ impl AuthSession {
         std::fs::read_to_string(&self.legacy_identity_file)
             .ok()
             .and_then(|text| serde_json::from_str::<AccountInfo>(&text).ok())
+            .filter(|info| info.display_name().is_some())
     }
 }
 
@@ -654,6 +674,24 @@ mod tests {
         assert!(restored.is_signed_in());
         assert_eq!(restored.cookie_header().as_deref(), Some(COOKIE_A));
         assert_eq!(restored.active_account_id().as_deref(), Some(id.as_str()));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn sign_in_has_no_identity_until_fetched() {
+        // A fresh sign-in has no display identity until the account menu
+        // answers: an identity with no name, handle or email reads as
+        // "not fetched yet", so the frontend refetches it instead of
+        // showing a generic label forever (the 1.0.0 bug on the user's
+        // machine, where one failed fetch hid the real name for good).
+        let (session, dir) = temp_session();
+        let id = session.sign_in(COOKIE_A).unwrap();
+        assert!(session.is_signed_in());
+        assert_eq!(session.identity(), None);
+        let accounts = session.list_accounts();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].id, id);
+        assert_eq!(accounts[0].name, None);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

@@ -57,6 +57,8 @@ export const Chapters: React.FC<ChaptersProps> = ({
   seekTo,
 }) => {
   const currentTime = usePlayerStore((state) => state.currentTime);
+  const loopChapter = usePlayerStore((state) => state.loopChapter);
+  const setLoopChapter = usePlayerStore((state) => state.setLoopChapter);
   const showToast = useUiStore((state) => state.showToast);
   const toSrc = useProxyImageSrc();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -186,10 +188,25 @@ export const Chapters: React.FC<ChaptersProps> = ({
 
   const handleLoop = (event: React.MouseEvent, chapter: VideoChapter) => {
     event.stopPropagation();
+    if (!videoId) return;
+    if (loopChapter?.videoId === videoId && loopChapter.startSeconds === chapter.startSeconds) {
+      setLoopChapter(null);
+      showToast({
+        variant: "info",
+        message: getString("player_loop_chapter_off"),
+      });
+      return;
+    }
+    setLoopChapter({
+      videoId,
+      startSeconds: chapter.startSeconds,
+      endSeconds: chapter.endSeconds,
+      title: chapter.title,
+    });
     seekTo(chapter.startSeconds);
     showToast({
       variant: "info",
-      message: `Looping chapter: ${chapter.title}`,
+      message: getString("player_looping_chapter", chapter.title),
     });
   };
 
@@ -285,6 +302,10 @@ export const Chapters: React.FC<ChaptersProps> = ({
                 const isActive = activeChapter
                   ? activeChapter.startSeconds === chapter.startSeconds
                   : false;
+                const isLooping =
+                  loopChapter !== null &&
+                  loopChapter.videoId === videoId &&
+                  loopChapter.startSeconds === chapter.startSeconds;
 
                 return (
                   <div
@@ -337,12 +358,19 @@ export const Chapters: React.FC<ChaptersProps> = ({
                     </div>
 
                     {/* Side Actions (Loop & Share) */}
-                    <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 pe-1">
+                    <div className={`flex items-center gap-1.5 transition-opacity shrink-0 pe-1 ${
+                      isLooping ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    }`}>
                       <button
                         type="button"
                         title={getString('player_loop_chapter')}
+                        aria-pressed={isLooping}
                         onClick={(e) => handleLoop(e, chapter)}
-                        className="grid h-8 w-8 place-items-center rounded-full text-chrome-white/80 hover:bg-chrome-white/10 hover:text-chrome-white transition-colors cursor-pointer"
+                        className={`grid h-8 w-8 place-items-center rounded-full transition-colors cursor-pointer ${
+                          isLooping
+                            ? "text-primary bg-chrome-white/10"
+                            : "text-chrome-white/80 hover:bg-chrome-white/10 hover:text-chrome-white"
+                        }`}
                       >
                         <Repeat size={20} />
                       </button>

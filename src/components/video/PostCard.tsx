@@ -2,7 +2,8 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { MessageSquare, Share2, ThumbsUp, X } from "lucide-react";
 import { getString } from "../../lib/i18n/index";
-import { formatCount } from "../../lib/utils";
+import { adjustCountText, formatCount } from "../../lib/utils";
+import { likePost } from "../../lib/api/youtube";
 import { upgradeAvatarUrl } from "../../lib/thumbnails";
 import { useProxiedImageUrl } from "../../lib/useProxiedImageUrl";
 import { youtubePostUrl } from "../../lib/youtubeUrl";
@@ -21,11 +22,41 @@ interface PostCardProps {
 
 export function PostCard({ post }: PostCardProps) {
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [likeBusy, setLikeBusy] = useState(false);
+  /** The optimistic vote, until the server confirms it; null means the server state stands. */
+  const [likeOverride, setLikeOverride] = useState<{ liked: boolean; countText: string | null } | null>(null);
   const showToast = useUiStore((state) => state.showToast);
   const avatarUrl = useProxiedImageUrl(upgradeAvatarUrl(post.authorAvatar));
   const postUrl = youtubePostUrl(post.id);
-  const likeLabel = formatCount(post.likesCountText) || getString("like");
+  const isLiked = likeOverride?.liked ?? post.isLiked ?? false;
+  const likeCountText = likeOverride?.countText ?? post.likesCountText;
+  const likeLabel = formatCount(likeCountText) || getString("like");
   const commentCount = formatCount(post.commentCountText);
+
+  const toggleLike = async () => {
+    if (likeBusy) return;
+    const endpoint = isLiked ? post.unlikeAction : post.likeAction;
+    if (!endpoint) {
+      showToast({ variant: "error", message: getString("post_like_sign_in_required") });
+      return;
+    }
+    const nextLiked = !isLiked;
+    const previous = likeOverride;
+    setLikeOverride({
+      liked: nextLiked,
+      countText: adjustCountText(likeCountText, nextLiked ? 1 : -1),
+    });
+    setLikeBusy(true);
+    try {
+      await likePost(endpoint);
+    } catch (error) {
+      console.error("Failed to like community post", error);
+      setLikeOverride(previous);
+      showToast({ variant: "error", message: getString("post_like_failed") });
+    } finally {
+      setLikeBusy(false);
+    }
+  };
 
   const sharePost = async () => {
     const title = post.textContent?.slice(0, 80) || post.authorName;
@@ -76,10 +107,19 @@ export function PostCard({ post }: PostCardProps) {
           {post.attachment && <PostAttachment attachment={post.attachment} />}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="flex items-center gap-2 rounded-full bg-chrome-zinc-800/60 px-3 py-1.5 text-sm font-bold text-chrome-zinc-100">
-              <ThumbsUp size={16} />
+            <button
+              type="button"
+              onClick={() => void toggleLike()}
+              disabled={likeBusy}
+              aria-pressed={isLiked}
+              aria-label={getString("like")}
+              className={`flex items-center gap-2 rounded-full bg-chrome-zinc-800/60 px-3 py-1.5 text-sm font-bold transition-colors hover:bg-chrome-zinc-700 disabled:opacity-60 ${
+                isLiked ? "text-chrome-white" : "text-chrome-zinc-100"
+              }`}
+            >
+              <ThumbsUp size={16} fill={isLiked ? "currentColor" : "none"} />
               <span>{likeLabel}</span>
-            </span>
+            </button>
 
             <button
               type="button"

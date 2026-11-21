@@ -104,9 +104,33 @@ impl InnertubeClient {
         referer: Option<&str>,
         extra_query: Option<&str>,
     ) -> AppResult<Value> {
-        self.post_via_raw(http, host, endpoint, client, payload, referer, extra_query)
+        self.post_via_raw(http, host, endpoint, client, payload, referer, extra_query, &[])
             .await
             .map_err(|error| to_app_error(endpoint, &error))
+    }
+
+    /// [`Self::post_innertube`] carrying extra headers for this one call
+    /// (the comment create's `X-Goog-AuthUser` retry). The transport error
+    /// comes back unconverted, so the caller can tell a 404 from any other
+    /// refusal.
+    pub(crate) async fn post_innertube_extra(
+        &self,
+        endpoint: &str,
+        client: &YouTubeClient,
+        payload: &mut Value,
+        extra_headers: &[(&'static str, &'static str)],
+    ) -> Result<Value, TransportError> {
+        self.post_via_raw(
+            &self.client,
+            Host::Www,
+            endpoint,
+            client,
+            payload,
+            None,
+            None,
+            extra_headers,
+        )
+        .await
     }
 
     /// [`Self::post_via`], but the transport error comes back unconverted, so
@@ -122,6 +146,7 @@ impl InnertubeClient {
         payload: &mut Value,
         referer: Option<&str>,
         extra_query: Option<&str>,
+        extra_headers: &[(&'static str, &'static str)],
     ) -> Result<Value, TransportError> {
         let spec = RequestSpec {
             host,
@@ -129,6 +154,7 @@ impl InnertubeClient {
             client,
             referer,
             extra_query,
+            extra_headers,
         };
         let added = if payload.get("context").is_some() {
             false

@@ -63,4 +63,8 @@ pub struct CommentsResponse {
     /// The creator turned comments off.
     #[serde(default)]
     pub comments_disabled: bool,
+    /// The comment box token, when the page carried one: posting needs it,
+    /// and it only exists for a signed-in session. Absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub create_comment_params: Option<String>,
 }

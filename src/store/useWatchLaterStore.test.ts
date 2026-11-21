@@ -7,6 +7,7 @@ const addVideoToWatchLater = vi.fn();
 const removeVideoFromWatchLater = vi.fn();
 const getAccountSignedIn = vi.fn();
 const setVideoWatchLater = vi.fn();
+const getWatchLater = vi.fn();
 
 vi.mock("../lib/playlistLibrary", () => ({
   PLAYLIST_LIBRARY_UPDATED_EVENT: "youglidetube:playlist-library-updated",
@@ -19,6 +20,7 @@ vi.mock("../lib/playlistLibrary", () => ({
 vi.mock("../lib/api/account", () => ({
   getAccountSignedIn: (...args: unknown[]) => getAccountSignedIn(...args),
   setVideoWatchLater: (...args: unknown[]) => setVideoWatchLater(...args),
+  getWatchLater: (...args: unknown[]) => getWatchLater(...args),
 }));
 
 const { useWatchLaterStore, WatchLaterRemoveNeedsRefreshError } = await import(
@@ -132,6 +134,63 @@ describe("useWatchLaterStore", () => {
   describe("server Watch Later", () => {
     beforeEach(() => {
       getAccountSignedIn.mockResolvedValue(true);
+      getWatchLater.mockResolvedValue({ title: "Watch later", videos: [], continuation: null });
+    });
+
+    // First in this block: it is the first signed-in load in the file,
+    // so it is the one that syncs with the server.
+    it("syncs the server list once per session and retries after a failed sync", async () => {
+      getWatchLater.mockRejectedValueOnce(new Error("server down"));
+      await useWatchLaterStore.getState().load();
+      // The failed sync leaves the local mirror alone and retries next time.
+      expect([...useWatchLaterStore.getState().ids].sort()).toEqual(["a", "b"]);
+
+      getWatchLater.mockResolvedValue({
+        title: "Watch later",
+        videos: [{ video: video("phone"), setVideoId: "set-phone" }],
+        continuation: null,
+      });
+      await useWatchLaterStore.getState().load();
+      expect([...useWatchLaterStore.getState().ids].sort()).toEqual(["a", "b", "phone"]);
+      expect(useWatchLaterStore.getState().serverSetVideoIds).toEqual({ phone: "set-phone" });
+
+      await useWatchLaterStore.getState().load();
+      expect(getWatchLater).toHaveBeenCalledTimes(2);
+    });
+
+    it("labels a video saved on the phone as saved", async () => {
+      await useWatchLaterStore.getState().load();
+      useWatchLaterStore.getState().setServerSetVideoIds({ phone: "set-phone" });
+
+      expect(useWatchLaterStore.getState().ids.has("phone")).toBe(true);
+    });
+
+    it("resolves the entry id before removing a video saved this session", async () => {
+      await useWatchLaterStore.getState().load();
+      await useWatchLaterStore.getState().add(video("c"));
+      expect(useWatchLaterStore.getState().serverSetVideoIds).toEqual({ c: null });
+
+      getWatchLater.mockResolvedValue({
+        title: "Watch later",
+        videos: [{ video: video("c"), setVideoId: "set-c" }],
+        continuation: null,
+      });
+      await useWatchLaterStore.getState().remove("c");
+
+      expect(setVideoWatchLater).toHaveBeenCalledWith("c", false, "set-c");
+      expect(removeVideoFromWatchLater).toHaveBeenCalledWith("c");
+      expect(useWatchLaterStore.getState().ids.has("c")).toBe(false);
+    });
+
+    it("removes locally only when the server no longer carries the video", async () => {
+      await useWatchLaterStore.getState().load();
+      useWatchLaterStore.getState().setServerSetVideoIds({ b: null });
+
+      await useWatchLaterStore.getState().remove("b");
+
+      expect(setVideoWatchLater).not.toHaveBeenCalled();
+      expect(removeVideoFromWatchLater).toHaveBeenCalledWith("b");
+      expect(useWatchLaterStore.getState().ids.has("b")).toBe(false);
     });
 
     it("saves on the server first, then locally, and bumps the server version", async () => {
@@ -172,6 +231,13 @@ describe("useWatchLaterStore", () => {
     it("refuses a remove when the server row has no entry id, and keeps the video", async () => {
       await useWatchLaterStore.getState().load();
       useWatchLaterStore.getState().setServerSetVideoIds({ a: "set-a", b: null });
+      // The list carries the video but no entry id for it: the remove
+      // cannot go through until the list is re-read.
+      getWatchLater.mockResolvedValue({
+        title: "Watch later",
+        videos: [{ video: video("b"), setVideoId: null }],
+        continuation: null,
+      });
 
       await expect(useWatchLaterStore.getState().remove("b")).rejects.toBeInstanceOf(
         WatchLaterRemoveNeedsRefreshError,

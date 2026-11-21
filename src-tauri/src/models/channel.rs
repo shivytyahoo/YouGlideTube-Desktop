@@ -81,6 +81,15 @@ pub struct PostSummary {
     pub comment_count_text: Option<String>,
     pub comment_endpoint_params: Option<String>,
     pub published_time_text: Option<String>,
+    /// Whether the signed-in viewer already liked this post.
+    #[serde(default)]
+    pub is_liked: bool,
+    /// The `performCommentActionEndpoint` JSON that likes the post, when the viewer can.
+    #[serde(default)]
+    pub like_action: Option<String>,
+    /// The endpoint JSON that unlikes it.
+    #[serde(default)]
+    pub unlike_action: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -421,6 +421,21 @@ export async function getComments(
   });
 }
 
+export async function createComment(
+  createCommentParams: string,
+  commentText: string,
+): Promise<boolean> {
+  return invokeBackend<boolean>("create_comment", {
+    createCommentParams,
+    commentText,
+  });
+}
+
+/** Likes or unlikes a community post, with the toggle endpoint the posts page carried. */
+export async function likePost(endpointJson: string): Promise<void> {
+  return invokeBackend<void>("like_post", { endpointJson });
+}
+
 export async function getPostComments(
   postId: string,
   params?: string | null,

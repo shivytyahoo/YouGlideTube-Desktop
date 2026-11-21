@@ -13,7 +13,12 @@
 //! them (`History.clearWatchHistory` / `removeVideo`).
 //!
 //! The account's own playlists use `FEplaylist_aggregation`; Watch Later is
-//! browsed as the `VLWL` playlist through the playlist extractor.
+//! browsed as the `VLWL` playlist through the playlist extractor, Liked
+//! videos as `VLLL`. Playlist edits go to the music host first
+//! (`WEB_REMIX`) with a main-site retry on 4xx, as Android's
+//! `editPlaylistWithFallback` does — a playlist the main site owns answers
+//! the music host with 4xx, the way Watch Later answers with 401. Watch
+//! Later edits go to the main site directly.
 
 use std::collections::{HashMap, HashSet};
 
@@ -31,6 +36,7 @@ use crate::api::innertube::json::text::text_of;
 use crate::api::innertube::json::thumbnail::{largest_url, normalize_youtube_image_url};
 use crate::api::innertube::renderers::lockup::{lockup_item, related_to_video};
 use crate::api::innertube::renderers::video::video_from_item;
+use crate::api::innertube::transport::error::{TransportError, to_app_error};
 use crate::db::watch_history::WatchHistoryRecord;
 use crate::errors::{AppError, AppResult};
 use crate::models::channel::{ChannelSummary, PlaylistSummary};
@@ -43,8 +49,12 @@ pub const FE_SUBSCRIPTIONS: &str = "FEsubscriptions";
 pub const FE_HISTORY: &str = "FEhistory";
 /// The Home feed.
 pub const FE_WHAT_TO_WATCH: &str = "FEwhat_to_watch";
+/// The account's own playlists.
+pub const FE_PLAYLIST_AGGREGATION: &str = "FEplaylist_aggregation";
 /// Watch Later, addressed as a playlist.
 pub const WATCH_LATER_ID: &str = "WL";
+/// Liked videos, addressed as a playlist.
+pub const LIKED_VIDEOS_ID: &str = "LL";
 
 /// A topic chip exactly as the server feed offers it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,6 +106,17 @@ pub struct WatchLaterPage {
     pub title: String,
     #[serde(default)]
     pub videos: Vec<WatchLaterItem>,
+    pub continuation: Option<String>,
+}
+
+/// One page of the account's Liked-videos playlist (`VLLL`). Removal from
+/// it is an unlike, not a playlist edit, so rows carry no entry id.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LikedVideosPage {
+    pub title: String,
+    #[serde(default)]
+    pub videos: Vec<VideoSummary>,
     pub continuation: Option<String>,
 }
 
@@ -166,6 +187,55 @@ enum FeedItem {
 
 /// One array element as a feed item, whatever renderer carries it.
 fn feed_item(node: &Value) -> Option<FeedItem> {
+    feed_item_direct(node)
+        .or_else(|| find_feed_renderer(node, 1).and_then(feed_item_direct))
+}
+
+/// The renderer keys this page can model, for the subtree search below.
+const FEED_RENDERER_KEYS: [&str; 10] = [
+    "lockupViewModel",
+    "shortsLockupViewModel",
+    "reelItemRenderer",
+    "videoRenderer",
+    "playlistVideoRenderer",
+    "gridVideoRenderer",
+    "playlistRenderer",
+    "gridPlaylistRenderer",
+    "gridChannelRenderer",
+    "channelRenderer",
+];
+
+/// The nearest object below `node` carrying a feed renderer, as Android's
+/// `findFeedRenderer` does: some surfaces nest the item deeper than the
+/// rich-item wrapper — a lockup directly under richItemRenderer, or inside
+/// a list/sheet node — so the walk alone never offers it to the parsers.
+/// Bounded (depth ≤ 4); the direct shapes already cover the common case.
+/// Starts below `node` itself, so a node the direct parse already refused
+/// cannot loop back on itself.
+fn find_feed_renderer(node: &Value, depth: u8) -> Option<&Value> {
+    if depth > 4 {
+        return None;
+    }
+    if let Some(map) = node.as_object()
+        && FEED_RENDERER_KEYS
+            .iter()
+            .any(|key| map.contains_key(*key))
+    {
+        return Some(node);
+    }
+    match node {
+        Value::Object(map) => map
+            .values()
+            .find_map(|value| find_feed_renderer(value, depth + 1)),
+        Value::Array(items) => items
+            .iter()
+            .find_map(|value| find_feed_renderer(value, depth + 1)),
+        _ => None,
+    }
+}
+
+/// One array element as a feed item, read directly off the element itself.
+fn feed_item_direct(node: &Value) -> Option<FeedItem> {
     let node = node
         .get("richItemRenderer")
         .map_or(node, |rich| &rich["content"]);
@@ -686,6 +756,21 @@ impl InnertubeClient {
         Ok(parse_server_feed_page(&response))
     }
 
+    /// Likes or unlikes a video on the account: `like/like` +
+    /// `like/removelike` on WEB_REMIX, `{context, target: {videoId}}`, as
+    /// Android's `YouTube.likeVideo` does. Disliking is the same call with
+    /// `liked = false`: Android has no account dislike endpoint — a
+    /// dislike at least removes the account like.
+    pub async fn set_video_liked(&self, video_id: &str, liked: bool) -> AppResult<()> {
+        self.require_signed_in()?;
+        validate_video_id(video_id)?;
+        let endpoint = if liked { "like/like" } else { "like/removelike" };
+        let mut payload = json!({ "target": { "videoId": video_id } });
+        self.post_innertube(endpoint, &clients::WEB_REMIX, &mut payload)
+            .await?;
+        Ok(())
+    }
+
     /// Subscribes to a channel: `subscription/subscribe` with
     /// `{context, channelIds: [id]}` on WEB_REMIX, as Android does.
     /// Success is the call answering without an error.
@@ -793,6 +878,277 @@ impl InnertubeClient {
             continuation: next_page_token,
         })
     }
+
+    /// One page of the account's own playlists (`FEplaylist_aggregation`),
+    /// in the server's order. The parser already reads the playlist rows
+    /// into `ServerFeedPage.playlists`.
+    pub async fn browse_server_playlists(
+        &self,
+        continuation: Option<&str>,
+    ) -> AppResult<ServerFeedPage> {
+        self.browse_server_feed(FE_PLAYLIST_AGGREGATION, continuation)
+            .await
+    }
+
+    /// One page of the account's Liked-videos playlist (`VLLL` browse),
+    /// newest liked first as the server lists them.
+    pub async fn browse_liked_videos(
+        &self,
+        continuation: Option<&str>,
+    ) -> AppResult<LikedVideosPage> {
+        self.require_signed_in()?;
+        let mut payload = if let Some(token) = continuation {
+            json!({ "continuation": token })
+        } else {
+            json!({ "browseId": "VLLL" })
+        };
+        let response = self
+            .post_innertube("browse", &clients::WEB, &mut payload)
+            .await?;
+        let (videos, _set_ids, next_page_token) = extract_playlist_browse_parts(&response);
+        let title = extract_playlist_title(&response);
+        Ok(LikedVideosPage {
+            title: if title == "Unknown Playlist" {
+                "Liked videos".to_string()
+            } else {
+                title
+            },
+            videos,
+            continuation: next_page_token,
+        })
+    }
+
+    /// One playlist edit, on the account: add, remove or rename, as
+    /// Android's `editPlaylistWithFallback` sends it. User playlists are
+    /// edited on the music host first and a 4xx there is retried on the
+    /// main site; Watch Later edits go to the main site directly (the
+    /// music host answers them with 401). 5xx and transport failures are
+    /// not retried — the edit may have applied.
+    pub async fn edit_playlist(
+        &self,
+        playlist_id: &str,
+        actions: Vec<Value>,
+    ) -> AppResult<()> {
+        self.require_signed_in()?;
+        validate_server_playlist_id(playlist_id)?;
+        if actions.is_empty() {
+            return Ok(());
+        }
+        let playlist_id = playlist_id.strip_prefix("VL").unwrap_or(playlist_id);
+        let mut payload = json!({ "playlistId": playlist_id, "actions": actions });
+        if playlist_id == WATCH_LATER_ID {
+            self.post_innertube("browse/edit_playlist", &clients::WEB, &mut payload)
+                .await?;
+            return Ok(());
+        }
+        match self
+            .post_music_raw("browse/edit_playlist", &clients::WEB_REMIX, &mut payload)
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(TransportError::Status { code, .. }) if (400..500).contains(&code) => {
+                self.post_innertube("browse/edit_playlist", &clients::WEB, &mut payload)
+                    .await?;
+                Ok(())
+            }
+            Err(error) => Err(to_app_error("browse/edit_playlist", &error)),
+        }
+    }
+
+    /// Creates a playlist on the account (private, as Android does) and
+    /// returns its id, without the `VL` prefix the create answer carries.
+    /// A 4xx on the music host is retried on the main site, as the
+    /// playlist-like fallback does.
+    pub async fn create_playlist(&self, title: &str) -> AppResult<String> {
+        self.require_signed_in()?;
+        let title = title.trim();
+        if title.is_empty() {
+            return Err(AppError::Validation("A playlist needs a title".into()));
+        }
+        let mut payload = json!({ "title": title, "privacyStatus": "PRIVATE" });
+        let response = match self
+            .post_music_raw("playlist/create", &clients::WEB_REMIX, &mut payload)
+            .await
+        {
+            Ok(response) => response,
+            Err(TransportError::Status { code, .. }) if (400..500).contains(&code) => {
+                self.post_innertube("playlist/create", &clients::WEB, &mut payload)
+                    .await?
+            }
+            Err(error) => return Err(to_app_error("playlist/create", &error)),
+        };
+        let playlist_id = response["playlistId"]
+            .as_str()
+            .filter(|id| !id.is_empty())
+            .ok_or_else(|| {
+                AppError::Internal("The server created the playlist but sent no id".into())
+            })?;
+        Ok(playlist_id
+            .strip_prefix("VL")
+            .unwrap_or(playlist_id)
+            .to_string())
+    }
+
+    /// Deletes a playlist from the account, with the same 4xx main-site
+    /// retry as the create.
+    pub async fn delete_playlist(&self, playlist_id: &str) -> AppResult<()> {
+        self.require_signed_in()?;
+        validate_server_playlist_id(playlist_id)?;
+        let mut payload = json!({ "playlistId": playlist_id });
+        match self
+            .post_music_raw("playlist/delete", &clients::WEB_REMIX, &mut payload)
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(TransportError::Status { code, .. }) if (400..500).contains(&code) => {
+                self.post_innertube("playlist/delete", &clients::WEB, &mut payload)
+                    .await?;
+                Ok(())
+            }
+            Err(error) => Err(to_app_error("playlist/delete", &error)),
+        }
+    }
+
+    /// Renames a playlist on the account. The account API renames only;
+    /// the description stays as the account has it, as Android does.
+    pub async fn rename_playlist(&self, playlist_id: &str, name: &str) -> AppResult<()> {
+        self.require_signed_in()?;
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(AppError::Validation("A playlist needs a title".into()));
+        }
+        self.edit_playlist(
+            playlist_id,
+            vec![json!({ "action": "ACTION_SET_PLAYLIST_NAME", "playlistName": name })],
+        )
+        .await
+    }
+
+    /// Adds videos to a playlist on the account in one `edit_playlist`
+    /// call, as Android's `addVideosToPlaylist` does. Returns the ids the
+    /// server took.
+    pub async fn add_videos_to_playlist(
+        &self,
+        playlist_id: &str,
+        video_ids: &[String],
+    ) -> AppResult<Vec<String>> {
+        self.require_signed_in()?;
+        validate_server_playlist_id(playlist_id)?;
+        let mut validated = Vec::with_capacity(video_ids.len());
+        for video_id in video_ids {
+            validate_video_id(video_id)?;
+            validated.push(video_id.clone());
+        }
+        if validated.is_empty() {
+            return Ok(vec![]);
+        }
+        let actions = validated
+            .iter()
+            .map(|video_id| json!({ "action": "ACTION_ADD_VIDEO", "addedVideoId": video_id }))
+            .collect();
+        self.edit_playlist(playlist_id, actions).await?;
+        Ok(validated)
+    }
+
+    /// Removes videos from a playlist on the account in one
+    /// `edit_playlist` call, as Android's `removeVideosFromPlaylist` does.
+    /// The entry ids come from a fresh read of the playlist (Android's
+    /// repository reads them from one playlist fetch): the server needs
+    /// `setVideoId` to remove a row. Returns the ids removed; an id the
+    /// playlist no longer carries is left out instead of failing the
+    /// whole remove.
+    pub async fn remove_videos_from_playlist(
+        &self,
+        playlist_id: &str,
+        video_ids: &[String],
+    ) -> AppResult<Vec<String>> {
+        self.require_signed_in()?;
+        validate_server_playlist_id(playlist_id)?;
+        let mut wanted = HashSet::new();
+        for video_id in video_ids {
+            validate_video_id(video_id)?;
+            wanted.insert(video_id.clone());
+        }
+        if wanted.is_empty() {
+            return Ok(vec![]);
+        }
+        let entry_ids = self.playlist_entry_ids(playlist_id, &wanted).await?;
+        let actions: Vec<Value> = wanted
+            .iter()
+            .filter_map(|video_id| {
+                entry_ids.get(video_id).map(|set_video_id| {
+                    json!({
+                        "action": "ACTION_REMOVE_VIDEO",
+                        "setVideoId": set_video_id,
+                        "removedVideoId": video_id,
+                    })
+                })
+            })
+            .collect();
+        if actions.is_empty() {
+            return Ok(vec![]);
+        }
+        self.edit_playlist(playlist_id, actions).await?;
+        Ok(entry_ids.into_keys().collect())
+    }
+
+    /// The playlist-entry ids of `video_ids`, from a fresh read of the
+    /// playlist (at most 5 pages): the server needs `setVideoId` to
+    /// remove a row, and the list a page carries may be stale.
+    async fn playlist_entry_ids(
+        &self,
+        playlist_id: &str,
+        video_ids: &HashSet<String>,
+    ) -> AppResult<HashMap<String, String>> {
+        let browse_id = format!(
+            "VL{}",
+            playlist_id.strip_prefix("VL").unwrap_or(playlist_id)
+        );
+        let mut found: HashMap<String, String> = HashMap::new();
+        let mut continuation: Option<String> = None;
+        for _ in 0..5 {
+            let mut payload = if let Some(token) = &continuation {
+                json!({ "continuation": token })
+            } else {
+                json!({ "browseId": browse_id })
+            };
+            let response = self
+                .post_innertube("browse", &clients::WEB, &mut payload)
+                .await?;
+            let (videos, set_ids, next_page_token) = extract_playlist_browse_parts(&response);
+            for (video, set_video_id) in videos.into_iter().zip(set_ids) {
+                if video_ids.contains(&video.id)
+                    && let Some(set_video_id) = set_video_id
+                {
+                    found.insert(video.id, set_video_id);
+                }
+            }
+            if found.len() == video_ids.len() {
+                break;
+            }
+            match next_page_token {
+                Some(token) => continuation = Some(token),
+                None => break,
+            }
+        }
+        Ok(found)
+    }
+}
+
+/// A playlist id the server APIs accept: the account's own ids (`PL…`)
+/// and the short system ids (`WL`, `LL`, `LM`). Short system ids are
+/// included, so this does not use `validate_playlist_id` (10..=64 chars).
+fn validate_server_playlist_id(playlist_id: &str) -> AppResult<()> {
+    let trimmed = playlist_id.trim();
+    if trimmed.is_empty()
+        || trimmed.len() > 64
+        || !trimmed
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '_' || character == '-')
+    {
+        return Err(AppError::Validation("Invalid playlist ID".into()));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1059,5 +1415,103 @@ mod tests {
         assert_eq!(parsed.chips[1].label, "Music");
         assert_eq!(parsed.chips[1].params.as_deref(), Some("EgZtdXNpYw%3D%3D"));
         assert_eq!(parsed.continuation.as_deref(), Some("HOME_NEXT"));
+    }
+
+    #[test]
+    fn grid_and_playlist_video_rows_parse_as_videos() {
+        // The subscriptions and history feeds also carry plain grid rows
+        // and the older playlist-video rows (system playlists still use
+        // them); both must land in the video list, not vanish.
+        let page = feed_page(vec![section(vec![
+            json!({ "gridVideoRenderer": {
+                "videoId": "vid00000011",
+                "title": { "runs": [{ "text": "Grid row" }] },
+                "shortBylineText": { "runs": [{ "text": "Chan", "navigationEndpoint": {
+                    "browseEndpoint": { "browseId": "UCgrid" } } }] },
+                "lengthText": { "simpleText": "4:44" }
+            } }),
+            json!({ "playlistVideoRenderer": {
+                "videoId": "vid00000012",
+                "title": { "runs": [{ "text": "Playlist row" }] },
+                "shortBylineText": { "runs": [{ "text": "Chan" }] },
+                "lengthText": { "simpleText": "1:00" }
+            } }),
+        ])]);
+        let parsed = parse_server_feed_page(&page);
+        assert_eq!(parsed.videos.len(), 2);
+        assert_eq!(parsed.videos[0].id, "vid00000011");
+        assert_eq!(parsed.videos[1].id, "vid00000012");
+    }
+
+    #[test]
+    fn items_nested_deeper_than_the_rich_item_wrapper_still_parse() {
+        // Some surfaces nest the item inside a list/sheet node instead of
+        // offering it as a bare array element; the bounded subtree search
+        // (Android's findFeedRenderer) must still find it.
+        let page = feed_page(vec![section(vec![
+            json!({ "listRenderer": { "contents": [
+                { "sheetRenderer": { "content": { "videoRenderer": {
+                    "videoId": "vid00000021",
+                    "title": { "runs": [{ "text": "Nested" }] },
+                    "shortBylineText": { "runs": [{ "text": "Chan" }] },
+                    "lengthText": { "simpleText": "2:00" }
+                } } } }
+            ] } }),
+        ])]);
+        let parsed = parse_server_feed_page(&page);
+        assert_eq!(parsed.videos.len(), 1);
+        assert_eq!(parsed.videos[0].id, "vid00000021");
+    }
+
+    #[test]
+    fn playlist_aggregation_reads_playlist_rows_and_the_token() {
+        // FEplaylist_aggregation carries the account's playlists as classic
+        // and grid playlist rows plus playlist lockups; the Liked-videos
+        // system playlist rides along and is filtered out by the UI.
+        let page = feed_page(vec![section(vec![
+            json!({ "richItemRenderer": { "content": { "playlistRenderer": {
+                "playlistId": "PLowned00001",
+                "title": { "simpleText": "My playlist" },
+                "videoCountText": { "runs": [{ "text": "12 videos" }] },
+                "thumbnail": { "thumbnails": [{ "url": "https://i.ytimg.com/a.jpg" }] }
+            } } } }),
+            json!({ "richItemRenderer": { "content": { "gridPlaylistRenderer": {
+                "playlistId": "LL",
+                "title": { "runs": [{ "text": "Liked videos" }] },
+                "videoCountText": { "runs": [{ "text": "345 videos" }] }
+            } } } }),
+            json!({ "richItemRenderer": { "content": { "lockupViewModel": {
+                "contentType": "LOCKUP_CONTENT_TYPE_PLAYLIST",
+                "contentId": "PLlockup0001",
+                "metadata": { "lockupMetadataViewModel": {
+                    "title": { "content": "Lockup playlist" }
+                } },
+                "rendererContext": { "commandContext": { "onTap": { "innertubeCommand": {
+                    "watchPlaylistEndpoint": { "playlistId": "PLlockup0001" } } } } }
+            } } } }),
+            json!({ "continuationItemRenderer": { "continuationEndpoint": {
+                "continuationCommand": { "token": "PLAYLISTS_NEXT" } } } }),
+        ])]);
+        let parsed = parse_server_feed_page(&page);
+        assert_eq!(parsed.playlists.len(), 3);
+        assert_eq!(parsed.playlists[0].id, "PLowned00001");
+        assert_eq!(parsed.playlists[0].title, "My playlist");
+        assert_eq!(parsed.playlists[1].id, "LL");
+        assert_eq!(parsed.playlists[2].id, "PLlockup0001");
+        assert_eq!(parsed.continuation.as_deref(), Some("PLAYLISTS_NEXT"));
+    }
+
+    #[test]
+    fn server_playlist_ids_accept_the_short_system_ids() {
+        assert!(validate_server_playlist_id("WL").is_ok());
+        assert!(validate_server_playlist_id("LL").is_ok());
+        assert!(validate_server_playlist_id("LM").is_ok());
+        assert!(validate_server_playlist_id("PLabcdefghij123456").is_ok());
+        assert!(validate_server_playlist_id("VLPLabcdefghij123456").is_ok());
+        assert!(validate_server_playlist_id("").is_err());
+        assert!(validate_server_playlist_id("   ").is_err());
+        assert!(validate_server_playlist_id("PL bad id").is_err());
+        assert!(validate_server_playlist_id("PL/bad").is_err());
+        assert!(validate_server_playlist_id(&"P".repeat(65)).is_err());
     }
 }

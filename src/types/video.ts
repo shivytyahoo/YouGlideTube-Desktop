@@ -79,6 +79,14 @@ export interface VideoChapter {
   thumbnailUrl?: string | null;
 }
 
+/** A chapter the viewer asked to loop, until they turn it off. */
+export interface LoopChapter {
+  videoId: string;
+  startSeconds: number;
+  endSeconds: number;
+  title: string;
+}
+
 /** What a link in a description or comment points at. */
 export type RichTarget =
   | { kind: "timestamp"; seconds: number }
@@ -521,6 +529,12 @@ export interface PostSummary {
   commentCountText?: string | null;
   commentEndpointParams?: string | null;
   publishedTimeText?: string | null;
+  /** Whether the signed-in viewer already liked this post. */
+  isLiked?: boolean;
+  /** The `performCommentActionEndpoint` JSON that likes the post, when the viewer can. */
+  likeAction?: string | null;
+  /** The endpoint JSON that unlikes it. */
+  unlikeAction?: string | null;
 }
 
 export interface VideoItemSummary extends VideoSummary {
@@ -638,6 +652,8 @@ export interface CommentsResponse {
   totalCount?: number | null;
   /** The creator turned comments off. */
   commentsDisabled?: boolean;
+  /** The comment box token, when the page carried one: posting needs it. */
+  createCommentParams?: string | null;
 }
 
 /** Explore's destinations, as the Android app lists them. */

@@ -161,7 +161,7 @@ export const MiniPlayerControls: React.FC<MiniPlayerControlsProps> = ({
             </button>
           )}
           {showNextPrevControls && (
-            <button type="button" title={getString('next')} onClick={() => playNext()} className={sideBtn}>
+            <button type="button" title={getString('next')} onClick={() => playNext(true)} className={sideBtn}>
               <SkipForward size={16} fill="currentColor" />
             </button>
           )}

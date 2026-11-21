@@ -29,6 +29,16 @@ pub async fn get_music_history(
         .map_err(ErrorResponse::from)
 }
 
+/// The real number of history records, for the Data tab's count.
+#[tauri::command]
+pub async fn get_watch_history_count(
+    pool: State<'_, SqlitePool>,
+) -> Result<i64, ErrorResponse> {
+    watch_history::count_watch_history(&pool)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
 /// `watch_history` is a sync collection, and a file on this computer means nothing on a phone.
 fn refuse_local_files(records: &[WatchHistoryRecord]) -> Result<(), ErrorResponse> {
     if records

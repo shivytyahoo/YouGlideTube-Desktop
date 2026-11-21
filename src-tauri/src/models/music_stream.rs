@@ -78,4 +78,12 @@ pub struct MusicStreamInfo {
     /// to the frontend — consumed by proxy session registration in the command layer.
     #[serde(skip)]
     pub user_agent: String,
+    /// DASH segment ranges, backend-only: a song clip fetches only the
+    /// segments covering the clip, using the format's init/index ranges.
+    #[serde(skip)]
+    pub init_range: Option<(u64, u64)>,
+    #[serde(skip)]
+    pub index_range: Option<(u64, u64)>,
+    #[serde(skip)]
+    pub content_length: Option<u64>,
 }

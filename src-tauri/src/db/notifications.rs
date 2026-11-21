@@ -91,8 +91,11 @@ pub async fn unread_count(pool: &SqlitePool) -> AppResult<i64> {
     Ok(row.get::<i64, _>("count"))
 }
 
-pub async fn mark_all_read(pool: &SqlitePool) -> AppResult<()> {
-    sqlx::query("UPDATE notifications SET is_read = 1 WHERE is_read = 0")
+/// Marks one notification read: tapping it to watch is what clears its
+/// badge — opening the inbox does not.
+pub async fn mark_read(pool: &SqlitePool, id: i64) -> AppResult<()> {
+    sqlx::query("UPDATE notifications SET is_read = 1 WHERE id = ?")
+        .bind(id)
         .execute(pool)
         .await
         .map_err(AppError::from)?;

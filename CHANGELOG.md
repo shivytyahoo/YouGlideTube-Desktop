@@ -23,3 +23,16 @@ The first desktop release — the YouGlideTube Android app, on the desktop.
 - The app's local engines are gone: the desktop app works from Google and YouTube servers like the Android app does — no on-device recommendation, music or sync engines, no local profiles
 - Imports from YouGlideTube backups, Google Takeout, NewPipe, LibreTube, FreeTube and OPML
 - Small on Linux: the optimized `.deb` is 21.73 MiB, about 56 MB installed
+
+### Fixed in the re-tagged 1.0.0 build (2026-11-21)
+
+- Sign-in now captures cookies from youtube.com only — the first build could capture a Google-only session, so the app looked signed in while YouTube did not recognise it and subscriptions, history, like, comment and subscribe all failed. Sign out and sign in once after installing this build to replace the stored session
+- Top-bar avatar now opens the account menu (account info, switch/add account, Google account settings, sign out); the account row shows the real account name instead of a generic "Google account"
+- Subscriptions and watch history now load from the Google account; the "Import subscriptions" option is removed
+- Like/dislike are now confirmed on the account with the counts updating, and a comment composer is added under videos; subscribing works from videos, Shorts and comments
+- The Next button now plays the next video
+- Clip downloads fetch only the clip's segments instead of the whole video first
+- Playlists live on the account now: create, delete and rename playlists, add and remove videos, Liked videos read from the server list, saving to Watch Later from the playlist menu saves on the server, and removing from Liked unlikes on the server
+- Chapter Loop really loops; changing quality in Shorts keeps position and Shorts has its own persisted playback speed
+- Closing the notifications bell no longer marks everything read; the bell refreshes on open with a manual refresh button; pausing a queued download shows Resume; community posts can be liked; downloads show a storage meter with per-type limits; the Data tab shows the real history count
+- Cancelling Add account no longer leaves the sign-in screen stuck, and closing the sign-in dialog cancels the login window

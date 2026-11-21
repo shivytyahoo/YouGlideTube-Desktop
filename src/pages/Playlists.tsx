@@ -12,6 +12,8 @@ import { PlaylistCard } from "../components/video/PlaylistCard";
 import { Select } from "../components/ui/Select";
 import { OpenPlaylistFileButton } from "../components/playlist/OpenPlaylistFileButton";
 import { PlaylistFormDialog } from "../components/playlist/PlaylistFormDialog";
+import { getAccountSignedIn } from "../lib/api/account";
+import { confirmPlaylistRemoval } from "../lib/confirmPlaylistRemoval";
 import { useGridStyle } from "../lib/useGridColumns";
 import { resolveDragMove, sortableRowStyle, useListDragSensors } from "../lib/sortableList";
 import {
@@ -33,6 +35,7 @@ import {
   storedPlaylistToCardSummary,
   type StoredPlaylist,
 } from "../lib/playlistLibrary";
+import { isSystemServerPlaylistId, useServerPlaylistsStore } from "../store/useServerPlaylistsStore";
 import { useUiStore } from "../store/useUiStore";
 
 interface PlaylistsProps {
@@ -70,6 +73,22 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay: _onPlay }) => {
   const [order, setOrder] = useState<PlaylistListOrder>(loadPlaylistListOrder);
   const [customOrder, setCustomOrder] = useState<string[]>(loadPlaylistCustomOrder);
   const dragSensors = useListDragSensors();
+  // The account's playlists lead, in the server's order: the list is the
+  // account's playlists while signed in, as Android's PlaylistsViewModel
+  // shows them. System lists are not cards here — Watch Later has its own
+  // row, Liked videos has the Liked page, Liked Music is music.
+  const serverPlaylists = useServerPlaylistsStore((s) => s.playlists);
+  const loadServerPlaylists = useServerPlaylistsStore((s) => s.load);
+  const deleteServerPlaylist = useServerPlaylistsStore((s) => s.deletePlaylist);
+
+  const visibleServerPlaylists = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return serverPlaylists.filter((playlist) => {
+      if (isSystemServerPlaylistId(playlist.id)) return false;
+      if (filter === "Saved") return false;
+      return !query || playlist.title.toLowerCase().includes(query);
+    });
+  }, [filter, searchQuery, serverPlaylists]);
 
   const visiblePlaylists = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -103,17 +122,25 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay: _onPlay }) => {
 
   useEffect(() => {
     void loadPlaylists();
+    void loadServerPlaylists();
     window.addEventListener(PLAYLIST_LIBRARY_UPDATED_EVENT, loadPlaylists);
     return () => window.removeEventListener(PLAYLIST_LIBRARY_UPDATED_EVENT, loadPlaylists);
-  }, []);
+  }, [loadServerPlaylists]);
 
   const handleCreatePlaylist = async (name: string, description: string) => {
     try {
-      await createStoredPlaylist(name, description);
+      if (await getAccountSignedIn().catch(() => false)) {
+        // Signed in, the playlist is created on the account, as Android
+        // does — the description stays local-only, the account API takes
+        // a title only.
+        await useServerPlaylistsStore.getState().create(name);
+      } else {
+        await createStoredPlaylist(name, description);
+      }
       setShowCreateModal(false);
     } catch (e) {
       console.error("Failed to create playlist", e);
-      useUiStore.getState().showToast({ variant: "error", message: getString("video_add_to_playlist_failed") });
+      useUiStore.getState().showToast({ variant: "error", message: getString("playlist_create_failed") });
     }
   };
 
@@ -145,6 +172,18 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay: _onPlay }) => {
     const updated = await removePlaylistFromLibrary(playlist.id);
     setPlaylists(updated);
     return true;
+  };
+
+  const handleServerRemove = async (playlist: PlaylistSummary) => {
+    if (!await confirmPlaylistRemoval(playlist, true)) return false;
+    try {
+      await deleteServerPlaylist(playlist.id);
+      return true;
+    } catch (e) {
+      console.error("Failed to delete playlist", e);
+      useUiStore.getState().showToast({ variant: "error", message: getString("playlist_delete_failed") });
+      return false;
+    }
   };
 
   return (
@@ -203,7 +242,7 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay: _onPlay }) => {
               <Loader2 className="animate-spin text-[var(--color-primary)]" size={36} />
               <p className="text-sm font-medium text-chrome-neutral-500">{getString('playlists_assembling_library_index')}</p>
             </div>
-          ) : playlists.length === 0 ? (
+          ) : playlists.length === 0 && visibleServerPlaylists.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-chrome-neutral-800 bg-surface-container-low p-8 py-24 text-center">
               <ListVideo className="mb-4 text-chrome-neutral-600" size={48} />
               <h3 className="font-medium text-chrome-neutral-200">{getString('playlists_no_playlists_yet')}</h3>
@@ -211,7 +250,7 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay: _onPlay }) => {
                 Create a playlist to start building a media collection.
               </p>
             </div>
-          ) : visiblePlaylists.length === 0 ? (
+          ) : visiblePlaylists.length === 0 && visibleServerPlaylists.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-chrome-neutral-800 bg-surface-container-low p-8 py-20 text-center">
               <ListVideo className="mb-4 text-chrome-neutral-600" size={44} />
               <h3 className="font-medium text-chrome-neutral-200">{getString('playlists_no_matching_playlists')}</h3>
@@ -223,6 +262,16 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay: _onPlay }) => {
             <DndContext sensors={dragSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={visiblePlaylists.map((playlist) => playlist.id)} strategy={rectSortingStrategy}>
                 <div className="video-grid gap-y-6" style={gridStyle}>
+                  {visibleServerPlaylists.map((playlist) => (
+                    <PlaylistCard
+                      key={playlist.id}
+                      playlist={playlist}
+                      isInLibrary
+                      onClick={handlePlaylistClick}
+                      onSaveToLibrary={() => true}
+                      onRemoveFromLibrary={handleServerRemove}
+                    />
+                  ))}
                   {visiblePlaylists.map((playlist) => {
                     const card = (
                       <PlaylistCard

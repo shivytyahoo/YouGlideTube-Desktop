@@ -1,12 +1,10 @@
 import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronUp, ListChecks, Loader2, Pencil, Plus, RefreshCw, Trash2, Upload, User } from "lucide-react";
-import { parseSubscriptionExport } from "../lib/api/youtube";
+import { ChevronDown, ChevronUp, ListChecks, Loader2, Pencil, Plus, RefreshCw, Trash2, User } from "lucide-react";
 import { SETTINGS } from "../lib/settings/schema";
 import { useSubscriptionStore } from "../store/useSubscriptionStore";
 import { useChannelShortsStore } from "../store/useChannelShortsStore";
 import { useNotificationStore } from "../store/useNotificationStore";
-import { useUiStore } from "../store/useUiStore";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import { getString } from "../lib/i18n/index";
 import { Button } from "../components/ui/Button";
@@ -52,7 +50,6 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
   const loadSubscriptions = useSubscriptionStore((s) => s.loadSubscriptions);
   const loadSubscriptionGroups = useSubscriptionStore((s) => s.loadSubscriptionGroups);
   const loading = useSubscriptionStore((s) => s.loading);
-  const subscribe = useSubscriptionStore((s) => s.subscribe);
   const mergeSubscriptions = useSubscriptionStore((s) => s.mergeSubscriptions);
   const createSubscriptionGroup = useSubscriptionStore((s) => s.createSubscriptionGroup);
   const updateSubscriptionGroup = useSubscriptionStore((s) => s.updateSubscriptionGroup);
@@ -112,9 +109,6 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
   const setSelectedGroupName = useCallback((name: string | null) => setSavedGroupName(name ?? ""), [setSavedGroupName]);
   const [viewMode, setViewMode] = useState<"feed" | "manage">("feed");
   
-  const [importText, setImportText] = useState("");
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
   const [showGroupsModal, setShowGroupsModal] = useState(false);
   const [editingGroup, setEditingGroup] = useState<SubscriptionGroup | null>(null);
 
@@ -167,27 +161,6 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
 
     if (Object.keys(updates).length > 0) void mergeSubscriptions(updates);
   }, [rssChannels, subscriptions, mergeSubscriptions]);
-
-  const handleImport = async () => {
-    if (!importText.trim()) return;
-    setIsImporting(true);
-    try {
-      const parsed = await parseSubscriptionExport(importText);
-      if (parsed.length > 0) {
-        for (const [id, name] of parsed) {
-          await subscribe(id, name);
-        }
-        setImportText("");
-        setShowImportModal(false);
-      } else {
-        useUiStore.getState().showToast({ variant: "error", message: getString("subscriptions_import_nothing") });
-      }
-    } catch (e) {
-      console.error("Import failed", e);
-    } finally {
-      setIsImporting(false);
-    }
-  };
 
   const query = searchQuery.trim().toLowerCase();
 
@@ -319,14 +292,6 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
               containerClassName="w-full sm:w-72"
             />
             <div className="flex gap-2">
-              <Button
-                variant="tonal"
-                onClick={() => setShowImportModal(true)}
-                className="shrink-0"
-              >
-                <Upload size={16} />
-                {getString("subscriptions_import_button")}
-              </Button>
               {viewMode === "feed" && (
                 <Button
                   variant="tonal"
@@ -458,7 +423,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                         {getString("subscriptions_empty_latest")}
                       </h3>
                       <p className="mt-1 max-w-md text-sm text-chrome-neutral-400">
-                        {getString("subscriptions_empty_latest_body")}
+                        {getString("subscriptions_empty_latest_hint")}
                       </p>
                     </div>
                   )}
@@ -505,53 +470,6 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
           }}
           onMove={moveSubscriptionGroup}
         />
-      )}
-
-      {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-chrome-black/70 p-4">
-          <div className="w-full max-w-lg space-y-4 rounded-2xl border border-chrome-neutral-800 bg-surface-container p-6">
-            <div className="flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-lg font-semibold text-chrome-neutral-100">
-                <Upload size={18} className="text-[var(--color-primary)]" />
-                {getString("subscriptions_import_title")}
-              </h3>
-              <Button variant="ghost" size="sm" onClick={() => setShowImportModal(false)}>
-                {getString("close")}
-              </Button>
-            </div>
-
-            <p className="text-sm text-chrome-neutral-400">
-              {getString("subscriptions_import_body")}
-            </p>
-
-            <textarea
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              placeholder={getString("subscriptions_import_placeholder")}
-              rows={8}
-              className="w-full resize-none rounded-lg border border-chrome-neutral-800 bg-surface-container-low p-4 font-mono text-xs text-chrome-neutral-300 outline-none transition-colors duration-200 ease-out placeholder:text-chrome-neutral-600 focus:border-chrome-neutral-700"
-            />
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <Button variant="ghost" onClick={() => setShowImportModal(false)}>
-                {getString("cancel")}
-              </Button>
-              <Button onClick={handleImport} disabled={isImporting || !importText.trim()}>
-                {isImporting ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    {getString("subscriptions_import_parsing")}
-                  </>
-                ) : (
-                  <>
-                    <Upload size={14} />
-                    {getString("subscriptions_import_parse")}
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

@@ -10,7 +10,7 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use reqwest::header::{CONTENT_LENGTH, CONTENT_RANGE, RANGE, RETRY_AFTER, USER_AGENT};
 use reqwest::{Client, StatusCode};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
 use super::DownloadControl;
 use super::progress::{DownloadStatus, ProgressEmitter};
@@ -407,6 +407,334 @@ pub fn parse_content_range(value: &str) -> Option<(u64, u64, Option<u64>)> {
     ))
 }
 
+/// The outcome of one ranged fetch for a segment-clip download.
+pub(crate) enum RangeFetch<T> {
+    /// The range arrived whole.
+    Fetched(T),
+    /// The media server refused the link (HTTP 403/410): the caller asks for a
+    /// fresh link and retries the whole clip attempt.
+    Denied,
+    /// The fetched bytes do not start with the expected segment magic: the
+    /// segment index was wrong, so the caller falls back to the full download.
+    BadSegment,
+}
+
+/// The first bytes a fetched segment must start with: a fragmented-MP4 media
+/// segment starts with a `moof` (or `styp`) box, a WebM segment with a Cluster.
+#[derive(Clone, Copy)]
+pub(crate) enum SegmentMagic {
+    Mp4,
+    Webm,
+}
+
+/// Segment fetches retry this many times before giving up, mirroring Android's
+/// `SegmentClipFetcher.MAX_ATTEMPTS`.
+const MAX_SEGMENT_ATTEMPTS: u32 = 5;
+
+/// One ranged GET, classified the same way as the full download: a 206 whose
+/// Content-Range matches the request is usable; a refusal is denied; a
+/// retryable status, a network error, or a range the server ignored is
+/// retried by the caller.
+enum RangeAttempt {
+    Response(reqwest::Response),
+    Denied,
+    Retry(String, Option<Duration>),
+    Fatal(String),
+}
+
+async fn range_attempt(fetch: &TrackFetch<'_>, from: u64, to: u64) -> RangeAttempt {
+    if let Err(error) = wait_ready(fetch.control, fetch.emitter).await {
+        return RangeAttempt::Fatal(error);
+    }
+    let source = fetch.source.current(fetch.role).await;
+    let range = format!("bytes={from}-{to}");
+    let response = match download_client()
+        .get(&source.url)
+        .header(USER_AGENT, &source.user_agent)
+        .header(RANGE, range.clone())
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(error) => return RangeAttempt::Retry(error.to_string(), None),
+    };
+    let status = response.status();
+    if is_refusal(status) {
+        return RangeAttempt::Denied;
+    }
+    if status == StatusCode::PARTIAL_CONTENT {
+        let content_range = match response
+            .headers()
+            .get(CONTENT_RANGE)
+            .and_then(|value| value.to_str().ok())
+        {
+            Some(value) => value,
+            None => {
+                return RangeAttempt::Fatal(format!(
+                    "{} response omitted Content-Range for requested {range}",
+                    fetch.label
+                ));
+            }
+        };
+        let (actual_start, actual_end, _) = match parse_content_range(content_range) {
+            Some(parsed) => parsed,
+            None => {
+                return RangeAttempt::Fatal(format!(
+                    "{} returned malformed Content-Range `{content_range}`",
+                    fetch.label
+                ));
+            }
+        };
+        if actual_start != from || actual_end > to {
+            return RangeAttempt::Retry(
+                format!(
+                    "{} response range mismatch: requested {range}, received `{content_range}`",
+                    fetch.label
+                ),
+                None,
+            );
+        }
+        return RangeAttempt::Response(response);
+    }
+    if status == StatusCode::OK {
+        // A 200 means the server ignored the Range header and is sending the
+        // file from its first byte: never what a segment fetch asked for.
+        return RangeAttempt::Retry(format!("{} range ignored", fetch.label), None);
+    }
+    if is_retryable_status(status) {
+        return RangeAttempt::Retry(
+            format!("{} server returned HTTP {status} for {range}", fetch.label),
+            retry_after(&response),
+        );
+    }
+    RangeAttempt::Fatal(format!(
+        "{} cannot fetch range: media server returned HTTP {status} for {range}",
+        fetch.label
+    ))
+}
+
+/// Backoff between segment-fetch attempts: 1 s, 2 s, 4 s … capped at 30 s,
+/// or the server's Retry-After when it gave one. Cancellation during the
+/// wait ends the fetch.
+async fn wait_between_segment_attempts(
+    fetch: &TrackFetch<'_>,
+    attempt: u32,
+    reason: &str,
+    retry_after: Option<Duration>,
+) -> Result<(), String> {
+    let delay = retry_after
+        .unwrap_or_else(|| Duration::from_secs(1 << attempt.saturating_sub(1).min(5)))
+        .min(Duration::from_secs(30));
+    fetch
+        .emitter
+        .log(format!("{reason}; retrying in {}s", delay.as_secs()));
+    tokio::select! {
+        () = tokio::time::sleep(delay) => {}
+        () = fetch.control.changed.notified() => {}
+    }
+    wait_ready(fetch.control, fetch.emitter).await
+}
+
+/// Fetches one small byte range (an init or index segment, kilobytes) into
+/// memory, with the same refusal/retry rules as the full download.
+pub(crate) async fn fetch_range_bytes(
+    fetch: &TrackFetch<'_>,
+    from: u64,
+    to: u64,
+) -> Result<RangeFetch<Vec<u8>>, String> {
+    let expected = usize::try_from(to - from + 1).unwrap_or(usize::MAX);
+    for attempt in 1..=MAX_SEGMENT_ATTEMPTS {
+        match range_attempt(fetch, from, to).await {
+            RangeAttempt::Response(response) => {
+                let bytes = response.bytes().await.map_err(|error| {
+                    format!("{} range read failed: {error}", fetch.label)
+                })?;
+                if bytes.len() != expected {
+                    if attempt == MAX_SEGMENT_ATTEMPTS {
+                        return Err(format!(
+                            "{} ended early at byte {}; short range: {} of {expected} bytes",
+                            fetch.label,
+                            from + bytes.len() as u64,
+                            bytes.len()
+                        ));
+                    }
+                    wait_between_segment_attempts(
+                        fetch,
+                        attempt,
+                        &format!(
+                            "{} short range: {} of {expected} bytes",
+                            fetch.label,
+                            bytes.len()
+                        ),
+                        None,
+                    )
+                    .await?;
+                    continue;
+                }
+                return Ok(RangeFetch::Fetched(bytes.to_vec()));
+            }
+            RangeAttempt::Denied => return Ok(RangeFetch::Denied),
+            RangeAttempt::Fatal(reason) => return Err(reason),
+            RangeAttempt::Retry(reason, retry_after) => {
+                if attempt == MAX_SEGMENT_ATTEMPTS {
+                    return Err(format!("{reason} (gave up after {MAX_SEGMENT_ATTEMPTS} tries)"));
+                }
+                wait_between_segment_attempts(fetch, attempt, &reason, retry_after).await?;
+            }
+        }
+    }
+    Err(format!(
+        "{} range fetch gave up after {MAX_SEGMENT_ATTEMPTS} tries",
+        fetch.label
+    ))
+}
+
+/// Fetches one byte range into `path` at `dest_offset`, with the same
+/// refusal/retry rules as the full download. When `magic` is set, the first
+/// eight bytes must start the segment the way its container promises, or the
+/// fetch reports `BadSegment` and the caller falls back to the full download.
+/// Bytes are only counted once the whole range has landed, so a retried
+/// range never counts twice.
+pub(crate) async fn fetch_range_into_file(
+    fetch: &TrackFetch<'_>,
+    path: &Path,
+    dest_offset: u64,
+    from: u64,
+    to: u64,
+    magic: Option<SegmentMagic>,
+) -> Result<RangeFetch<u64>, String> {
+    let expected = to - from + 1;
+    for attempt in 1..=MAX_SEGMENT_ATTEMPTS {
+        match range_attempt(fetch, from, to).await {
+            RangeAttempt::Response(response) => {
+                match write_range_to_file(fetch, path, dest_offset, response, expected, &magic)
+                    .await
+                {
+                    Ok(RangeFetch::Fetched(written)) => {
+                        return Ok(RangeFetch::Fetched(written));
+                    }
+                    Ok(other) => return Ok(other),
+                    Err(RangeWrite::Retry(reason)) => {
+                        if attempt == MAX_SEGMENT_ATTEMPTS {
+                            return Err(format!(
+                                "{reason} (gave up after {MAX_SEGMENT_ATTEMPTS} tries)"
+                            ));
+                        }
+                        wait_between_segment_attempts(fetch, attempt, &reason, None).await?;
+                    }
+                    Err(RangeWrite::Fatal(reason)) => return Err(reason),
+                }
+            }
+            RangeAttempt::Denied => return Ok(RangeFetch::Denied),
+            RangeAttempt::Fatal(reason) => return Err(reason),
+            RangeAttempt::Retry(reason, retry_after) => {
+                if attempt == MAX_SEGMENT_ATTEMPTS {
+                    return Err(format!("{reason} (gave up after {MAX_SEGMENT_ATTEMPTS} tries)"));
+                }
+                wait_between_segment_attempts(fetch, attempt, &reason, retry_after).await?;
+            }
+        }
+    }
+    Err(format!(
+        "{} range fetch gave up after {MAX_SEGMENT_ATTEMPTS} tries",
+        fetch.label
+    ))
+}
+
+enum RangeWrite {
+    Retry(String),
+    Fatal(String),
+}
+
+/// Streams one validated range response into `path` at `dest_offset`.
+async fn write_range_to_file(
+    fetch: &TrackFetch<'_>,
+    path: &Path,
+    dest_offset: u64,
+    response: reqwest::Response,
+    expected: u64,
+    magic: &Option<SegmentMagic>,
+) -> Result<RangeFetch<u64>, RangeWrite> {
+    use std::io::SeekFrom;
+    let mut output = tokio::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(path)
+        .await
+        .map_err(|error| {
+            RangeWrite::Fatal(format!("Could not open partial {}: {error}", fetch.label))
+        })?;
+    output
+        .seek(SeekFrom::Start(dest_offset))
+        .await
+        .map_err(|error| {
+            RangeWrite::Fatal(format!("Could not seek partial {}: {error}", fetch.label))
+        })?;
+    let mut stream = response.bytes_stream();
+    let mut written: u64 = 0;
+    let mut peeked: Vec<u8> = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        if let Err(error) = wait_ready(fetch.control, fetch.emitter).await {
+            return Err(RangeWrite::Fatal(error));
+        }
+        let chunk = match chunk {
+            Ok(chunk) => chunk,
+            Err(error) => {
+                return Err(RangeWrite::Retry(format!(
+                    "{} stream interrupted at byte {}: {error}",
+                    fetch.label,
+                    dest_offset + written
+                )));
+            }
+        };
+        if magic.is_some() && peeked.len() < 8 {
+            let take = (8 - peeked.len()).min(chunk.len());
+            peeked.extend_from_slice(&chunk[..take]);
+            if peeked.len() == 8 && !magic_matches(&peeked, magic.as_ref().unwrap()) {
+                return Ok(RangeFetch::BadSegment);
+            }
+        }
+        output.write_all(&chunk).await.map_err(|error| {
+            RangeWrite::Fatal(format!("Could not write {}: {error}", fetch.label))
+        })?;
+        written += chunk.len() as u64;
+    }
+    output.flush().await.map_err(|error| {
+        RangeWrite::Fatal(format!("Could not flush partial {}: {error}", fetch.label))
+    })?;
+    if written < expected {
+        return Err(RangeWrite::Retry(format!(
+            "{} short range: {written} of {expected} bytes",
+            fetch.label
+        )));
+    }
+    if written > expected {
+        return Err(RangeWrite::Fatal(format!(
+            "{} exceeded its expected size ({written} bytes received)",
+            fetch.label
+        )));
+    }
+    Ok(RangeFetch::Fetched(written))
+}
+
+/// A fragmented-MP4 media segment starts with a `moof` (or `styp`) box; a
+/// WebM segment starts with the Cluster element ID.
+fn magic_matches(peeked: &[u8], magic: &SegmentMagic) -> bool {
+    match magic {
+        SegmentMagic::Mp4 => {
+            peeked.len() >= 8
+                && (&peeked[4..8] == b"moof" || &peeked[4..8] == b"styp")
+        }
+        SegmentMagic::Webm => {
+            peeked.len() >= 4
+                && peeked[0] == 0x1F
+                && peeked[1] == 0x43
+                && peeked[2] == 0xB6
+                && peeked[3] == 0x75
+        }
+    }
+}
+
 /// Returns once the job may move bytes: not cancelled, not paused, and holding one
 /// of the shared download slots. A paused job gives its slot back so the next
 /// download can start. Several workers of one job wait here at once; only the one
@@ -428,10 +756,13 @@ pub async fn wait_ready(
         if control.paused.load(Ordering::Relaxed) {
             if !paused {
                 paused = true;
+                // A job still queued holds no slot, so the release reports
+                // nothing — but the dock still needs the Paused event, or it
+                // keeps showing Pause with no Resume until a restart.
                 if control.release_slot().await {
                     emitter.log("Download paused by the user");
-                    emitter.emit(DownloadStatus::Paused, None);
                 }
+                emitter.emit(DownloadStatus::Paused, None);
             }
             notified.await;
             continue;

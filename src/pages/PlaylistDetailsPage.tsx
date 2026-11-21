@@ -22,9 +22,11 @@ import {
   removePlaylistFromLibrary,
   savePlaylistToLibrary,
   updateStoredPlaylistDetails,
+  updateStoredPlaylistName,
   updateStoredPlaylistTracks,
   WATCH_LATER_PLAYLIST_ID,
 } from "../lib/playlistLibrary";
+import { isSystemServerPlaylistId, useServerPlaylistsStore } from "../store/useServerPlaylistsStore";
 import { sweepWatchedFromWatchLater } from "../lib/watchLaterCleanup";
 import { videoToFileEntry } from "../lib/playlistFile";
 import { filterVideosBySearch } from "../lib/playlistSearch";
@@ -75,6 +77,7 @@ export function PlaylistDetailsPage({
     loadAllVideos,
     setVideos,
     applyDetails,
+    reload,
     hidesUnavailable,
   } = usePlaylistDetails(playlistId);
   usePublishTitle(meta?.title);
@@ -84,6 +87,20 @@ export function PlaylistDetailsPage({
   const isWatchLater = playlistId === WATCH_LATER_PLAYLIST_ID;
   const serverWatchLater = useServerWatchLater(isWatchLater);
   const showServerWatchLater = isWatchLater && serverWatchLater.status === "signed-in";
+  const serverPlaylists = useServerPlaylistsStore((s) => s.playlists);
+  const loadServerPlaylists = useServerPlaylistsStore((s) => s.load);
+  useEffect(() => {
+    void loadServerPlaylists();
+  }, [loadServerPlaylists]);
+  // An own playlist on the account — not Watch Later, Liked videos or
+  // Liked Music, which have their own surfaces — is edited on the server,
+  // as Android does; the local copy, when one exists, is only a cache.
+  const isServerPlaylist = Boolean(
+    playlistId
+    && !isProtectedPlaylistId(playlistId)
+    && !isSystemServerPlaylistId(playlistId)
+    && serverPlaylists.some((playlist) => playlist.id === playlistId),
+  );
 
   const [storedSortOrder, setStoredSortOrder] = useState<string | null>(() =>
     playlistId ? loadPlaylistSortOrder(playlistId) : null,
@@ -191,6 +208,20 @@ export function PlaylistDetailsPage({
 
   const handleSaveDetails = async (name: string, description: string) => {
     if (!meta) return;
+    // The account API renames only; the description stays as the account
+    // has it, as Android does. A local copy keeps the new name in step.
+    if (isServerPlaylist) {
+      try {
+        await useServerPlaylistsStore.getState().rename(meta.id, name);
+        await updateStoredPlaylistName(meta.id, name);
+        await reload();
+        setEditing(false);
+      } catch (saveError) {
+        console.error("Failed to rename playlist", saveError);
+        showToast({ variant: "error", message: getString("playlist_edit_failed") });
+      }
+      return;
+    }
     try {
       const updated = await updateStoredPlaylistDetails(meta.id, name, description);
       if (!updated) throw new Error("Playlist not found");
@@ -214,10 +245,42 @@ export function PlaylistDetailsPage({
   };
 
   const handleReorder = async (nextVideos: VideoSummary[]) => {
+    // Account playlists keep the account's order; there is no reorder
+    // API here, as Android does.
+    if (isServerPlaylist) return;
     setVideos(nextVideos);
     if (storedPlaylist) {
       await updateStoredPlaylistTracks(storedPlaylist.id, nextVideos);
     }
+  };
+
+  const handleServerRemoveVideos = async (videos: VideoSummary[]): Promise<VideoSummary[]> => {
+    if (!playlistId) throw new Error("No playlist");
+    const removedIds = await useServerPlaylistsStore.getState().removeVideos(
+      playlistId,
+      videos.map((video) => video.id),
+    );
+    const removedSet = new Set(removedIds);
+    const removed = videos.filter((video) => removedSet.has(video.id));
+    if (removed.length === 0) throw new Error("The server refused the remove");
+    // A local copy of this playlist stays in step, so it cannot resurrect
+    // rows the account no longer holds.
+    await updateStoredPlaylistTracks(playlistId, (tracks) => tracks.filter((track) => !removedSet.has(track.id)));
+    setVideos((current) => current.filter((video) => !removedSet.has(video.id)));
+    return removed;
+  };
+
+  const handleServerRestoreVideos = async (videos: VideoSummary[]): Promise<void> => {
+    if (!playlistId) return;
+    await useServerPlaylistsStore.getState().addVideos(playlistId, videos.map((video) => video.id));
+    await updateStoredPlaylistTracks(playlistId, (tracks) => {
+      const known = new Set(tracks.map((track) => track.id));
+      return [...tracks, ...videos.filter((video) => !known.has(video.id))];
+    });
+    setVideos((current) => {
+      const known = new Set(current.map((video) => video.id));
+      return [...current, ...videos.filter((video) => !known.has(video.id))];
+    });
   };
 
   const handleCopyLink = async () => {
@@ -258,8 +321,22 @@ export function PlaylistDetailsPage({
   const handleRemoveFromLibrary = async () => {
     const summary = librarySummary();
     if (!meta || !summary || isProtected) return;
-    if (!await confirmPlaylistRemoval(summary, isOwned)) return;
+    if (!await confirmPlaylistRemoval(summary, isOwned || isServerPlaylist)) return;
 
+    if (isServerPlaylist) {
+      try {
+        await useServerPlaylistsStore.getState().deletePlaylist(meta.id);
+        showToast({
+          variant: "success",
+          message: `Deleted "${meta.title}"`,
+        });
+        navigate("/playlists");
+      } catch (removeError) {
+        console.error("Failed to delete playlist", removeError);
+        showToast({ variant: "error", message: getString("playlist_delete_failed") });
+      }
+      return;
+    }
     try {
       await removePlaylistFromLibrary(meta.id);
       setSavedInLibrary(false);
@@ -276,9 +353,9 @@ export function PlaylistDetailsPage({
     }
   };
 
-  const editable = isProtected || isOwned;
+  const editable = isProtected || isOwned || isServerPlaylist;
   const playlistContext = meta
-    ? { id: meta.id, title: meta.title, editable, reorderable: editable && sortOrder === "manual" }
+    ? { id: meta.id, title: meta.title, editable, reorderable: editable && sortOrder === "manual" && !isServerPlaylist }
     : null;
 
   const playQueue = (shuffle: boolean) => {
@@ -483,9 +560,9 @@ export function PlaylistDetailsPage({
           onAddAll={() => setAddingAll(true)}
           onExport={() => void handleExport()}
           hidesUnavailable={hidesUnavailable}
-          isSaved={savedInLibrary}
+          isSaved={savedInLibrary || isServerPlaylist}
           isProtected={isProtected}
-          isOwned={isOwned}
+          isOwned={isOwned || isServerPlaylist}
         />
 
         <PlaylistSortableList
@@ -496,6 +573,7 @@ export function PlaylistDetailsPage({
           onSortChange={handleSortChange}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
+          reorderable={!isServerPlaylist}
           onReorder={handleReorder}
           onPlay={playFromPlaylist}
           onAddToQueue={onAddToQueue}
@@ -512,6 +590,8 @@ export function PlaylistDetailsPage({
               onToggleAll={() => selection.toggleAll(shownIds)}
               onDone={selection.stop}
               onTracksChanged={handleTracksChanged}
+              onRemoveFromServer={isServerPlaylist ? handleServerRemoveVideos : undefined}
+              onRestoreToServer={isServerPlaylist ? handleServerRestoreVideos : undefined}
             />
           }
           footer={

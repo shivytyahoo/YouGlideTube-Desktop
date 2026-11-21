@@ -8,6 +8,7 @@ pub mod cache;
 pub mod db;
 pub mod diagnostics;
 pub mod discord;
+pub mod download_storage;
 pub mod downloads;
 pub mod external;
 pub mod files;

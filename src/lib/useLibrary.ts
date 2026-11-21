@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { getWatchHistory } from "./api/db";
+import { getAccountSignedIn, getWatchLater } from "./api/account";
 import { listDownloads } from "./api/downloads";
 import { downloadRecordToSong, downloadRecordToVideo } from "./useDownloads";
 import { mapHistoryRecordToVideo, type HistoryVideo } from "./useHistory";
@@ -16,10 +17,30 @@ import {
 } from "./savedShortsLibrary";
 import { likedItemToHistoryVideo } from "./useLikes";
 import { useAlbumLibraryStore } from "../store/useAlbumLibraryStore";
-import { LIKES_LIBRARY_UPDATED_EVENT, useLikesStore } from "../store/useLikesStore";
+import { LIKES_LIBRARY_UPDATED_EVENT, selectMergedLikes, useLikesStore } from "../store/useLikesStore";
 import type { ShortVideoSummary, VideoSummary } from "../types/video";
 
 const SHELF_PREVIEW_LIMIT = 15;
+
+/** The server Watch Later shelf is re-read at most this often per session. */
+const SERVER_WATCH_LATER_TTL_MS = 5 * 60 * 1000;
+
+let serverWatchLaterCache: { at: number; videos: VideoSummary[] } | null = null;
+
+/** The account's Watch Later first page, for the Library shelf. */
+async function loadServerWatchLaterShelf(): Promise<VideoSummary[]> {
+  if (
+    serverWatchLaterCache &&
+    Date.now() - serverWatchLaterCache.at < SERVER_WATCH_LATER_TTL_MS
+  ) {
+    return serverWatchLaterCache.videos;
+  }
+  if (!(await getAccountSignedIn().catch(() => false))) return [];
+  const page = await getWatchLater();
+  const videos = page.videos.map((item) => item.video);
+  serverWatchLaterCache = { at: Date.now(), videos };
+  return videos;
+}
 
 export type LibraryPlaylist = ReturnType<typeof storedPlaylistToCardSummary>;
 
@@ -58,7 +79,7 @@ export function useLibrary() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [historyRecords, storedPlaylists, savedShorts, downloadRecords] = await Promise.all([
+      const [historyRecords, storedPlaylists, savedShorts, downloadRecords, serverWatchLater] = await Promise.all([
         getWatchHistory(SHELF_PREVIEW_LIMIT, 0).catch((error) => {
           console.warn("Library: failed to load history", error);
           return [];
@@ -75,20 +96,29 @@ export function useLibrary() {
           console.warn("Library: failed to load downloads", error);
           return [];
         }),
+        loadServerWatchLaterShelf().catch((error) => {
+          console.warn("Library: failed to load server Watch Later", error);
+          return [] as VideoSummary[];
+        }),
       ]);
 
       const watchLaterPlaylist = storedPlaylists.find((playlist) => (
         playlist.id === WATCH_LATER_PLAYLIST_ID
       ));
       await useLikesStore.getState().load();
-      const liked = useLikesStore.getState().items
+      void useLikesStore.getState().loadServer();
+      // The account's lists lead and this device's own rows follow, so a
+      // video saved or liked on the phone shows on the shelves too.
+      const localWatchLater = watchLaterPlaylist?.tracks ?? [];
+      const serverWatchLaterIds = new Set(serverWatchLater.map((video) => video.id));
+      const liked = selectMergedLikes(useLikesStore.getState())
         .map(likedItemToHistoryVideo)
         .slice(0, SHELF_PREVIEW_LIMIT);
 
       setData({
         history: historyRecords.map(mapHistoryRecordToVideo),
         playlists: storedPlaylists.map(storedPlaylistToCardSummary),
-        watchLater: watchLaterPlaylist?.tracks.slice(0, SHELF_PREVIEW_LIMIT) ?? [],
+        watchLater: [...serverWatchLater, ...localWatchLater.filter((video) => !serverWatchLaterIds.has(video.id))].slice(0, SHELF_PREVIEW_LIMIT),
         liked,
         savedShorts: savedShorts.slice(0, SHELF_PREVIEW_LIMIT),
         videoDownloads: downloadRecords

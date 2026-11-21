@@ -7,9 +7,11 @@ import { GoogleSignInDialog } from "../../GoogleSignInDialog";
 import { getString } from "../../../lib/i18n/index";
 import type { AccountSummary } from "../../../lib/api/account";
 import {
+  accountRowLabel,
   googleAccountDisplayName,
   googleAccountInitial,
   useGoogleAccount,
+  type GoogleAccountInfo,
 } from "../../../lib/useGoogleAccount";
 
 /**
@@ -90,6 +92,10 @@ export function AccountTab() {
             <AccountRow
               key={saved.id}
               saved={saved}
+              // The active row shows the live identity (just fetched) rather
+              // than the disk snapshot, so the real name appears the moment
+              // the menu answers — even before the saved list refreshes.
+              live={saved.isActive ? account : null}
               disabled={switchingId !== null || removingId !== null}
               onSelect={() => void switchTo(saved.id)}
               onRemove={() => void remove(saved.id)}
@@ -149,20 +155,37 @@ export function AccountTab() {
  * Tap switches to it; the × removes a non-active account. The row is a
  * plain div (not a SettingItem) so the remove button is not nested inside
  * another button.
+ *
+ * `live` is the just-fetched identity for the active account: it wins
+ * over the disk snapshot, so the real name shows the moment the account
+ * menu answers. A row with no identity at all shows the short account id
+ * instead of a generic label — the server simply hasn't identified it yet.
  */
 function AccountRow({
   saved,
+  live,
   disabled,
   onSelect,
   onRemove,
 }: {
   saved: AccountSummary;
+  live: GoogleAccountInfo | null;
   disabled: boolean;
   onSelect: () => void;
   onRemove: () => void;
 }) {
-  const name = googleAccountDisplayName(saved) ?? getString("account_title");
-  const detail = saved.channelHandle ?? saved.email ?? null;
+  const shown: AccountSummary = live
+    ? {
+        ...saved,
+        name: live.name ?? saved.name,
+        email: live.email ?? saved.email,
+        channelHandle: live.channelHandle ?? saved.channelHandle,
+        thumbnailUrl: live.thumbnailUrl ?? saved.thumbnailUrl,
+      }
+    : saved;
+  const name = accountRowLabel(shown);
+  const detail = shown.channelHandle ?? shown.email ?? null;
+  const displayName = googleAccountDisplayName(shown);
   return (
     <div className="flex items-center gap-3 px-5 py-3 transition-colors duration-200 ease-out hover:bg-surface-row-hover">
       <button
@@ -171,16 +194,18 @@ function AccountRow({
         onClick={onSelect}
         className="flex min-w-0 flex-1 items-center gap-3 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary disabled:opacity-70"
       >
-        {saved.thumbnailUrl ? (
+        {shown.thumbnailUrl ? (
           <img
-            src={saved.thumbnailUrl}
+            src={shown.thumbnailUrl}
             alt=""
             className="h-10 w-10 shrink-0 rounded-full object-cover"
           />
-        ) : (
+        ) : displayName ? (
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-container-high text-sm font-medium text-chrome-neutral-200">
-            {googleAccountInitial(saved)}
+            {googleAccountInitial(shown)}
           </span>
+        ) : (
+          <CircleUserRound className="h-10 w-10 shrink-0 text-chrome-neutral-400" />
         )}
         <span className="min-w-0 flex-1">
           <span dir="auto" className="block truncate text-sm font-medium text-chrome-neutral-200">

@@ -35,6 +35,14 @@ interface PlaylistSelectionActionsProps {
   onDone: () => void;
   /** The videos the playlist holds now, after a removal or its undo. */
   onTracksChanged: (videos: VideoSummary[]) => void;
+  /**
+   * Removes the selected videos from a playlist on the account instead
+   * of the local copy, and returns the videos removed, for Undo. When
+   * absent the local remove runs.
+   */
+  onRemoveFromServer?: (videos: VideoSummary[]) => Promise<VideoSummary[]>;
+  /** Puts back videos a server remove took, for Undo. */
+  onRestoreToServer?: (videos: VideoSummary[]) => Promise<void>;
 }
 
 export function PlaylistSelectionActions({
@@ -45,6 +53,8 @@ export function PlaylistSelectionActions({
   onToggleAll,
   onDone,
   onTracksChanged,
+  onRemoveFromServer,
+  onRestoreToServer,
 }: PlaylistSelectionActionsProps) {
   const [adding, setAdding] = useState(false);
   const showToast = useUiStore((state) => state.showToast);
@@ -63,6 +73,24 @@ export function PlaylistSelectionActions({
     });
     if (!confirmed) return;
     try {
+      if (onRemoveFromServer) {
+        const removed = await onRemoveFromServer(selected);
+        onDone();
+        showToast({
+          variant: "success",
+          message: getPlural("playlist_videos_removed", removed.length),
+          actions: onRestoreToServer ? [{
+            label: getString("undo"),
+            onSelect: () => {
+              void onRestoreToServer(removed).catch((error) => {
+                console.error("Failed to restore removed videos", error);
+                showToast({ variant: "error", message: getString("toast_action_failed") });
+              });
+            },
+          }] : [],
+        });
+        return;
+      }
       const removed = await removeVideosFromStoredPlaylist(playlistId, new Set(selected.map((video) => video.id)));
       await reload();
       onDone();

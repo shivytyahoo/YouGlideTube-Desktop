@@ -39,6 +39,12 @@ pub struct AuthHeaders {
 
 /// Parses a raw `Cookie` header (`"A=1; B=2"`) into name → value. Values may
 /// contain `=` (split on the first one); blank parts are skipped.
+///
+/// Duplicate names collapse, last wins — a header mixing two origins can
+/// authenticate with the wrong SAPISID (Google sets SAPISID on both
+/// google.com and youtube.com with different values). Capture must stay
+/// scoped to youtube.com (see `login_window`); never build a header from
+/// the whole cookie store.
 #[must_use]
 pub fn parse_cookie_header(cookie_header: &str) -> HashMap<String, String> {
     let mut out = HashMap::new();
@@ -254,6 +260,27 @@ mod tests {
         // A second factor alone is not enough either.
         assert!(!is_signed_in(&cookies("SID=b; LOGIN_INFO=c")));
         assert!(!is_signed_in(&cookies("")));
+    }
+
+    #[test]
+    fn merged_multi_domain_header_authenticates_with_the_wrong_sapisid() {
+        // Regression: the sign-in poll used to capture every domain's
+        // cookies, so a google.com SAPISID listed after the youtube.com one
+        // overwrote it in this map (last wins) and SAPISIDHASH was computed
+        // from the wrong value — the app showed "Signed in" while every
+        // signed-in call answered as anonymous. Capture must stay scoped to
+        // youtube.com (see login_window); this test pins the collapse so
+        // the reason stays visible.
+        let header = "SAPISID=youtube-value; SID=x; SAPISID=google-value";
+        assert_eq!(sapisid_value(&cookies(header)), Some("google-value"));
+        let auth = authorization_header(header, YOUTUBE_ORIGIN, 1000).unwrap();
+        assert_eq!(
+            auth,
+            format!(
+                "SAPISIDHASH 1000_{}",
+                sha1_hex("1000 google-value https://www.youtube.com")
+            )
+        );
     }
 
     #[test]

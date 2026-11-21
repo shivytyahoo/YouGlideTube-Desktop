@@ -5,6 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./PlayerSettingsMenu", () => ({ PlayerSettingsMenu: () => null, qualityLabel: () => "Auto" }));
 vi.mock("../../lib/useWheelVolume", () => ({ useWheelVolume: () => () => {} }));
+vi.mock("../../lib/streamResolution", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/streamResolution")>()),
+  prefetchStreamInfo: vi.fn(),
+}));
 
 const { PlayerControls, elapsedOrRemaining } = await import("./PlayerControls");
 const { useAppSettingsStore } = await import("../../store/useAppSettingsStore");
@@ -147,6 +151,35 @@ describe("queue button", () => {
     usePlayerStore.setState({ queue: [video], playlistContext: { id: "list", title: "A list" } as never });
     render();
     expect(queueButton()).toBe(true);
+  });
+});
+
+describe("next button", () => {
+  it("advances to a related video when the queue holds only the current one", () => {
+    // A video opened from a feed or search has a one-item queue; Next must fall
+    // back to the related videos, as on Android, instead of doing nothing.
+    const candidate = { id: "next-one", title: "Next", channelName: "Another channel" };
+    act(() => {
+      usePlayerStore.setState({ queue: [video], currentIndex: 0, currentVideo: video, isPlaying: true });
+      usePlayerStore.getState().setAutoplayCandidates([candidate]);
+    });
+    render();
+    const nextButton = host.querySelector<HTMLButtonElement>(`button[title="${getString("next")}"]`);
+    expect(nextButton).not.toBeNull();
+    act(() => nextButton!.click());
+    expect(usePlayerStore.getState().currentVideo?.id).toBe("next-one");
+    expect(usePlayerStore.getState().currentIndex).toBe(1);
+    expect(usePlayerStore.getState().isPlaying).toBe(true);
+  });
+
+  it("still advances within a queue", () => {
+    act(() => {
+      usePlayerStore.setState({ queue: [video, { ...video, id: "second" }], currentIndex: 0, currentVideo: video, isPlaying: true });
+    });
+    render();
+    const nextButton = host.querySelector<HTMLButtonElement>(`button[title="${getString("next")}"]`);
+    act(() => nextButton!.click());
+    expect(usePlayerStore.getState().currentVideo?.id).toBe("second");
   });
 });
 

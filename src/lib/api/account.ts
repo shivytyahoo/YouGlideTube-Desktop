@@ -77,6 +77,13 @@ export interface WatchLaterPage {
   continuation?: string | null;
 }
 
+/** One page of the account's Liked-videos playlist (`VLLL`). */
+export interface LikedVideosPage {
+  title: string;
+  videos: VideoSummary[];
+  continuation?: string | null;
+}
+
 /** One saved Google account, as the backend lists it. Display fields only — cookies never leave the backend. */
 export interface AccountSummary {
   id: string;
@@ -131,6 +138,18 @@ export async function setChannelSubscribed(
   subscribed: boolean,
 ): Promise<boolean> {
   return invokeBackend<boolean>("set_channel_subscribed", { channelId, subscribed });
+}
+
+/**
+ * Likes or unlikes a video on the account, on the server. Disliking is
+ * the same call with `liked = false`: there is no account dislike
+ * endpoint — a dislike at least removes the account like, as Android does.
+ */
+export async function setVideoLiked(
+  videoId: string,
+  liked: boolean,
+): Promise<boolean> {
+  return invokeBackend<boolean>("set_video_liked", { videoId, liked });
 }
 
 /** One page of the account's watch history (`FEhistory`), newest first. */
@@ -192,6 +211,86 @@ export async function setVideoWatchLater(
     saved,
     setVideoId: setVideoId ?? null,
   });
+}
+
+/** One page of the account's own playlists (`FEplaylist_aggregation`). */
+export async function getServerPlaylists(
+  continuation?: string | null,
+): Promise<ServerFeedPage> {
+  return invokeBackend<ServerFeedPage>("get_server_playlists", {
+    continuation: continuation ?? null,
+  });
+}
+
+/** One page of the account's Liked-videos playlist (`VLLL`). */
+export async function getLikedVideos(
+  continuation?: string | null,
+): Promise<LikedVideosPage> {
+  return invokeBackend<LikedVideosPage>("get_liked_videos", {
+    continuation: continuation ?? null,
+  });
+}
+
+/**
+ * Creates a playlist on the account and returns its id, as Android's
+ * PlaylistsViewModel does. The playlist is private.
+ */
+export async function createServerPlaylist(title: string): Promise<string> {
+  return invokeBackend<string>("create_server_playlist", { title });
+}
+
+/** Deletes a playlist from the account. */
+export async function deleteServerPlaylist(playlistId: string): Promise<boolean> {
+  return invokeBackend<boolean>("delete_server_playlist", { playlistId });
+}
+
+/**
+ * Renames a playlist on the account. The account API renames only; the
+ * description stays as the account has it, as Android does.
+ */
+export async function renameServerPlaylist(
+  playlistId: string,
+  name: string,
+): Promise<boolean> {
+  return invokeBackend<boolean>("rename_server_playlist", { playlistId, name });
+}
+
+/** Adds one video to a playlist on the account. */
+export async function addVideoToServerPlaylist(
+  playlistId: string,
+  videoId: string,
+): Promise<boolean> {
+  return invokeBackend<boolean>("add_video_to_server_playlist", { playlistId, videoId });
+}
+
+/** Removes one video from a playlist on the account. */
+export async function removeVideoFromServerPlaylist(
+  playlistId: string,
+  videoId: string,
+): Promise<boolean> {
+  return invokeBackend<boolean>("remove_video_from_server_playlist", { playlistId, videoId });
+}
+
+/**
+ * Adds videos to a playlist on the account in one call. Returns the ids
+ * the server took.
+ */
+export async function addVideosToServerPlaylist(
+  playlistId: string,
+  videoIds: string[],
+): Promise<string[]> {
+  return invokeBackend<string[]>("add_videos_to_server_playlist", { playlistId, videoIds });
+}
+
+/**
+ * Removes videos from a playlist on the account in one call. Returns the
+ * ids removed; an id the playlist no longer carries is left out.
+ */
+export async function removeVideosFromServerPlaylist(
+  playlistId: string,
+  videoIds: string[],
+): Promise<string[]> {
+  return invokeBackend<string[]>("remove_videos_from_server_playlist", { playlistId, videoIds });
 }
 
 /**

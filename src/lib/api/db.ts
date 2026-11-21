@@ -18,6 +18,16 @@ export async function getWatchHistory(
   return invokeBackend<WatchHistoryRecord[]>("get_watch_history", { limit, offset });
 }
 
+/** The real number of history records — never read off a capped page. */
+export async function getWatchHistoryCount(): Promise<number> {
+  if (!(await isTauriEnv())) {
+    const saved = profileStorage.getItem("mock_watch_history");
+    const list: WatchHistoryRecord[] = saved ? JSON.parse(saved) : [];
+    return list.length;
+  }
+  return invokeBackend<number>("get_watch_history_count");
+}
+
 export async function getMusicHistory(
   limit: number,
   offset: number,

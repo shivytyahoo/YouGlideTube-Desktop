@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, HatGlasses, LogOut, PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowLeft, ArrowRight, CircleUserRound, HatGlasses, LogOut, PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
 import { Button } from '../ui/Button';
 import { GoogleSignInDialog } from '../GoogleSignInDialog';
 import { usePlayerStore } from '../../store/usePlayerStore';
@@ -16,6 +16,9 @@ import { toggleDeepGlide } from '../../lib/deepGlide';
 import { NotificationsBell } from '../notifications/NotificationsBell';
 import { activeTab, useTabsStore } from '../../store/useTabsStore';
 import { useSidebarDrawer } from '../../lib/useSidebarDrawer';
+import { AccountMenu } from './AccountMenu';
+import type { MenuAnchor } from '../ui/AnchoredPortalMenu';
+import { alignToEnd } from '../../lib/direction';
 
 /** PageWrapper returns focus here when Escape closes the drawer. */
 export const SIDEBAR_MENU_BUTTON_ID = 'sidebar-menu-button';
@@ -43,8 +46,27 @@ export function Topbar() {
   });
   const googleAccount = useGoogleAccount();
   const [signInOpen, setSignInOpen] = useState(false);
+  const [signInMode, setSignInMode] = useState<"sign-in" | "add-account">("sign-in");
   const signInDialogOpen = useUiStore((s) => s.signInDialogOpen);
   const closeSignInDialog = useUiStore((s) => s.closeSignInDialog);
+  const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
+  const avatarWrapRef = useRef<HTMLDivElement>(null);
+
+  /** The avatar opens the account menu; a second tap (or Escape/outside click) closes it. */
+  const toggleAccountMenu = useCallback(() => {
+    if (menuAnchor) {
+      setMenuAnchor(null);
+      return;
+    }
+    const rect = avatarWrapRef.current?.getBoundingClientRect();
+    if (rect) setMenuAnchor({ top: rect.bottom + 8, ...alignToEnd(rect) });
+  }, [menuAnchor]);
+
+  const openSignIn = useCallback((mode: "sign-in" | "add-account") => {
+    setMenuAnchor(null);
+    setSignInMode(mode);
+    setSignInOpen(true);
+  }, []);
 
   return (
     <header
@@ -123,27 +145,46 @@ export function Topbar() {
         </IconButton>
         {/* Sign-in follows the mobile app: a "Sign in" button up here, and
             once signed in an avatar chip plus a logout button. The avatar
-            shows the account photo from `account_menu` when present, else
-            the first letter of the real display name — never a placeholder
-            initial. (Android itself shows no top-bar avatar; the chip
-            exists because the desktop top bar is where sign-in lives.) */}
+            opens the account menu (account info, switch/add account,
+            Google account settings, sign out); it shows the account photo
+            from `account_menu` when present, else the first letter of the
+            real display name — a plain user icon until the name is known,
+            never a placeholder initial. (Android itself shows no top-bar
+            avatar; the chip exists because the desktop top bar is where
+            sign-in lives.) */}
         {googleAccount.status === 'signed-in' ? (
           <>
-            {googleAccount.account?.thumbnailUrl ? (
-              <img
-                src={googleAccount.account.thumbnailUrl}
-                alt={googleAccountDisplayName(googleAccount.account) ?? getString('sign_in_signed_in')}
+            <div className="relative shrink-0" ref={avatarWrapRef}>
+              <button
+                type="button"
+                onClick={toggleAccountMenu}
+                aria-haspopup="menu"
+                aria-expanded={menuAnchor !== null}
+                aria-label={googleAccountDisplayName(googleAccount.account) ?? getString('sign_in_signed_in')}
                 title={googleAccountDisplayName(googleAccount.account) ?? undefined}
-                className="h-9 w-9 shrink-0 rounded-full object-cover"
-              />
-            ) : (
-              <span
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--color-primary)] text-sm font-bold text-[var(--color-on-primary)]"
-                aria-label={getString('sign_in_signed_in')}
-                title={googleAccountDisplayName(googleAccount.account) ?? undefined}
+                className="flex h-9 w-9 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                {googleAccountInitial(googleAccount.account)}
-              </span>
+                {googleAccount.account?.thumbnailUrl ? (
+                  <img
+                    src={googleAccount.account.thumbnailUrl}
+                    alt=""
+                    className="h-9 w-9 shrink-0 rounded-full object-cover"
+                  />
+                ) : googleAccountDisplayName(googleAccount.account) ? (
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--color-primary)] text-sm font-bold text-[var(--color-on-primary)]">
+                    {googleAccountInitial(googleAccount.account)}
+                  </span>
+                ) : (
+                  <CircleUserRound className="h-9 w-9 text-chrome-neutral-400" />
+                )}
+              </button>
+            </div>
+            {menuAnchor && (
+              <AccountMenu
+                anchor={menuAnchor}
+                onClose={() => setMenuAnchor(null)}
+                onAddAccount={() => openSignIn("add-account")}
+              />
             )}
             <IconButton
               onClick={() => void googleAccount.signOut()}
@@ -156,13 +197,13 @@ export function Topbar() {
         ) : (
           <Button
             size="sm"
-            onClick={() => setSignInOpen(true)}
+            onClick={() => openSignIn("sign-in")}
             disabled={googleAccount.status === 'signing-in'}
           >
             {getString(googleAccount.status === 'signing-in' ? 'sign_in_waiting' : 'sign_in')}
           </Button>
         )}
-        {signInOpen && <GoogleSignInDialog onClose={() => setSignInOpen(false)} />}
+        {signInOpen && <GoogleSignInDialog mode={signInMode} onClose={() => setSignInOpen(false)} />}
         {signInDialogOpen && <GoogleSignInDialog onClose={closeSignInDialog} />}
       </div>
     </header>

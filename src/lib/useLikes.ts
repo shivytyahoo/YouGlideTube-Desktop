@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { getHistoryDateLabel, type HistoryDateGroup, type HistoryVideo } from "./useHistory";
-import { useLikesStore, type LikedItem, type LikedItemKind } from "../store/useLikesStore";
+import { mergeLikedItems, useLikesStore, type LikedItem, type LikedItemKind } from "../store/useLikesStore";
 import type { SongItem } from "../types/music";
 import type { VideoSummary } from "../types/video";
 
@@ -62,9 +62,11 @@ export function groupLikedItemsByDate(items: LikedItem[]): HistoryDateGroup[] {
 }
 
 export function useLikes() {
-  const items = useLikesStore((s) => s.items);
+  const localItems = useLikesStore((s) => s.items);
+  const serverItems = useLikesStore((s) => s.serverItems);
   const loaded = useLikesStore((s) => s.loaded);
   const load = useLikesStore((s) => s.load);
+  const loadServer = useLikesStore((s) => s.loadServer);
   const remove = useLikesStore((s) => s.remove);
   const clear = useLikesStore((s) => s.clear);
 
@@ -72,6 +74,16 @@ export function useLikes() {
     if (!loaded) void load();
   }, [load, loaded]);
 
+  useEffect(() => {
+    void loadServer();
+  }, [loadServer]);
+
+  // The account's likes lead and this device's own likes follow, so a
+  // video liked on the phone shows here without waiting for a local copy.
+  const items = useMemo(
+    () => mergeLikedItems(serverItems, localItems),
+    [localItems, serverItems],
+  );
   const historyVideos = useMemo(() => items.map(likedItemToHistoryVideo), [items]);
   const groupedLikes = useMemo(() => groupLikedItemsByDate(items), [items]);
 

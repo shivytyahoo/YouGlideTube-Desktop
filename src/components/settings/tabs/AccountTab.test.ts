@@ -37,6 +37,7 @@ function accountState(
     error: null,
     startSignIn: vi.fn(),
     startAddAccount: vi.fn(),
+    cancelSignIn: vi.fn(),
     switchAccount: vi.fn(),
     removeAccount: vi.fn(),
     signOut: vi.fn(),
@@ -94,6 +95,28 @@ describe("AccountTab", () => {
     );
     const el = renderTab();
     expect(el.textContent).toContain("shivam@example.com");
+  });
+
+  it("shows a nameless saved account by its short id, never a generic label as its name", () => {
+    mockUseGoogleAccount.mockReturnValue(
+      accountState("signed-in", null, [
+        { id: "abcdef1234567890", name: null, email: null, channelHandle: null, thumbnailUrl: null, isActive: true },
+      ]),
+    );
+    const el = renderTab();
+    expect(el.textContent).toContain("Account abcdef12");
+  });
+
+  it("shows the live identity on the active row even when the saved list is stale", () => {
+    mockUseGoogleAccount.mockReturnValue(
+      accountState("signed-in", { name: "Shivam", channelHandle: "@shivyt" }, [
+        { id: "a1", name: null, email: null, channelHandle: null, thumbnailUrl: null, isActive: true },
+      ]),
+    );
+    const el = renderTab();
+    expect(el.textContent).toContain("Shivam");
+    expect(el.textContent).toContain("@shivyt");
+    expect(el.textContent).not.toContain("Account a1");
   });
 
   it("signs out immediately from the Sign out row, with no confirmation", () => {

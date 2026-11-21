@@ -9,7 +9,7 @@ import { saveBackupFile } from '../../../lib/backup/exportFile';
 import type { BackupFileKind } from '../../../lib/api/backup';
 import { getPlural, getString } from '../../../lib/i18n/index';
 import { AutoBackupGroup } from './AutoBackupGroup';
-import { getSetting, resetAppData, getWatchHistory } from '../../../lib/api/db';
+import { getSetting, resetAppData, getWatchHistoryCount } from '../../../lib/api/db';
 import { confirmAction } from '../../../lib/dialogs';
 import { SETTINGS } from '../../../lib/settings/schema';
 import { useUiStore } from '../../../store/useUiStore';
@@ -24,8 +24,7 @@ export function DataTab() {
 
   useEffect(() => {
     const load = async () => {
-      const history = await getWatchHistory(100, 0);
-      setHistoryCount(history.length);
+      setHistoryCount(await getWatchHistoryCount().catch(() => 0));
       const subsJson = await getSetting('subscriptions');
       if (subsJson) { try { setSubCount(JSON.parse(subsJson).length); } catch {} }
     };

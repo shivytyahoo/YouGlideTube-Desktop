@@ -197,6 +197,12 @@ impl InnertubeClient {
             .as_str()
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(21600);
+        let init_range = format_range(&format, "initRange");
+        let index_range = format_range(&format, "indexRange");
+        let content_length = format["contentLength"]
+            .as_str()
+            .and_then(|value| value.parse::<u64>().ok())
+            .or_else(|| format["contentLength"].as_u64());
 
         info!(
             client = client.name,
@@ -219,8 +225,20 @@ impl InnertubeClient {
             expires_in_seconds,
             used_client: client.name.to_string(),
             user_agent: client.user_agent.to_string(),
+            init_range,
+            index_range,
+            content_length,
         }))
     }
+}
+
+/// A format's `{start, end}` byte range (`initRange`/`indexRange`), when both
+/// ends parse and the range is not empty.
+fn format_range(format: &serde_json::Value, key: &str) -> Option<(u64, u64)> {
+    let range = &format[key];
+    let start = range["start"].as_str()?.parse::<u64>().ok()?;
+    let end = range["end"].as_str()?.parse::<u64>().ok()?;
+    (end >= start).then_some((start, end))
 }
 
 /// True when the URL has no unsolved `n` throttling parameter (desktop cannot

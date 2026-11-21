@@ -25,6 +25,11 @@ pub struct StreamSource {
     pub mime_type: String,
     /// A song's loudness, kept so it is normalized offline too.
     pub loudness_db: Option<f64>,
+    /// DASH segment ranges: a clip download fetches only the segments
+    /// covering the clip, using the format's init/index ranges.
+    pub init_range: Option<(u64, u64)>,
+    pub index_range: Option<(u64, u64)>,
+    pub content_length: Option<u64>,
 }
 
 #[derive(Debug, Clone)]
@@ -159,6 +164,9 @@ async fn resolve_music(
         user_agent: info.user_agent,
         mime_type: info.mime_type,
         loudness_db: info.loudness_db,
+        init_range: info.init_range,
+        index_range: info.index_range,
+        content_length: info.content_length,
     }))
 }
 
@@ -183,12 +191,18 @@ fn resolve_video(info: &StreamInfo, selection: &VideoSelection) -> Result<Resolv
             user_agent: fallback_agent,
             mime_type: format.video_mime_type.clone(),
             loudness_db: None,
+            init_range: format.video_init_range,
+            index_range: format.video_index_range,
+            content_length: format.video_content_length,
         },
         audio: StreamSource {
             url: format.audio_url.clone(),
             user_agent: audio_agent,
             mime_type: format.audio_mime_type.clone(),
             loudness_db: info.loudness_db,
+            init_range: format.audio_init_range,
+            index_range: format.audio_index_range,
+            content_length: format.audio_content_length,
         },
         output: format.container,
         format_id: format.format_id.clone(),
@@ -275,6 +289,12 @@ mod tests {
             estimated_size_bytes: None,
             video_url: String::new(),
             audio_url: String::new(),
+            video_init_range: None,
+            video_index_range: None,
+            video_content_length: None,
+            audio_init_range: None,
+            audio_index_range: None,
+            audio_content_length: None,
         }
     }
 

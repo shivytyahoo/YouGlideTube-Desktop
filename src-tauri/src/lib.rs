@@ -48,15 +48,19 @@ use commands::auth::{
     remove_account, sign_in_with_cookie, sign_out, start_google_sign_in, switch_account,
 };
 use commands::account::{
-    clear_server_history, get_server_history, get_server_home_feed, get_server_subscriptions,
-    get_watch_later, merge_watch_history, set_channel_subscribed, set_video_watch_later,
+    add_video_to_server_playlist, add_videos_to_server_playlist, clear_server_history,
+    create_server_playlist, delete_server_playlist, get_liked_videos, get_server_history,
+    get_server_home_feed, get_server_playlists, get_server_subscriptions, get_watch_later,
+    merge_watch_history, remove_video_from_server_playlist, remove_videos_from_server_playlist,
+    rename_server_playlist, set_channel_subscribed, set_video_liked, set_video_watch_later,
 };
 use commands::app_window::{AppWindowSession, AppWindowState, app_window_session, open_app_window};
 use commands::backup::{export_backup_data, import_backup_data};
 use commands::db::{
     add_watch_record, add_watch_records_bulk, block_channel, clear_watch_history,
     delete_short_watch_records, delete_watch_record, get_music_history, get_setting,
-    get_watch_history, get_watch_history_years, get_watch_progress, get_watch_records,
+    get_watch_history, get_watch_history_count, get_watch_history_years, get_watch_progress,
+    get_watch_records,
     record_seen_videos, reset_app_data, restore_watch_record, seen_video_ids_among, set_setting,
     unblock_channel,
 };
@@ -67,6 +71,7 @@ use commands::diagnostics::{
     updates_supported,
 };
 use commands::discord::{clear_discord_presence, set_discord_presence};
+use commands::download_storage::download_storage_usage;
 use commands::downloads::{
     DownloadManager, cancel_download, clear_downloads, create_download_collection,
     delete_download_collections, delete_downloads, discard_download, find_earlier_downloads,
@@ -106,7 +111,7 @@ use commands::notes::{
 use commands::notifications::{
     cancel_upcoming_reminder, check_subscriptions_now, clear_notifications, delete_notification,
     get_notifications, get_unread_notification_count, get_upcoming_reminders,
-    mark_notifications_read, restore_notification, set_upcoming_reminder,
+    mark_notification_read, restore_notification, set_upcoming_reminder,
 };
 #[cfg(not(target_os = "macos"))]
 use commands::pip::PIP_WINDOW_LABEL;
@@ -130,12 +135,12 @@ use commands::tray::{
 };
 use commands::window::{PlayerFullscreenState, set_player_fullscreen};
 use commands::youtube::{
-    fetch_subtitles, get_channel_about, get_channel_details, get_channel_page, get_channel_tab,
-    get_comments, get_dearrow_override, get_explore_destination, get_explore_grid,
-    get_explore_page, get_live_chat, get_mix_playlist, get_more_related_videos,
+    create_comment, fetch_subtitles, get_channel_about, get_channel_details, get_channel_page,
+    get_channel_tab, get_comments, get_dearrow_override, get_explore_destination,
+    get_explore_grid, get_explore_page, get_live_chat, get_mix_playlist, get_more_related_videos,
     get_non_music_segments, get_original_title, get_paid_promotion, get_playlist_details,
     get_post_comments, get_related_videos, get_return_youtube_dislike, get_sabr_debug_state,
-    get_search_suggestions, get_sponsorblock_segments, get_stream_info,
+    get_search_suggestions, get_sponsorblock_segments, get_stream_info, like_post,
     get_subscription_rotation_feed, get_subscription_rss_feed, get_unplayable_video_ids,
     get_video_category, get_video_details, get_video_metadata, get_video_storyboard,
     parse_subscription_export, resolve_channel_id, scan_subscription_collaborations, search_videos,
@@ -612,6 +617,8 @@ pub fn run() {
             get_mix_playlist,
             get_comments,
             get_post_comments,
+            create_comment,
+            like_post,
             get_live_chat,
             get_explore_destination,
             get_explore_page,
@@ -619,6 +626,7 @@ pub fn run() {
             get_search_suggestions,
             parse_subscription_export,
             get_watch_history,
+            get_watch_history_count,
             get_music_history,
             add_watch_record,
             add_watch_records_bulk,
@@ -637,10 +645,20 @@ pub fn run() {
             get_server_subscriptions,
             get_server_home_feed,
             set_channel_subscribed,
+            set_video_liked,
             get_server_history,
             merge_watch_history,
             clear_server_history,
             get_watch_later,
+            get_server_playlists,
+            get_liked_videos,
+            create_server_playlist,
+            delete_server_playlist,
+            rename_server_playlist,
+            add_video_to_server_playlist,
+            remove_video_from_server_playlist,
+            add_videos_to_server_playlist,
+            remove_videos_from_server_playlist,
             set_video_watch_later,
             start_google_sign_in,
             cancel_google_sign_in,
@@ -664,6 +682,7 @@ pub fn run() {
             commands::cache::cache_usage,
             commands::cache::clear_cache,
             commands::cache::set_cache_limit,
+            download_storage_usage,
             commands::backup_files::export_backup_file,
             commands::backup_files::read_backup,
             commands::backup_files::import_other_app,
@@ -828,7 +847,7 @@ pub fn run() {
             restore_notes,
             get_notifications,
             get_unread_notification_count,
-            mark_notifications_read,
+            mark_notification_read,
             delete_notification,
             restore_notification,
             clear_notifications,

@@ -31,9 +31,10 @@ export async function getUnreadNotificationCount(): Promise<number> {
   return invokeBackend<number>("get_unread_notification_count");
 }
 
-export async function markNotificationsRead(): Promise<void> {
+/** Marks the one notification the user tapped as read. */
+export async function markNotificationRead(id: number): Promise<void> {
   if (!(await isTauriEnv())) return;
-  return invokeBackend<void>("mark_notifications_read");
+  return invokeBackend<void>("mark_notification_read", { id });
 }
 
 export async function deleteNotification(id: number): Promise<void> {

@@ -32,6 +32,20 @@ pub struct DownloadableFormat {
     pub video_url: String,
     #[serde(skip)]
     pub audio_url: String,
+    /// DASH segment ranges, also backend-only: a clip download fetches only
+    /// the segments covering the clip, using the format's init/index ranges.
+    #[serde(skip)]
+    pub video_init_range: Option<(u64, u64)>,
+    #[serde(skip)]
+    pub video_index_range: Option<(u64, u64)>,
+    #[serde(skip)]
+    pub video_content_length: Option<u64>,
+    #[serde(skip)]
+    pub audio_init_range: Option<(u64, u64)>,
+    #[serde(skip)]
+    pub audio_index_range: Option<(u64, u64)>,
+    #[serde(skip)]
+    pub audio_content_length: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -216,7 +230,20 @@ fn pair_video_with_audio(
         estimated_size_bytes,
         video_url: video.local_url.clone(),
         audio_url: audio.local_url.clone(),
+        video_init_range: range(video.init_range_start, video.init_range_end),
+        video_index_range: range(video.index_range_start, video.index_range_end),
+        video_content_length: video.content_length,
+        audio_init_range: range(audio.init_range_start, audio.init_range_end),
+        audio_index_range: range(audio.index_range_start, audio.index_range_end),
+        audio_content_length: audio.content_length,
     })
+}
+
+fn range(start: Option<u64>, end: Option<u64>) -> Option<(u64, u64)> {
+    match (start, end) {
+        (Some(start), Some(end)) if end >= start => Some((start, end)),
+        _ => None,
+    }
 }
 
 /// Every video codec MP4 can hold is paired with AAC, so the download is a tagged MP4

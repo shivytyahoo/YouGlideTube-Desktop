@@ -216,11 +216,20 @@ fn fragmented_writer_track(
     if let Some(clip) = clip {
         // The track's own samples are filtered to the same kept indices as the
         // writer's list, so the source still answers each index with its bytes.
+        // A segment-only part starts mid-stream: its samples' absolute decode
+        // times begin at the first fragment's tfdt, so the clip range (absolute
+        // media time) is shifted back by that base before trimming. A full
+        // download's first fragment starts at zero, so this changes nothing
+        // there.
+        let media_offset = track
+            .edit_media_time
+            .unwrap_or(0)
+            .saturating_sub(track.first_decode_time as i64);
         let trimmed = clip::trim_samples(
             &samples,
             track.timescale,
             matches!(kind, TrackKind::Video),
-            track.edit_media_time.unwrap_or(0),
+            media_offset,
             clip,
         )
         .map_err(|error| format!("{}: {error}", kind.label()))?;
@@ -683,6 +692,7 @@ mod tests {
             height: 360,
             sample_entry: vec![0; 78],
             edit_media_time: None,
+            first_decode_time: 0,
             samples: (0..90)
                 .map(|index| ProgressiveSample {
                     offset: index as u64,
@@ -709,6 +719,73 @@ mod tests {
             .expect("reads");
         assert_eq!(first.len(), 10);
         assert_eq!(first[0], 30);
+    }
+
+    /// A segment-only part for a clip starting at 44:30: 3 s of 30 fps video
+    /// whose first fragment's tfdt is 44:30 in track ticks. The clip range is
+    /// absolute media time, so without the tfdt shift it would match nothing
+    /// and fail with "clip starts after the end of this track".
+    fn segment_part_track(first_decode_time: u64) -> ProgressiveTrack {
+        let path = super::scratch_file("clip-segment-part", "mp4");
+        let mut file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .expect("scratch file");
+        use std::io::Write as _;
+        let bytes: Vec<u8> = (0..=255).collect();
+        file.write_all(&bytes).expect("writes scratch bytes");
+        ProgressiveTrack {
+            file,
+            codec: Codec::H264,
+            timescale: 90_000,
+            width: 640,
+            height: 360,
+            sample_entry: vec![0; 78],
+            edit_media_time: None,
+            first_decode_time,
+            samples: (0..90)
+                .map(|index| ProgressiveSample {
+                    offset: index as u64,
+                    size: 10,
+                    duration: 3000,
+                    composition_offset: 0,
+                    is_sync: index % 30 == 0,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn a_segment_part_trims_by_absolute_clip_time() {
+        // The part's first fragment starts at 44:30 (2_670_000 ms); the clip
+        // [44:31, 44:32) is the part's second second, starting on a keyframe.
+        let first_decode_time = 2_670_000_u64 * 90;
+        let writer_track = fragmented_writer_track(
+            segment_part_track(first_decode_time),
+            TrackKind::Video,
+            Some(ClipRange::new(2_671_000, 2_672_000).unwrap()),
+        )
+        .expect("trims");
+        assert_eq!(writer_track.samples.len(), 30);
+        assert_eq!(writer_track.media_time, Some(0));
+    }
+
+    #[test]
+    fn a_segment_part_clip_starting_mid_gop_skips_to_its_start() {
+        // The clip starts halfway through the part's second GOP: the kept
+        // samples start at the 44:31 keyframe and the edit list skips 0.5 s.
+        let first_decode_time = 2_670_000_u64 * 90;
+        let writer_track = fragmented_writer_track(
+            segment_part_track(first_decode_time),
+            TrackKind::Video,
+            Some(ClipRange::new(2_671_500, 2_672_000).unwrap()),
+        )
+        .expect("trims");
+        assert_eq!(writer_track.samples.len(), 30);
+        assert_eq!(writer_track.media_time, Some(45_000));
     }
 
     #[test]

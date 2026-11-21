@@ -27,7 +27,7 @@ import {
 } from "../../lib/savedShortsLibrary";
 import { dontRecommendLabel } from "../../lib/dontRecommendLabel";
 import { getString } from "../../lib/i18n/index";
-import { formatCount } from "../../lib/utils";
+import { formatCount, parseCountText } from "../../lib/utils";
 import { youtubeShortsUrl } from "../../lib/youtubeUrl";
 import { copyText, shareLink } from "../../lib/clipboard";
 import type { ShortItem, ShortsPanelState } from "../../types/shorts";
@@ -62,9 +62,6 @@ export function ShortActionBar({
   const blockChannelAction = useFeedActionsStore((s) => s.blockChannel);
   const [menuOpen, setMenuOpen] = useState(false);
   const [savedToLibrary, setSavedToLibrary] = useState(false);
-  const likeCountText = rydData
-    ? formatCount(rydData.likes)
-    : formatCount(short.likeCountText ?? details?.likeCountText) || getString('like');
   const dislikeCountText = rydData ? formatCount(rydData.dislikes) : "Dislike";
   const resolvedCommentCountText = formatCount(commentCountText ?? short.commentCountText) || getString('settings_comments');
   const originalTitle = useOriginalTitle(short.id);
@@ -119,7 +116,15 @@ export function ShortActionBar({
       short,
     ],
   );
-  const { state, like, dislike } = useVideoReactions(video, { channelId: short.channelId ?? null });
+  const { state, like, dislike, likeDelta } = useVideoReactions(video, { channelId: short.channelId ?? null });
+  // A server-confirmed like in this session moves the displayed count,
+  // like Android's likeCountDelta. An unparseable snapshot keeps its text.
+  const likeCount = rydData
+    ? rydData.likes + likeDelta
+    : parseCountText(short.likeCountText ?? details?.likeCountText);
+  const likeCountText = likeCount !== null
+    ? formatCount(likeCount)
+    : formatCount(short.likeCountText ?? details?.likeCountText) || getString('like');
   useEffect(() => {
     likeFromSurfaceRef.current = () => {
       if (state !== "liked") like();

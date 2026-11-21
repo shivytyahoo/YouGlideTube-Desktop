@@ -1,4 +1,5 @@
 import { FolderOpen } from 'lucide-react';
+import { DownloadStorageGroup } from './DownloadStorageGroup';
 import { LocalMediaSettings } from '../LocalMediaSettings';
 import { SettingsGroup } from '../SettingsGroup';
 import { SettingItem } from '../SettingItem';
@@ -133,6 +134,8 @@ export function DownloadsTab() {
           </Button>
         </SettingItem>
       </SettingsGroup>
+
+      <DownloadStorageGroup />
 
       <SettingsGroup title={getString('settings_group_storage_paths')}>
         <SettingItem title={getString('settings_video_download_folder')} description={downloadPath || getString('settings_system_default_videos')} disabled={downloadLocationDisabled}>

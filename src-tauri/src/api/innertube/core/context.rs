@@ -39,6 +39,7 @@ impl InnertubeClient {
             client: &clients::WEB,
             referer: None,
             extra_query: None,
+            extra_headers: &[],
         };
         let payload = serde_json::json!({ "context": clients::WEB.context(None, None) });
         // The visitor identity is anonymous by definition: it is minted

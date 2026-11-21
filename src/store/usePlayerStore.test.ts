@@ -101,6 +101,32 @@ describe("video queue", () => {
     expect(usePlayerStore.getState().currentIndex).toBe(1);
   });
 
+  it("falls back to an autoplay candidate after the last queue item is removed", () => {
+    const current = video("current");
+    const candidate = video("recommended");
+    usePlayerStore.getState().setQueue([current], 0);
+    usePlayerStore.getState().setAutoplayCandidates([candidate]);
+    usePlayerStore.getState().removeFromQueue(0);
+    expect(usePlayerStore.getState().queue).toEqual([]);
+    expect(usePlayerStore.getState().currentVideo).toBeNull();
+
+    expect(usePlayerStore.getState().playNext(true)).toEqual(candidate);
+    expect(usePlayerStore.getState().queue).toEqual([candidate]);
+    expect(usePlayerStore.getState().currentVideo?.id).toBe("recommended");
+    expect(usePlayerStore.getState().currentIndex).toBe(0);
+  });
+
+  it("still does nothing on an empty queue without the autoplay fallback", () => {
+    const candidate = video("recommended");
+    usePlayerStore.getState().setQueue([video("current")], 0);
+    usePlayerStore.getState().setAutoplayCandidates([candidate]);
+    usePlayerStore.getState().removeFromQueue(0);
+
+    expect(usePlayerStore.getState().playNext()).toBeNull();
+    expect(usePlayerStore.getState().queue).toEqual([]);
+    expect(usePlayerStore.getState().autoplayCandidates).toEqual([candidate]);
+  });
+
   it("preserves the active item while reordering around it", () => {
     const items = [video("one"), video("two"), video("three")];
     usePlayerStore.getState().setQueue(items, 1);
@@ -528,5 +554,39 @@ describe("live chat visibility", () => {
 
     usePlayerStore.getState().dismissVideoPlayer();
     expect(usePlayerStore.getState().isLiveChatOpen).toBe(true);
+  });
+});
+
+describe("chapter loop", () => {
+  const chapter = { videoId: "v1", startSeconds: 10, endSeconds: 20, title: "Intro" };
+
+  it("stores a looped chapter until it is turned off", () => {
+    usePlayerStore.getState().setCurrentVideo(video("v1"));
+    usePlayerStore.getState().setLoopChapter(chapter);
+    expect(usePlayerStore.getState().loopChapter).toEqual(chapter);
+
+    usePlayerStore.getState().setLoopChapter(null);
+    expect(usePlayerStore.getState().loopChapter).toBeNull();
+  });
+
+  it("clears the loop when another video starts or the player is dismissed", () => {
+    usePlayerStore.getState().setCurrentVideo(video("v1"));
+    usePlayerStore.getState().setLoopChapter(chapter);
+
+    usePlayerStore.getState().setCurrentVideo(video("v2"));
+    expect(usePlayerStore.getState().loopChapter).toBeNull();
+
+    usePlayerStore.getState().setCurrentVideo(video("v1"));
+    usePlayerStore.getState().setLoopChapter(chapter);
+    usePlayerStore.getState().dismissVideoPlayer();
+    expect(usePlayerStore.getState().loopChapter).toBeNull();
+  });
+
+  it("clears the loop when the queue advances to another video", () => {
+    usePlayerStore.getState().setQueue([video("v1"), video("v2")], 0);
+    usePlayerStore.getState().setLoopChapter(chapter);
+
+    usePlayerStore.getState().playQueueItem(1);
+    expect(usePlayerStore.getState().loopChapter).toBeNull();
   });
 });

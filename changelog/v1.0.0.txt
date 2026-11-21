@@ -18,6 +18,21 @@ HIGHLIGHTS
 - The Android launch intro: the logo ring and tagline animate when the app opens.
 - Small on Linux: the optimized .deb is 21.73 MiB, about 56 MB installed.
 
+FIXES IN THIS BUILD
+- Sign-in now captures cookies from youtube.com only. The first build could capture a Google-only session, so the app looked signed in while YouTube did not recognise it — subscriptions, history, like, comment and subscribe all failed. After installing this build, sign out and sign in once to replace the stored session.
+- Tapping the top-bar avatar now opens the account menu: account info, switch account, add account, Google account settings and sign out.
+- The account row shows your real account name instead of a generic "Google account".
+- Subscriptions and watch history now load from your Google account. The "Import subscriptions" option is gone — subscriptions come from the server.
+- Like and dislike are now confirmed on your account, and the counts update. A comment box is added under videos.
+- Subscribing works from videos, Shorts and comments.
+- The Next button now plays the next video.
+- Clip downloads fetch only the clip's segments instead of the whole video first.
+- Playlists live on your account now: create, delete and rename playlists, add and remove videos, and the Liked videos page reads your server list. Saving to Watch Later from the playlist menu saves on the server too, and removing a video from Liked unlikes it on the server.
+- The chapter Loop button really loops the chapter now. Changing quality in Shorts keeps your position, and Shorts has its own playback speed that survives swipes.
+- Closing the notifications bell no longer marks everything read — only the notifications you open. The bell refreshes on open and has a manual refresh button.
+- Pausing a queued download now shows Resume. Community posts can be liked. Downloads show a storage meter with per-type limits. The Data tab shows the real history count.
+- Cancelling Add account no longer leaves the sign-in screen stuck, and closing the sign-in dialog cancels the login window.
+
 YOUR ACCOUNT
 - Sign in with your Google account right in the app, with multiple accounts. No companion services app is needed for sign-in.
 - Your sign-in cookie stays on this device, is never backed up, and is only sent to YouTube.

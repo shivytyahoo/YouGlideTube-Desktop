@@ -148,6 +148,22 @@ impl YoutubeService {
             .await
     }
 
+    /// Posts a top-level comment on a video, with the create box token the
+    /// comments page carried.
+    pub async fn create_comment(
+        &self,
+        create_comment_params: &str,
+        comment_text: &str,
+    ) -> AppResult<()> {
+        self.extractor
+            .create_comment(create_comment_params, comment_text)
+            .await
+    }
+
+    pub async fn like_post(&self, endpoint_json: &str) -> AppResult<()> {
+        self.extractor.like_post(endpoint_json).await
+    }
+
     pub async fn get_live_chat(
         &self,
         video_id: &str,

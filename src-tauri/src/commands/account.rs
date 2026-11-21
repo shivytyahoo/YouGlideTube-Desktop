@@ -18,8 +18,9 @@ use tracing::warn;
 
 use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::extractors::server_feed::{
-    FE_HISTORY, FE_SUBSCRIPTIONS, MergedHistoryEntry, ServerFeedPage, ServerHistoryEntry,
-    ServerHistoryPage, WatchLaterPage, merge_history_entries, server_history_entries,
+    FE_HISTORY, FE_SUBSCRIPTIONS, LikedVideosPage, MergedHistoryEntry, ServerFeedPage,
+    ServerHistoryEntry, ServerHistoryPage, WatchLaterPage, merge_history_entries,
+    server_history_entries,
 };
 use crate::db::watch_history;
 use crate::errors::{AppResult, ErrorResponse};
@@ -58,6 +59,22 @@ pub async fn get_server_home_feed(
         .browse_home_feed(continuation.as_deref(), params.as_deref())
         .await
         .map_err(ErrorResponse::from)
+}
+
+/// Likes or unlikes a video on the account, on the server. Disliking is
+/// the same call with `liked = false`: there is no account dislike
+/// endpoint — a dislike at least removes the account like, as Android does.
+#[tauri::command]
+pub async fn set_video_liked(
+    extractor: State<'_, Arc<InnertubeClient>>,
+    video_id: String,
+    liked: bool,
+) -> Result<bool, ErrorResponse> {
+    extractor
+        .set_video_liked(&video_id, liked)
+        .await
+        .map_err(ErrorResponse::from)?;
+    Ok(true)
 }
 
 /// Subscribes or unsubscribes the account to a channel, on the server.
@@ -234,4 +251,133 @@ pub async fn set_video_watch_later(
         .await
         .map_err(ErrorResponse::from)?;
     Ok(true)
+}
+
+/// One page of the account's own playlists (`FEplaylist_aggregation`),
+/// in the server's order. Empty while signed out.
+#[tauri::command]
+pub async fn get_server_playlists(
+    extractor: State<'_, Arc<InnertubeClient>>,
+    continuation: Option<String>,
+) -> Result<ServerFeedPage, ErrorResponse> {
+    extractor
+        .browse_server_playlists(continuation.as_deref())
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+/// One page of the account's Liked-videos playlist (`VLLL`), newest
+/// liked first as the server lists them. Empty while signed out.
+#[tauri::command]
+pub async fn get_liked_videos(
+    extractor: State<'_, Arc<InnertubeClient>>,
+    continuation: Option<String>,
+) -> Result<LikedVideosPage, ErrorResponse> {
+    extractor
+        .browse_liked_videos(continuation.as_deref())
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+/// Creates a playlist on the account and returns its id, as Android's
+/// `PlaylistsViewModel.createPlaylist` does. The playlist is private.
+#[tauri::command]
+pub async fn create_server_playlist(
+    extractor: State<'_, Arc<InnertubeClient>>,
+    title: String,
+) -> Result<String, ErrorResponse> {
+    extractor
+        .create_playlist(&title)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+/// Deletes a playlist from the account, as Android's
+/// `PlaylistsViewModel.deletePlaylist` does.
+#[tauri::command]
+pub async fn delete_server_playlist(
+    extractor: State<'_, Arc<InnertubeClient>>,
+    playlist_id: String,
+) -> Result<bool, ErrorResponse> {
+    extractor
+        .delete_playlist(&playlist_id)
+        .await
+        .map_err(ErrorResponse::from)?;
+    Ok(true)
+}
+
+/// Renames a playlist on the account. The account API renames only; the
+/// description stays as the account has it, as Android does.
+#[tauri::command]
+pub async fn rename_server_playlist(
+    extractor: State<'_, Arc<InnertubeClient>>,
+    playlist_id: String,
+    name: String,
+) -> Result<bool, ErrorResponse> {
+    extractor
+        .rename_playlist(&playlist_id, &name)
+        .await
+        .map_err(ErrorResponse::from)?;
+    Ok(true)
+}
+
+/// Adds one video to a playlist on the account, as Android's
+/// `YouTube.addToPlaylist` does. Watch Later goes to the main site, other
+/// playlists to the music host first.
+#[tauri::command]
+pub async fn add_video_to_server_playlist(
+    extractor: State<'_, Arc<InnertubeClient>>,
+    playlist_id: String,
+    video_id: String,
+) -> Result<bool, ErrorResponse> {
+    extractor
+        .add_videos_to_playlist(&playlist_id, &[video_id])
+        .await
+        .map_err(ErrorResponse::from)?;
+    Ok(true)
+}
+
+/// Removes one video from a playlist on the account, as Android's
+/// `YouTube.removeFromPlaylist` does. The entry id is read from a fresh
+/// playlist fetch, so the caller only needs the video id.
+#[tauri::command]
+pub async fn remove_video_from_server_playlist(
+    extractor: State<'_, Arc<InnertubeClient>>,
+    playlist_id: String,
+    video_id: String,
+) -> Result<bool, ErrorResponse> {
+    extractor
+        .remove_videos_from_playlist(&playlist_id, &[video_id])
+        .await
+        .map_err(ErrorResponse::from)?;
+    Ok(true)
+}
+
+/// Adds videos to a playlist on the account in one call, as Android's
+/// `addVideosToPlaylist` does. Returns the ids the server took.
+#[tauri::command]
+pub async fn add_videos_to_server_playlist(
+    extractor: State<'_, Arc<InnertubeClient>>,
+    playlist_id: String,
+    video_ids: Vec<String>,
+) -> Result<Vec<String>, ErrorResponse> {
+    extractor
+        .add_videos_to_playlist(&playlist_id, &video_ids)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+/// Removes videos from a playlist on the account in one call, as
+/// Android's `removeVideosFromPlaylist` does. Returns the ids removed;
+/// an id the playlist no longer carries is left out.
+#[tauri::command]
+pub async fn remove_videos_from_server_playlist(
+    extractor: State<'_, Arc<InnertubeClient>>,
+    playlist_id: String,
+    video_ids: Vec<String>,
+) -> Result<Vec<String>, ErrorResponse> {
+    extractor
+        .remove_videos_from_playlist(&playlist_id, &video_ids)
+        .await
+        .map_err(ErrorResponse::from)
 }

@@ -53,6 +53,15 @@ export function accountSummaryToInfo(summary: AccountSummary | null): GoogleAcco
   };
 }
 
+/** The row label for a saved account: the display name, else the handle,
+ *  else the email — never a generic string as the name. When the server
+ *  gave no identity at all (the menu fetch never landed), the short
+ *  account id keeps rows distinct instead of every row reading the same
+ *  generic label. */
+export function accountRowLabel(saved: AccountSummary): string {
+  return googleAccountDisplayName(saved) ?? `Account ${saved.id.slice(0, 8)}`;
+}
+
 /** First letter of the display name for the avatar circle; "Y" until known. */
 export function googleAccountInitial(account: GoogleAccountInfo | null): string {
   const first = googleAccountDisplayName(account)?.trim().charAt(0);
@@ -81,17 +90,6 @@ export function useGoogleAccount() {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  /** Live fetch of the display identity; best-effort, keeps the cached one on failure. */
-  const refreshAccount = useCallback(async () => {
-    try {
-      const info = await invoke<GoogleAccountInfo>("get_account_info");
-      setAccount(info);
-    } catch {
-      // Signed out, expired session, or offline: keep the cached identity
-      // from get_auth_status (or none) rather than clearing the avatar.
-    }
-  }, []);
-
   /** The saved accounts list; best-effort, keeps the last list on failure. */
   const refreshAccounts = useCallback(async () => {
     try {
@@ -101,6 +99,23 @@ export function useGoogleAccount() {
     }
   }, []);
 
+  /**
+   * Live fetch of the display identity; best-effort, keeps the cached one
+   * on failure. On success the identity is persisted next to the session,
+   * so the saved accounts list is refreshed too — otherwise the Account
+   * settings rows keep the stale snapshot without the name.
+   */
+  const refreshAccount = useCallback(async () => {
+    try {
+      const info = await invoke<GoogleAccountInfo>("get_account_info");
+      setAccount(info);
+      void refreshAccounts();
+    } catch {
+      // Signed out, expired session, or offline: keep the cached identity
+      // from get_auth_status (or none) rather than clearing the avatar.
+    }
+  }, [refreshAccounts]);
+
   const refreshStatus = useCallback(async () => {
     try {
       const { signedIn, account: cached } = await invoke<{
@@ -109,9 +124,11 @@ export function useGoogleAccount() {
       }>("get_auth_status");
       setStatus(signedIn ? "signed-in" : "signed-out");
       setAccount(cached ?? null);
-      // First launch after sign-in: the cached identity may be absent
-      // (signed in before this feature existed), so fetch it live once.
-      if (signedIn && !cached) void refreshAccount();
+      // Backfill the display identity whenever the cached one has no
+      // displayable name — not just when it is absent. An identity with
+      // no name, handle or email (a sign-in whose menu fetch failed once)
+      // used to read as "already known", so the real name never arrived.
+      if (signedIn && !googleAccountDisplayName(cached ?? null)) void refreshAccount();
     } catch {
       // Backend unavailable: keep the last known state.
     }
@@ -154,12 +171,16 @@ export function useGoogleAccount() {
           }),
           listen<string>(GOOGLE_SIGN_IN_FAILED_EVENT, (event) => {
             if (disposed) return;
-            setStatus("signed-out");
             setError(event.payload || "Sign-in failed");
+            // A failed Add-account leaves the current session active:
+            // re-read the real status instead of claiming signed-out.
+            void refreshStatus();
           }),
           listen(GOOGLE_SIGN_IN_CANCELLED_EVENT, () => {
             if (disposed) return;
-            setStatus((current) => (current === "signing-in" ? "signed-out" : current));
+            // Cancelling Add-account while signed in must not flip the
+            // status to signed-out — re-read the real status.
+            void refreshStatus();
           }),
         ]);
       } catch {
@@ -179,15 +200,46 @@ export function useGoogleAccount() {
     };
   }, [refreshStatus, refreshAccount, refreshAccounts]);
 
-  /** Opens the Google sign-in window; the completed event flips the status. */
+  /**
+   * Opens the Google sign-in window; the completed event flips the status.
+   * A session may already exist while this hook still reads signed-out
+   * (an Add-account cancel used to flip the status before the re-read
+   * landed): the backend no-ops `start_google_sign_in` when signed in,
+   * which left the dialog stuck on "waiting" forever. The status is
+   * re-read first, so a live session restores "signed-in" instead.
+   */
   const startSignIn = useCallback(async () => {
     setError(null);
+    try {
+      const { signedIn } = await invoke<{ signedIn: boolean }>("get_auth_status");
+      if (signedIn) {
+        await refreshStatus();
+        return;
+      }
+    } catch {
+      // Backend unavailable: try the sign-in anyway; its catch re-reads.
+    }
     setStatus("signing-in");
     try {
       await invoke("start_google_sign_in");
     } catch (caught) {
-      setStatus("signed-out");
       setError(invokeErrorMessage(caught));
+      void refreshStatus();
+    }
+  }, [refreshStatus]);
+
+  /**
+   * Closes the Google sign-in window without signing in — the poll task
+   * reports cancellation, so the status re-reads. Safe when no window is
+   * open (the backend no-ops). The sign-in dialog calls this when it is
+   * dismissed mid-sign-in, so the login window does not keep polling
+   * behind the closed dialog.
+   */
+  const cancelSignIn = useCallback(async () => {
+    try {
+      await invoke("cancel_google_sign_in");
+    } catch {
+      // No window, or the backend is unavailable: nothing to cancel.
     }
   }, []);
 
@@ -260,6 +312,8 @@ export function useGoogleAccount() {
    * Signs out of the ACTIVE account. The next saved account (if any)
    * becomes active and the app stays signed in under it — the status is
    * re-read rather than assumed, so the top bar follows the new account.
+   * Returns false (and sets `error`) when the sign-out is refused, so
+   * the caller can keep the account menu open instead of closing it.
    */
   const signOut = useCallback(async () => {
     try {
@@ -268,8 +322,10 @@ export function useGoogleAccount() {
       await refreshStatus();
       void refreshAccounts();
       void refreshHomeFeed().catch(() => undefined);
+      return true;
     } catch (caught) {
       setError(invokeErrorMessage(caught));
+      return false;
     }
   }, [refreshStatus, refreshAccounts]);
 
@@ -298,6 +354,7 @@ export function useGoogleAccount() {
     error,
     startSignIn,
     startAddAccount,
+    cancelSignIn,
     switchAccount,
     removeAccount,
     signOut,

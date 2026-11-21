@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { getComments, getPostComments } from "./api/youtube";
+import { createComment, getComments, getPostComments } from "./api/youtube";
+import { normalizeBackendError } from "./api/errors";
 import type { Comment, CommentSort } from "../types/video";
 
 interface UseVideoCommentsOptions {
@@ -23,6 +24,13 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
   const [chosenSort, setChosenSort] = useState<{ key: string; token: string } | null>(null);
   const sortToken = chosenSort?.key === sourceKey ? chosenSort.token : null;
   const [loadingMore, setLoadingMore] = useState(false);
+  // The comment box token the first page carried, when it carried one:
+  // posting needs it, and a page without it cannot post.
+  const [createCommentParams, setCreateCommentParams] = useState<string | null>(null);
+  const [posting, setPosting] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
+  // Bumped after a posted comment so the list reloads from the server.
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [replies, setReplies] = useState<Record<string, Comment[]>>({});
   const [repliesLoading, setRepliesLoading] = useState<Record<string, boolean>>({});
   const [repliesNextToken, setRepliesNextToken] = useState<Record<string, string | null>>({});
@@ -40,6 +48,8 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
     setSortOptions([]);
     setTotalCount(null);
     setDisabled(false);
+    setCreateCommentParams(null);
+    setPostError(null);
   }, [sourceKey]);
 
   useEffect(() => {
@@ -62,6 +72,7 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
         if (res.commentCountText) setCountText(res.commentCountText);
         if (res.totalCount != null) setTotalCount(res.totalCount);
         if (res.sortOptions?.length) setSortOptions(res.sortOptions);
+        if (res.createCommentParams) setCreateCommentParams(res.createCommentParams);
         setDisabled(Boolean(res.commentsDisabled));
       })
       .catch((err) => {
@@ -78,7 +89,7 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
     return () => {
       cancelled = true;
     };
-  }, [fetchComments, sourceId, sourceKey, sortToken]);
+  }, [fetchComments, sourceId, sourceKey, sortToken, reloadNonce]);
 
   /** Reloads the list in the order `token` names (Top or Newest). */
   const selectSort = useCallback(
@@ -121,6 +132,27 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
     [fetchComments, sourceId, repliesLoading],
   );
 
+  /** Posts a comment, then reloads the list from the server. False on failure. */
+  const postComment = useCallback(async (text: string) => {
+    const params = createCommentParams;
+    const body = text.trim();
+    if (!params || !body || posting) return false;
+    setPosting(true);
+    setPostError(null);
+    try {
+      const ok = await createComment(params, body);
+      if (!ok) throw new Error("server declined the comment");
+      setReloadNonce((n) => n + 1);
+      return true;
+    } catch (err) {
+      console.warn("Failed to post the comment", err);
+      setPostError(normalizeBackendError(err).message);
+      return false;
+    } finally {
+      setPosting(false);
+    }
+  }, [createCommentParams, posting]);
+
   const toggleReplies = useCallback(
     async (commentId: string, replyToken: string | null | undefined) => {
       if (expanded[commentId]) {
@@ -150,5 +182,9 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
     loadMore,
     toggleReplies,
     loadReplies,
+    createCommentParams,
+    posting,
+    postError,
+    postComment,
   };
 }

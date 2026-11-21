@@ -309,7 +309,23 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
         </div>
       </div>
 
-      {loading ? (
+      {signedIn && server.error ? (
+        <div className="px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto mt-8 flex w-full flex-col items-center justify-center rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-8 text-center">
+            <p className="text-sm font-medium text-chrome-neutral-300">
+              {getString("history_server_error")}
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void server.refresh()}
+              className="mt-4 shrink-0"
+            >
+              {getString("retry")}
+            </Button>
+          </div>
+        </div>
+      ) : loading ? (
         <div className="flex flex-1 flex-col items-center justify-center py-32 px-4 sm:px-6 lg:px-8">
           <Loader2 className="h-9 w-9 animate-spin text-[var(--color-primary)]" />
           <p className="mt-4 text-sm font-medium text-chrome-neutral-500">

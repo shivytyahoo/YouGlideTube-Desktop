@@ -6,15 +6,31 @@ vi.mock("../lib/api/db", () => ({
   getSetting: async (key: string) => settings.get(key) ?? null,
   setSetting: (key: string, value: string) => setSetting(key, value),
 }));
-vi.mock("../lib/api/music", () => ({ getMusicQueue: vi.fn(), setMusicLiked: (...args: [string, boolean]) => setMusicLiked(...args) }));
+vi.mock("../lib/api/music", () => ({ getMusicQueue: vi.fn(), getLikedMusic: () => getLikedMusic(), setMusicLiked: (...args: [string, boolean]) => setMusicLiked(...args) }));
 const getAccountSignedIn = vi.fn(async () => false);
 const setMusicLiked = vi.fn(async (_videoId: string, _liked: boolean) => true);
+const getLikedMusic = vi.fn(async (): Promise<MusicPlaylistPage> => ({
+  id: "LM",
+  title: "Liked Music",
+  author: null,
+  songCountText: null,
+  thumbnail: null,
+  description: null,
+  songs: [],
+  continuation: null,
+}));
+const getLikedVideos = vi.fn(async (_continuation?: string): Promise<LikedVideosPage> => ({ title: "Liked videos", videos: [], continuation: null }));
+const setVideoLiked = vi.fn(async (_videoId: string, _liked: boolean) => true);
 vi.mock("../lib/api/account", () => ({
   getAccountSignedIn: () => getAccountSignedIn(),
+  getLikedVideos: (...args: [string | undefined]) => getLikedVideos(...args),
+  setVideoLiked: (...args: [string, boolean]) => setVideoLiked(...args),
 }));
 
-import { useLikesStore, type LikedItem } from "./useLikesStore";
-import type { SongItem } from "../types/music";
+import { mergeLikedItems, selectMergedLikes, useLikesStore, type LikedItem } from "./useLikesStore";
+import { useUiStore } from "./useUiStore";
+import type { SongItem, MusicPlaylistPage } from "../types/music";
+import type { LikedVideosPage } from "../lib/api/account";
 
 const like = (id: string, likedAt: string): LikedItem => ({ kind: "video", id, likedAt, video: { id, title: id, channelName: "c" } });
 const newer = like("newer", "2026-02-01T00:00:00.000Z");
@@ -70,6 +86,7 @@ describe("useLikesStore toggleSong", () => {
     getAccountSignedIn.mockResolvedValue(false);
     setMusicLiked.mockClear();
     useLikesStore.setState({ items: [], loaded: true });
+    useUiStore.setState({ toast: null });
   });
 
   it("writes the like to the account when signed in", async () => {
@@ -88,8 +105,100 @@ describe("useLikesStore toggleSong", () => {
     expect(useLikesStore.getState().isLikedSong(song)).toBe(true);
   });
 
+  it("says so when the account refuses the song like", async () => {
+    getAccountSignedIn.mockResolvedValue(true);
+    setMusicLiked.mockRejectedValueOnce(new Error("nope"));
+    await useLikesStore.getState().toggleSong(song);
+    await vi.waitFor(() => expect(useUiStore.getState().toast?.variant).toBe("error"));
+    expect(useUiStore.getState().toast?.message).toContain("Google account");
+  });
+
   it("never calls the account when signed out", async () => {
     await useLikesStore.getState().toggleSong(song);
     expect(setMusicLiked).not.toHaveBeenCalled();
+  });
+});
+
+describe("useLikesStore server likes", () => {
+  const serverVideo = (id: string): LikedItem => ({
+    kind: "video",
+    id,
+    likedAt: "2026-02-02T00:00:00.000Z",
+    video: { id, title: id, channelName: "c" },
+  });
+
+  beforeEach(() => {
+    setSetting.mockClear();
+    settings.clear();
+    getAccountSignedIn.mockResolvedValue(true);
+    setVideoLiked.mockClear();
+    setVideoLiked.mockResolvedValue(true);
+    getLikedVideos.mockClear();
+    getLikedVideos.mockResolvedValue({ title: "Liked videos", videos: [], continuation: null });
+    getLikedMusic.mockClear();
+    useLikesStore.setState({ items: [], serverItems: [], loaded: true, serverLoaded: false });
+    useUiStore.setState({ toast: null });
+  });
+
+  it("loads the account's liked videos first, local-only appended", async () => {
+    const localOnly = like("local-only", "2026-01-01T00:00:00.000Z");
+    useLikesStore.setState({ items: [localOnly] });
+    getLikedVideos.mockResolvedValue({
+      title: "Liked videos",
+      videos: [{ id: "srv", title: "srv", channelName: "c" }],
+      continuation: null,
+    });
+    await useLikesStore.getState().loadServer();
+    const state = useLikesStore.getState();
+    expect(state.serverLoaded).toBe(true);
+    expect(state.serverItems.map((item) => item.id)).toEqual(["srv"]);
+    expect(selectMergedLikes(state).map((item) => item.id)).toEqual(["srv", "local-only"]);
+    expect(mergeLikedItems(state.serverItems, state.items).map((item) => item.id)).toEqual(["srv", "local-only"]);
+  });
+
+  it("keeps the last good server list when the walk fails", async () => {
+    getLikedVideos.mockResolvedValue({
+      title: "Liked videos",
+      videos: [{ id: "srv", title: "srv", channelName: "c" }],
+      continuation: null,
+    });
+    await useLikesStore.getState().loadServer();
+    expect(useLikesStore.getState().serverItems.map((item) => item.id)).toEqual(["srv"]);
+    useLikesStore.setState({ serverLoaded: false });
+    getLikedVideos.mockRejectedValueOnce(new Error("gone"));
+    await useLikesStore.getState().loadServer();
+    expect(useLikesStore.getState().serverItems.map((item) => item.id)).toEqual(["srv"]);
+  });
+
+  it("unlikes a server-only video when it is removed", async () => {
+    const item = serverVideo("srv");
+    useLikesStore.setState({ serverItems: [item], serverLoaded: true });
+    await useLikesStore.getState().remove("video", "srv");
+    expect(setVideoLiked).toHaveBeenCalledWith("srv", false);
+    expect(useLikesStore.getState().serverItems).toEqual([]);
+  });
+
+  it("puts the row back when the server refuses the unlike", async () => {
+    const item = serverVideo("srv");
+    useLikesStore.setState({ serverItems: [item], serverLoaded: true });
+    setVideoLiked.mockRejectedValueOnce(new Error("nope"));
+    await useLikesStore.getState().remove("video", "srv");
+    expect(useLikesStore.getState().items.map((row) => row.id)).toEqual(["srv"]);
+    expect(useUiStore.getState().toast?.variant).toBe("error");
+  });
+
+  it("unlikes every server video on Clear all", async () => {
+    useLikesStore.setState({ serverItems: [serverVideo("a"), serverVideo("b")], serverLoaded: true });
+    await useLikesStore.getState().clear();
+    expect(setVideoLiked).toHaveBeenCalledWith("a", false);
+    expect(setVideoLiked).toHaveBeenCalledWith("b", false);
+    expect(useLikesStore.getState().serverItems).toEqual([]);
+  });
+
+  it("never calls the account when signed out", async () => {
+    getAccountSignedIn.mockResolvedValue(false);
+    useLikesStore.setState({ serverItems: [serverVideo("srv")], serverLoaded: true });
+    await useLikesStore.getState().remove("video", "srv");
+    expect(setVideoLiked).not.toHaveBeenCalled();
   });
 });

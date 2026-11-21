@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ListVideo, Plus, X } from "lucide-react";
 import { addVideosToPlaylistWithToast, createPlaylistWithVideos } from "../../lib/addVideosToPlaylist";
 import { getString } from "../../lib/i18n/index";
-import { loadStoredPlaylists, type StoredPlaylist } from "../../lib/playlistLibrary";
+import { loadStoredPlaylists, serverPlaylistToStored, type StoredPlaylist } from "../../lib/playlistLibrary";
 import { useUiStore } from "../../store/useUiStore";
+import { isSystemServerPlaylistId, useServerPlaylistsStore } from "../../store/useServerPlaylistsStore";
 import type { VideoSummary } from "../../types/video";
 import { PlaylistChoiceCard } from "./PlaylistChoiceCard";
 import { PlaylistFormDialog } from "./PlaylistFormDialog";
@@ -27,6 +28,8 @@ export function AddAllToPlaylistDialog({
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
   const adding = useRef(false);
+  const serverPlaylists = useServerPlaylistsStore((s) => s.playlists);
+  const loadServerPlaylists = useServerPlaylistsStore((s) => s.load);
 
   useEffect(() => {
     let current = true;
@@ -38,15 +41,28 @@ export function AddAllToPlaylistDialog({
         console.warn("Failed to load playlists", error);
         if (current) setPlaylists([]);
       });
+    void loadServerPlaylists();
     return () => {
       current = false;
     };
-  }, []);
+  }, [loadServerPlaylists]);
 
-  const targets = useMemo(
-    () => (playlists ?? []).filter((playlist) => playlist.source === "Owned" && playlist.id !== excludePlaylistId),
-    [playlists, excludePlaylistId],
-  );
+  // The account's playlists join this device's own; the bulk add routes
+  // by id, so a server target is one server call, not a local copy.
+  const targets = useMemo(() => {
+    const local = (playlists ?? []).filter(
+      (playlist) => playlist.source === "Owned" && playlist.id !== excludePlaylistId,
+    );
+    const localIds = new Set(local.map((playlist) => playlist.id));
+    const server = serverPlaylists
+      .filter((playlist) => (
+        !isSystemServerPlaylistId(playlist.id)
+        && playlist.id !== excludePlaylistId
+        && !localIds.has(playlist.id)
+      ))
+      .map(serverPlaylistToStored);
+    return [...local, ...server];
+  }, [playlists, serverPlaylists, excludePlaylistId]);
 
   const addTo = async (add: (videos: VideoSummary[]) => Promise<boolean>) => {
     if (adding.current) return;

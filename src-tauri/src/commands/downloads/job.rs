@@ -13,12 +13,13 @@ use tauri::AppHandle;
 
 use super::metadata::{self, PreparedMetadata};
 use super::progress::{DownloadStatus, ProgressEmitter, ProgressInfo};
-use super::source::{Resolved, Role, SourceSlot};
+use super::segment_clip::{ClipAttempt, ClipTrack, fetch_clip_segments};
+use super::source::{Resolved, Role, SourceSlot, StreamSource};
 use super::tags::{DownloadTags, TagKind};
 use super::transfer::{self, TrackFetch};
 use super::{
-    DownloadControl, DownloadManager, DownloadMediaKind, StartDownloadRequest, muxer, sidecars,
-    subtitles,
+    ClipRange, DownloadControl, DownloadManager, DownloadMediaKind, StartDownloadRequest, muxer,
+    sidecars, subtitles,
 };
 use crate::api::innertube::download::DownloadContainer;
 use crate::db::downloads::DownloadRecord;
@@ -180,10 +181,16 @@ async fn run_single(
         );
     }
     let fetch = track_fetch(job, source, Role::Single, &path, emitter, "media stream");
-    let total = transfer::probe_length(&fetch).await;
-    emitter.set_total(total);
     emitter.emit(DownloadStatus::Downloading, None);
-    transfer::fetch_track(&fetch, total).await?;
+    let segment_only = match job.request.clip_range() {
+        Some(clip) => try_clip_segments(source, None, &fetch, clip, emitter).await?,
+        None => false,
+    };
+    if !segment_only {
+        let total = transfer::probe_length(&fetch).await;
+        emitter.set_total(total);
+        transfer::fetch_track(&fetch, total).await?;
+    }
     let prepared = metadata_task.await.unwrap_or_default();
     let file = if is_aac {
         package_song(job, &path, &prepared, emitter).await?
@@ -240,20 +247,31 @@ async fn run_pair(
         emitter,
         "audio track",
     );
-    let (video_total, audio_total) = tokio::join!(
-        transfer::probe_length(&video),
-        transfer::probe_length(&audio)
-    );
-    emitter.set_total(video_total.zip(audio_total).map(|(v, a)| v + a));
     emitter.emit(DownloadStatus::Downloading, None);
-    let (video_result, audio_result) = tokio::join!(
-        transfer::fetch_track(&video, video_total),
-        transfer::fetch_track(&audio, audio_total)
-    );
-    video_result?;
-    audio_result?;
-    transfer::ensure_valid_track(&video, video_container, video_total).await?;
-    transfer::ensure_valid_track(&audio, audio_container, audio_total).await?;
+    let segment_only = match job.request.clip_range() {
+        Some(clip) => try_clip_segments(source, Some(&video), &audio, clip, emitter).await?,
+        None => false,
+    };
+    if segment_only {
+        // The parts already hold only the clip's segments; the muxer trims
+        // the exact end from them.
+        transfer::ensure_valid_track(&video, video_container, None).await?;
+        transfer::ensure_valid_track(&audio, audio_container, None).await?;
+    } else {
+        let (video_total, audio_total) = tokio::join!(
+            transfer::probe_length(&video),
+            transfer::probe_length(&audio)
+        );
+        emitter.set_total(video_total.zip(audio_total).map(|(v, a)| v + a));
+        let (video_result, audio_result) = tokio::join!(
+            transfer::fetch_track(&video, video_total),
+            transfer::fetch_track(&audio, audio_total)
+        );
+        video_result?;
+        audio_result?;
+        transfer::ensure_valid_track(&video, video_container, video_total).await?;
+        transfer::ensure_valid_track(&audio, audio_container, audio_total).await?;
+    }
 
     emitter.emit(DownloadStatus::Muxing, None);
     let prepared = metadata_task.await.unwrap_or_default();
@@ -407,6 +425,94 @@ fn track_fetch<'a>(
         control: &job.control,
         emitter,
         label,
+    }
+}
+
+/// A clip attempt's view of one track: its segment index, or `None` when the
+/// stream carries no index and the clip falls back to the full download.
+fn clip_track<'a>(
+    source: &StreamSource,
+    fetch: &'a TrackFetch<'a>,
+    is_webm: bool,
+) -> Option<ClipTrack<'a>> {
+    let init_range = source.init_range?;
+    let index_range = source.index_range?;
+    Some(ClipTrack {
+        fetch,
+        is_webm,
+        init_range,
+        index_range,
+        content_length: source.content_length,
+    })
+}
+
+/// Tries to download only the segments covering `clip` into the part files.
+/// Returns `true` when the segments are there; `false` when the caller
+/// should run its normal full download instead. A refused link refreshes the
+/// links and retries the attempt once; anything else that makes the segment
+/// fetch impossible falls back without failing the job.
+async fn try_clip_segments<'a>(
+    source: &'a SourceSlot,
+    video: Option<&'a TrackFetch<'a>>,
+    audio: &'a TrackFetch<'a>,
+    clip: ClipRange,
+    emitter: &'a ProgressEmitter,
+) -> Result<bool, String> {
+    let mut refreshed = false;
+    loop {
+        let resolved = source.resolved().await;
+        let (video_source, audio_source) = match (&resolved, video.is_some()) {
+            (Resolved::Pair { video, audio, .. }, true) => (Some(video), audio),
+            (Resolved::Single(single), false) => (None, single),
+            _ => return Ok(false),
+        };
+        let (video_container, audio_container) = resolved.track_containers();
+        let video_track = match (video_source, video) {
+            (Some(track_source), Some(fetch)) => clip_track(
+                track_source,
+                fetch,
+                video_container == DownloadContainer::Mkv,
+            ),
+            _ => None,
+        };
+        let Some(audio_track) = clip_track(
+            audio_source,
+            audio,
+            audio_container == DownloadContainer::Mkv,
+        ) else {
+            emitter.log("This clip has no segment index; downloading the full stream");
+            return Ok(false);
+        };
+        match fetch_clip_segments(video_track, audio_track, clip).await? {
+            ClipAttempt::Fetched { total_bytes } => {
+                emitter.log(format!(
+                    "Clip segments only: {total_bytes} bytes cover the clip"
+                ));
+                return Ok(true);
+            }
+            ClipAttempt::NotSegmented => {
+                emitter.log("This clip has no usable segment index; downloading the full stream");
+                return Ok(false);
+            }
+            ClipAttempt::Denied => {
+                if refreshed {
+                    return Ok(false);
+                }
+                refreshed = true;
+                // A refresh re-resolves the whole job's links, so one call
+                // freshens both tracks; when it fails, the full download
+                // below reports the refusal on its own terms.
+                let role = if video.is_some() {
+                    Role::Video
+                } else {
+                    Role::Single
+                };
+                let stale = source.current(role).await.url;
+                if source.refresh(role, &stale).await.is_err() {
+                    return Ok(false);
+                }
+            }
+        }
     }
 }
 

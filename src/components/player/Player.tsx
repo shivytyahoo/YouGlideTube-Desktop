@@ -48,6 +48,7 @@ import { sponsorBlockCategoryLabel } from "../../lib/sponsorBlockCategories";
 import { usePersistedPlayerVolume } from "../../lib/usePersistedPlayerVolume";
 import { recordPlayerEvent } from "../../lib/playerDiagnostics";
 import { shouldPublishPlaybackTime } from "../../lib/playerProgress";
+import { seekLeavesLoop, shouldLoopBack } from "../../lib/chapterLoop";
 import { SponsorBlockTracker } from "../../lib/sponsorBlockPolicy";
 import { useManualSponsorSegment } from "../../lib/useManualSponsorSegment";
 import { useVolumeFeedback } from "../../lib/useVolumeFeedback";
@@ -1227,6 +1228,12 @@ export const Player: React.FC<PlayerProps> = ({
       const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : duration || 0;
       nextTime = dur > 0 ? Math.min(Math.max(time, 0), dur) : Math.max(time, 0);
       nextTime = sponsorSkipTarget(nextTime) ?? nextTime;
+    }
+    // Leaving the looped chapter turns the loop off; the loop's own re-seek
+    // lands on the chapter start, inside the range, so it never clears itself.
+    const { loopChapter, currentVideo } = usePlayerStore.getState();
+    if (seekLeavesLoop(loopChapter, currentVideo?.id, nextTime)) {
+      usePlayerStore.getState().setLoopChapter(null);
     }
     video.currentTime = nextTime;
     if (audio) {
@@ -2469,6 +2476,14 @@ export const Player: React.FC<PlayerProps> = ({
     const nextTime = video.currentTime;
     const nextDuration = video.duration || duration || 0;
 
+    // A looped chapter re-seeks to its start when playback reaches its end,
+    // until the viewer turns the loop off.
+    const { loopChapter, currentVideo } = usePlayerStore.getState();
+    if (!isLive && loopChapter && shouldLoopBack(loopChapter, currentVideo?.id, nextTime)) {
+      seekTo(loopChapter.startSeconds);
+      return;
+    }
+
     if (
       mediaBufferingRef.current
       && !video.paused
@@ -2627,7 +2642,7 @@ export const Player: React.FC<PlayerProps> = ({
             return;
           }
           if (autoplayEnabled) {
-            playNext();
+            playNext(true);
           } else {
             setPlaybackDesired(false);
           }

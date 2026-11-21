@@ -21,6 +21,9 @@ pub(crate) fn post(renderer: &Value) -> Option<PostSummary> {
     let reply =
         &renderer["actionButtons"]["commentActionButtonsRenderer"]["replyButton"]["buttonRenderer"];
     let comment_endpoint = &reply["navigationEndpoint"];
+    let like_toggle =
+        &renderer["actionButtons"]["commentActionButtonsRenderer"]["likeButton"]
+            ["toggleButtonRenderer"];
     Some(PostSummary {
         id: id.to_string(),
         author_name: text_of(&renderer["authorText"]).unwrap_or_default(),
@@ -48,7 +51,20 @@ pub(crate) fn post(renderer: &Value) -> Option<PostSummary> {
             })
             .map(ToOwned::to_owned),
         published_time_text: text_of(&renderer["publishedTimeText"]),
+        is_liked: like_toggle["isToggled"].as_bool().unwrap_or(false),
+        like_action: endpoint_json(&like_toggle["defaultServiceEndpoint"]).or_else(|| {
+            endpoint_json(
+                &renderer["actionButtons"]["commentActionButtonsRenderer"]["likeButton"]
+                    ["buttonRenderer"]["serviceEndpoint"],
+            )
+        }),
+        unlike_action: endpoint_json(&like_toggle["toggledServiceEndpoint"]),
     })
+}
+
+/// A service endpoint as the JSON the like call posts, when it is one.
+fn endpoint_json(value: &Value) -> Option<String> {
+    value.as_object().map(|_| value.to_string())
 }
 
 fn image_url(renderer: &Value) -> Option<String> {
@@ -165,5 +181,38 @@ mod tests {
         assert_eq!(post.id, "Ugkx1");
         assert_eq!(post.likes_count_text.as_deref(), Some("1.2K"));
         assert!(post_renderer(&json!({ "postRenderer": { "postId": "Ugkx2" } })).is_some());
+    }
+
+    #[test]
+    fn a_post_keeps_its_like_toggle() {
+        let thread = json!({ "backstagePostThreadRenderer": { "post": { "backstagePostRenderer": {
+            "postId": "Ugkx1", "voteCount": { "simpleText": "1.2K" },
+            "actionButtons": { "commentActionButtonsRenderer": { "likeButton": { "toggleButtonRenderer": {
+                "isToggled": true,
+                "defaultServiceEndpoint": { "performCommentActionEndpoint": { "actions": [{ "type": "like" }] } },
+                "toggledServiceEndpoint": { "performCommentActionEndpoint": { "actions": [{ "type": "unlike" }] } }
+            } } } }
+        } } } });
+        let post = post(post_renderer(&thread).expect("renderer")).expect("post");
+        assert!(post.is_liked);
+        assert!(post
+            .like_action
+            .as_deref()
+            .is_some_and(|action| action.contains("performCommentActionEndpoint")));
+        assert!(post
+            .unlike_action
+            .as_deref()
+            .is_some_and(|action| action.contains("performCommentActionEndpoint")));
+    }
+
+    #[test]
+    fn a_post_without_a_like_toggle_has_no_like_action() {
+        let thread = json!({ "backstagePostThreadRenderer": { "post": { "backstagePostRenderer": {
+            "postId": "Ugkx1", "voteCount": { "simpleText": "1.2K" }
+        } } } });
+        let post = post(post_renderer(&thread).expect("renderer")).expect("post");
+        assert!(!post.is_liked);
+        assert_eq!(post.like_action, None);
+        assert_eq!(post.unlike_action, None);
     }
 }

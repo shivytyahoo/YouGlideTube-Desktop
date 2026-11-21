@@ -748,7 +748,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                 <button
                   type="button"
                   title={getString('next')}
-                  onClick={() => playNext()}
+                  onClick={() => playNext(true)}
                   className="grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10"
                 >
                   <SkipForward size={19} fill="currentColor" />

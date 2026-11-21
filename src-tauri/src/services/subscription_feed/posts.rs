@@ -281,6 +281,9 @@ mod tests {
             comment_count_text: None,
             comment_endpoint_params: None,
             published_time_text: Some(published.to_string()).filter(|text| !text.is_empty()),
+            is_liked: false,
+            like_action: None,
+            unlike_action: None,
         }
     }
 

@@ -10,7 +10,7 @@ import { useDownloadStore } from "../../store/useDownloadStore";
 import { useIsDownloaded } from "../../lib/useDownloads";
 import { useVideoReactions } from "../../lib/useVideoReactions";
 import { useVideoSaved } from "../../lib/useVideoSaved";
-import { formatCount } from "../../lib/utils";
+import { formatCount, parseCountText } from "../../lib/utils";
 import { shareLink } from "../../lib/clipboard";
 import { useUiStore } from "../../store/useUiStore";
 import { getString } from "../../lib/i18n/index";
@@ -55,9 +55,15 @@ export function WatchMetadata({
     });
   };
 
-  const likeLabel =
+  // A server-confirmed like in this session moves the displayed count,
+  // like Android's likeCountDelta. An unparseable snapshot keeps its text.
+  const likeCount =
     rytdEnabled && rydData
-      ? formatCount(rydData.likes)
+      ? rydData.likes + reactions.likeDelta
+      : parseCountText(videoData?.likeCountText ?? null);
+  const likeLabel =
+    likeCount !== null
+      ? formatCount(likeCount)
       : videoData?.likeCountText
       ? formatCount(videoData.likeCountText)
       : getString("like");

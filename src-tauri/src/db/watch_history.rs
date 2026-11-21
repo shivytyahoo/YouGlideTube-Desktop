@@ -1,6 +1,6 @@
 use crate::errors::{AppError, AppResult};
 use serde::{Deserialize, Serialize};
-use sqlx::{QueryBuilder, Sqlite, SqlitePool};
+use sqlx::{QueryBuilder, Row, Sqlite, SqlitePool};
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
@@ -184,6 +184,16 @@ pub async fn get_watch_history(
     .map_err(AppError::from)?;
 
     Ok(records)
+}
+
+/// The real number of history records: the Data tab must not read it off a
+/// capped page, or any library over the page size reads as exactly that size.
+pub async fn count_watch_history(pool: &SqlitePool) -> AppResult<i64> {
+    let row = sqlx::query("SELECT COUNT(*) AS count FROM watch_history")
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::from)?;
+    Ok(row.get::<i64, _>("count"))
 }
 
 /// How far each video was watched, as (video id, seconds watched, length): what every card's

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, type Transition } from "framer-motion";
 import { Button } from "./ui/Button";
 import { getString } from "../lib/i18n/index";
@@ -26,13 +26,24 @@ interface GoogleSignInDialogProps {
  * in add-account mode the status is already signed-in when it opens.
  */
 export function GoogleSignInDialog({ onClose, mode = "sign-in" }: GoogleSignInDialogProps) {
-  const { status, error, startSignIn, startAddAccount, signInWithCookie } = useGoogleAccount();
+  const { status, error, startSignIn, startAddAccount, signInWithCookie, cancelSignIn } =
+    useGoogleAccount();
   const [cookieText, setCookieText] = useState("");
   const [cookieWorking, setCookieWorking] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const signingIn = status === "signing-in";
+
+  /**
+   * Dismissing the dialog cancels the login window too, so it does not
+   * keep polling behind the closed dialog. Only while a WebView sign-in
+   * is actually in progress — a plain dismissal has no window to close.
+   */
+  const handleClose = useCallback(() => {
+    if (signingIn) void cancelSignIn();
+    onClose();
+  }, [signingIn, cancelSignIn, onClose]);
 
   useEffect(() => {
     if (attempted && status === "signed-in") onClose();
@@ -43,7 +54,7 @@ export function GoogleSignInDialog({ onClose, mode = "sign-in" }: GoogleSignInDi
       event.stopPropagation();
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        handleClose();
       } else if (event.key === "Tab") {
         event.preventDefault();
         const buttons = [...(cardRef.current?.querySelectorAll("button") ?? [])];
@@ -54,7 +65,7 @@ export function GoogleSignInDialog({ onClose, mode = "sign-in" }: GoogleSignInDi
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [onClose]);
+  }, [handleClose]);
 
   const saveCookie = async () => {
     if (!cookieText.trim()) return;
@@ -76,7 +87,7 @@ export function GoogleSignInDialog({ onClose, mode = "sign-in" }: GoogleSignInDi
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15 }}
-      onClick={onClose}
+      onClick={handleClose}
       role="presentation"
     >
       <motion.div
@@ -143,7 +154,7 @@ export function GoogleSignInDialog({ onClose, mode = "sign-in" }: GoogleSignInDi
           <p className="mt-5 text-xs text-chrome-neutral-400">{getString("sign_in_note")}</p>
 
           <div className="mt-5 flex justify-end">
-            <Button variant="ghost" onClick={onClose}>
+            <Button variant="ghost" onClick={handleClose}>
               {getString("sign_in_close")}
             </Button>
           </div>

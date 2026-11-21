@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { CaptionTrack, RelatedContentItem, VideoDetails, VideoSummary } from "../types/video";
+import type { CaptionTrack, LoopChapter, RelatedContentItem, VideoDetails, VideoSummary } from "../types/video";
 import { prefetchStreamInfo } from "../lib/streamResolution";
 import { moveAfterId, orderByIds } from "../lib/listOrder";
 import { fisherYates } from "../lib/musicShuffle";
@@ -12,7 +12,6 @@ import type { SponsorBlockSegment, DeArrowOverride, RydData } from "../lib/api/f
 export type PlaybackRate = number;
 export type RepeatMode = "none" | "one" | "all";
 export type QueueAddResult = "added" | "duplicate";
-export type PlayMode = "video" | "music";
 /**
  * `pip` is the mini player surface itself — the in-app floating frame in the
  * main window, and the whole viewport inside the pop-out window. `window` is
@@ -119,7 +118,8 @@ export interface PlayerState {
   queueAdvanceVideoId: string | null;
   /** Videos added with Add to queue during a playlist: they play next and are never saved to it. */
   manualQueueIds: Set<string>;
-  playMode: PlayMode;
+  /** The chapter looping until the viewer turns it off; null when no chapter loops. */
+  loopChapter: LoopChapter | null;
   currentTime: number;
   duration: number;
   videoPlayerMode: VideoPlayerMode;
@@ -187,7 +187,7 @@ export interface PlayerState {
   toggleShuffle: () => void;
   setAutoplayCandidates: (videos: VideoSummary[]) => void;
   clearUpcoming: () => void;
-  setPlayMode: (mode: PlayMode) => void;
+  setLoopChapter: (chapter: LoopChapter | null) => void;
   clearQueue: () => void;
   setCurrentTime: (time: number) => void;
   setDuration: (duration: number) => void;
@@ -270,7 +270,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   unshuffledQueue: null,
   queueAdvanceVideoId: null,
   manualQueueIds: new Set<string>(),
-  playMode: "video",
+  loopChapter: null,
   currentTime: 0,
   duration: 0,
   videoPlayerMode: "watch",
@@ -311,13 +311,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       ...(isNew ? { isLiveChatOpen: true } : {}),
       ...(isNew ? { videoPlayerMode: "watch", videoPipIntent: null, watchPageCache: null } : {}),
       ...(isNew ? { autoplayCandidates: [] } : {}),
+      ...(isNew ? { loopChapter: null } : {}),
       ...(isNew ? { currentTime: 0, duration: video?.durationSeconds ?? 0 } : {}),
       ...(isNew ? { playbackStartedVideoId: null, queueAdvanceVideoId: null } : {}),
     });
 
     if (video && isNew) {
-      const isSong = video.viewCountText === "Song" || video.viewCountText === "Album Track" || video.channelName.toLowerCase().includes("topic") || video.durationSeconds && video.durationSeconds < 360;
-      set({ playMode: isSong ? "music" : "video" });
       prefetchStreamInfo(video.id);
     }
   },
@@ -397,6 +396,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       isQueuePanelOpen: Boolean(playlistContext) || queue.length > 1,
       ...(isNew ? { watchPageCache: null } : {}),
       ...(isNew ? { autoplayCandidates: [] } : {}),
+      ...(isNew ? { loopChapter: null } : {}),
       currentTime: 0,
       duration: nextVideo?.durationSeconds ?? 0,
       queueAdvanceVideoId: null,
@@ -544,6 +544,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       duration: item.durationSeconds ?? 0,
       watchPageCache: null,
       autoplayCandidates: [],
+      loopChapter: null,
       playbackStartedVideoId: null,
     });
     prefetchStreamInfo(item.id);
@@ -551,22 +552,22 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   playNext: (allowAutoplayFallback = false) => {
     const { queue, currentIndex, repeatMode, autoplayCandidates } = get();
-    if (queue.length === 0) return null;
-
-    const nextIndex = currentIndex + 1;
-    if (nextIndex < queue.length) {
-      const nextItem = queue[nextIndex];
-      if (nextItem) {
-        get().playQueueItem(nextIndex);
-        set({ queueAdvanceVideoId: nextItem.id });
-        return nextItem;
-      }
-    } else if (repeatMode === "all") {
-      const firstItem = queue[0];
-      if (firstItem) {
-        get().playQueueItem(0);
-        set({ queueAdvanceVideoId: firstItem.id });
-        return firstItem;
+    if (queue.length > 0) {
+      const nextIndex = currentIndex + 1;
+      if (nextIndex < queue.length) {
+        const nextItem = queue[nextIndex];
+        if (nextItem) {
+          get().playQueueItem(nextIndex);
+          set({ queueAdvanceVideoId: nextItem.id });
+          return nextItem;
+        }
+      } else if (repeatMode === "all") {
+        const firstItem = queue[0];
+        if (firstItem) {
+          get().playQueueItem(0);
+          set({ queueAdvanceVideoId: firstItem.id });
+          return firstItem;
+        }
       }
     }
 
@@ -695,7 +696,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     });
   },
 
-  setPlayMode: (playMode) => set({ playMode }),
+  setLoopChapter: (loopChapter) => set({ loopChapter }),
 
   clearQueue: () => set({
     queue: [],
@@ -715,6 +716,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     isHandoffSilent: false,
     watchPageCache: null,
     autoplayCandidates: [],
+    loopChapter: null,
     playbackStartedVideoId: null,
     isChaptersPanelOpen: false,
     isQueuePanelOpen: false,
@@ -772,6 +774,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       patch.duration = video.durationSeconds ?? 0;
       patch.watchPageCache = null;
       patch.autoplayCandidates = [];
+      patch.loopChapter = null;
       patch.playbackStartedVideoId = null;
       patch.currentTime = 0;
     }

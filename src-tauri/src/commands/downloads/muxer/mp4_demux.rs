@@ -73,6 +73,10 @@ struct TrackMeta {
     codec_private: Option<Vec<u8>>,
     sample_entry: Vec<u8>,
     edit_media_time: Option<i64>,
+    /// The first fragment's `tfdt` base decode time, in track ticks: 0 when
+    /// the file starts at the stream's beginning. A segment-only part starts
+    /// mid-stream, so its samples' absolute decode times begin here.
+    first_decode_time: u64,
     timescale: u32,
     width: u16,
     height: u16,
@@ -134,6 +138,9 @@ pub(super) struct ProgressiveTrack {
     pub(super) sample_entry: Vec<u8>,
     /// The source edit list's media start, in track ticks (AAC priming, B-frame delay).
     pub(super) edit_media_time: Option<i64>,
+    /// The first fragment's `tfdt` base decode time, in track ticks (see
+    /// `TrackMeta::first_decode_time`).
+    pub(super) first_decode_time: u64,
     pub(super) samples: Vec<ProgressiveSample>,
 }
 
@@ -186,6 +193,7 @@ pub(super) fn open_progressive(path: &Path, kind: TrackKind) -> Result<Progressi
         height: meta.height,
         sample_entry: meta.sample_entry,
         edit_media_time: meta.edit_media_time,
+        first_decode_time: meta.first_decode_time,
         samples,
     })
 }
@@ -256,6 +264,7 @@ fn parse_metadata(file: &mut File, kind: TrackKind) -> Result<TrackMeta, String>
     // sample list and drops it — no need to hold every fragment in memory at once.
     let mut config: Option<MoovConfig> = None;
     let mut samples = Vec::new();
+    let mut first_decode_time: Option<u64> = None;
     let mut pos = 0_u64;
     while pos + 8 <= file_len {
         let (box_type, header_len, total) = read_box_header(file, pos, file_len, label)?;
@@ -272,7 +281,13 @@ fn parse_metadata(file: &mut File, kind: TrackKind) -> Result<TrackMeta, String>
                     .as_ref()
                     .ok_or_else(|| format!("A {label} fragment preceded its moov header"))?;
                 let payload = read_at(file, pos + header_len, total - header_len, label)?;
-                parse_moof(pos, &payload, parsed, &mut samples)?;
+                parse_moof(
+                    pos,
+                    &payload,
+                    parsed,
+                    &mut first_decode_time,
+                    &mut samples,
+                )?;
             }
             _ => {}
         }
@@ -291,6 +306,7 @@ fn parse_metadata(file: &mut File, kind: TrackKind) -> Result<TrackMeta, String>
         codec_private: config.entry.codec_private,
         sample_entry: config.entry.raw,
         edit_media_time: config.edit_media_time,
+        first_decode_time: first_decode_time.unwrap_or(0),
         timescale: config.timescale,
         width: config.entry.width,
         height: config.entry.height,
@@ -345,6 +361,7 @@ fn parse_moof(
     moof_start: u64,
     moof: &[u8],
     config: &MoovConfig,
+    first_decode_time: &mut Option<u64>,
     samples: &mut Vec<SampleRef>,
 ) -> Result<(), String> {
     for traf in children(moof, b"traf") {
@@ -354,10 +371,11 @@ fn parse_moof(
         if header.track_id != config.track_id {
             continue;
         }
-        let mut decode_time = child(traf, b"tfdt")
-            .map(parse_tfdt)
-            .transpose()?
-            .unwrap_or(0);
+        let tfdt = child(traf, b"tfdt").map(parse_tfdt).transpose()?;
+        if first_decode_time.is_none() {
+            *first_decode_time = tfdt;
+        }
+        let mut decode_time = tfdt.unwrap_or(0);
         let mut cursor: Option<u64> = None;
         for trun in children(traf, b"trun") {
             read_trun(

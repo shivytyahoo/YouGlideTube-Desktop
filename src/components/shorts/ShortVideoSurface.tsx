@@ -19,7 +19,6 @@ import {
   ThumbsUp,
 } from "lucide-react";
 import type { PlaybackRate } from "../../store/usePlayerStore";
-import { usePlayerStore } from "../../store/usePlayerStore";
 import { SETTINGS } from "../../lib/settings/schema";
 import { youtubeShortsUrl, youtubeWatchUrl } from "../../lib/youtubeUrl";
 import { copyText } from "../../lib/clipboard";
@@ -127,7 +126,15 @@ export function ShortVideoSurface({
   const previousRateRef = useRef<PlaybackRate | null>(null);
   const longPressActiveRef = useRef(false);
   const suppressClickRef = useRef(false);
-  const appliedInitialRateForRef = useRef<string | null>(null);
+  // A source swap (quality change) that should carry the position over, set by
+  // the setup effect and consumed once the new source knows its duration.
+  const restorePositionRef = useRef<number | null>(null);
+  // The position before the source was torn down. The cleanup runs before the
+  // next setup and its load() resets the element to 0:00, so the position is
+  // saved here, not read in the setup body.
+  const lastPositionRef = useRef(0);
+  const prevVideoIdRef = useRef<string | null>(null);
+  const prevActiveRef = useRef(false);
   const autoAdvanceFiredRef = useRef(false);
   const lastAudioResyncAtRef = useRef(0);
   const mutedRef = useRef(muted);
@@ -160,10 +167,14 @@ export function ShortVideoSurface({
   const [statsVisible, setStatsVisible] = useState(false);
   const [isBoosting, setIsBoosting] = useState(false);
 
-  const playbackRate = usePlayerStore((state) => state.playbackRate);
-  const setPlaybackRate = usePlayerStore((state) => state.setPlaybackRate);
-  const rememberPlaybackSpeed = useAppSettingsStore((state) => state.values[SETTINGS.REMEMBER_PLAYBACK_SPEED] === "true");
-  const playbackSpeedSetting = useAppSettingsStore((state) => state.values[SETTINGS.PLAYBACK_SPEED] ?? "1.0");
+  // Shorts keeps its own persisted speed, apart from the Watch page's: a
+  // choice here survives the next swipe and never leaks into a regular video.
+  const shortsPlaybackRate = normalizePlaybackRate(
+    useAppSettingsStore((state) => state.values[SETTINGS.SHORTS_PLAYBACK_SPEED] ?? "1.0"),
+  );
+  const setShortsPlaybackRate = useCallback((rate: PlaybackRate) => {
+    void setSettingValue(SETTINGS.SHORTS_PLAYBACK_SPEED, formatPlaybackRate(normalizePlaybackRate(rate)));
+  }, []);
   const customSpeedsEnabled = useAppSettingsStore((state) => state.values[SETTINGS.CUSTOM_SPEEDS_ENABLED] === "true");
   const customSpeedPresets = useAppSettingsStore((state) => state.values[SETTINGS.CUSTOM_SPEED_PRESETS] ?? "");
   const longPressSpeedSetting = useAppSettingsStore((state) => state.values[SETTINGS.LONG_PRESS_PLAYBACK_SPEED] ?? "2.0");
@@ -173,7 +184,6 @@ export function ShortVideoSurface({
 
   useSubtitleSettingsSync();
 
-  const defaultPlaybackRate = normalizePlaybackRate(playbackSpeedSetting);
   const longPressPlaybackRate = longPressRate(longPressSpeedSetting);
   const speedOptions = parseCustomSpeedPresets(customSpeedPresets, customSpeedsEnabled);
   const selectedCaption = captions.find((caption) => caption.id === selectedCaptionId) ?? null;
@@ -225,24 +235,17 @@ export function ShortVideoSurface({
   }, [settingsOpen]);
 
   useEffect(() => {
-    const mediaIdentity = videoUrl || dashUrl || "";
-    if (!active || !mediaIdentity || appliedInitialRateForRef.current === mediaIdentity) return;
-    appliedInitialRateForRef.current = mediaIdentity;
-    setPlaybackRate(defaultPlaybackRate);
-  }, [active, dashUrl, defaultPlaybackRate, setPlaybackRate, videoUrl]);
-
-  useEffect(() => {
     const video = videoRef.current;
     const audio = audioRef.current;
     if (video) {
-      video.playbackRate = playbackRate;
+      video.playbackRate = shortsPlaybackRate;
       video.preservesPitch = true;
     }
     if (audio) {
-      audio.playbackRate = playbackRate;
+      audio.playbackRate = shortsPlaybackRate;
       audio.preservesPitch = true;
     }
-  }, [playbackRate, videoUrl, audioUrl]);
+  }, [shortsPlaybackRate, videoUrl, audioUrl]);
 
   useEffect(() => {
     if (!subtitlesEnabled) {
@@ -256,9 +259,9 @@ export function ShortVideoSurface({
     return () => {
       if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
       if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
-      if (previousRateRef.current !== null) setPlaybackRate(previousRateRef.current);
+      if (previousRateRef.current !== null) setShortsPlaybackRate(previousRateRef.current);
     };
-  }, [setPlaybackRate]);
+  }, [setShortsPlaybackRate]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -278,6 +281,7 @@ export function ShortVideoSurface({
         dashRef.current = null;
       }
       dashRef.current = null;
+      lastPositionRef.current = video.currentTime || 0;
       video.pause();
       video.removeAttribute("src");
       video.load();
@@ -287,6 +291,16 @@ export function ShortVideoSurface({
         audio.load();
       }
     };
+
+    // A quality or audio-track change swaps only the source of the short
+    // already playing: its position and a pause carry over, as on the main
+    // player. A new short — or coming back to this one — starts over.
+    const sameShort = prevActiveRef.current && prevVideoIdRef.current === videoId && active;
+    prevActiveRef.current = active;
+    prevVideoIdRef.current = videoId;
+    const resumeTime = sameShort ? lastPositionRef.current : 0;
+    const wasPaused = sameShort && userPausedRef.current;
+    restorePositionRef.current = resumeTime > 0 ? resumeTime : null;
 
     if (!active) {
       setUserPaused(false);
@@ -298,8 +312,8 @@ export function ShortVideoSurface({
     }
 
     if (useDirect && videoUrl) {
-      setUserPaused(false);
-      userPausedRef.current = false;
+      setUserPaused(wasPaused);
+      userPausedRef.current = wasPaused;
       teardown();
       video.src = videoUrl;
       video.loop = shouldLoop && !hasSeparateAudio;
@@ -311,7 +325,7 @@ export function ShortVideoSurface({
         audio.loop = shouldLoop;
         audio.muted = mutedRef.current;
         audio.volume = volumeRef.current;
-        audio.playbackRate = playbackRate;
+        audio.playbackRate = shortsPlaybackRate;
         audio.preservesPitch = true;
       }
 
@@ -389,8 +403,8 @@ export function ShortVideoSurface({
     }
 
     if (dashUrl) {
-      setUserPaused(false);
-      userPausedRef.current = false;
+      setUserPaused(wasPaused);
+      userPausedRef.current = wasPaused;
       teardown();
       video.loop = shouldLoop;
       video.muted = mutedRef.current;
@@ -398,6 +412,7 @@ export function ShortVideoSurface({
       const player = createProxiedDashPlayer(dashUrl, { buffer: { bufferToKeep: 12, bufferTimeDefault: 3 } });
       const dashEvents = dashjs.MediaPlayer.events;
       const playDash = () => {
+        if (userPausedRef.current) return;
         void video.play().catch(() => {});
       };
       const handleDashError = () => onError?.();
@@ -431,11 +446,11 @@ export function ShortVideoSurface({
     if (audio.getAttribute("src") === audioUrl) return;
     lastAudioResyncAtRef.current = performance.now();
     audio.src = audioUrl;
-    audio.playbackRate = playbackRate;
+    audio.playbackRate = shortsPlaybackRate;
     audio.preservesPitch = true;
     audio.currentTime = video.currentTime;
     if (!video.paused && !userPausedRef.current) void audio.play().catch(() => {});
-  }, [active, audioUrl, hasSeparateAudio, playbackRate]);
+  }, [active, audioUrl, hasSeparateAudio, shortsPlaybackRate]);
 
   useEffect(() => {
     if (!active || playbackMode !== "auto_interval" || autoAdvanceFiredRef.current) return;
@@ -457,13 +472,29 @@ export function ShortVideoSurface({
       noteShortProgress(videoId, (video.currentTime || 0) * 1000, known ? video.duration * 1000 : 0);
     };
 
+    // A source swap (quality change) lands back where playback was, once the
+    // new source knows its duration; a seek before that is refused, so wait.
+    const restorePosition = () => {
+      const at = restorePositionRef.current;
+      if (at === null || video.readyState < 1) return;
+      restorePositionRef.current = null;
+      try {
+        video.currentTime = Math.min(at, video.duration || at);
+      } catch {
+        restorePositionRef.current = at;
+      }
+    };
+
     video.addEventListener("timeupdate", syncProgress);
     video.addEventListener("durationchange", syncProgress);
     video.addEventListener("loadedmetadata", syncProgress);
+    video.addEventListener("loadedmetadata", restorePosition);
+    restorePosition();
     return () => {
       video.removeEventListener("timeupdate", syncProgress);
       video.removeEventListener("durationchange", syncProgress);
       video.removeEventListener("loadedmetadata", syncProgress);
+      video.removeEventListener("loadedmetadata", restorePosition);
     };
   }, [dashUrl, videoUrl, videoId]);
 
@@ -505,13 +536,9 @@ export function ShortVideoSurface({
 
   const selectPlaybackRate = useCallback(
     (nextRate: number) => {
-      const normalized = normalizePlaybackRate(nextRate);
-      setPlaybackRate(normalized);
-      if (rememberPlaybackSpeed) {
-        void setSettingValue(SETTINGS.PLAYBACK_SPEED, formatPlaybackRate(normalized));
-      }
+      setShortsPlaybackRate(normalizePlaybackRate(nextRate));
     },
-    [rememberPlaybackSpeed, setPlaybackRate],
+    [setShortsPlaybackRate],
   );
 
   const restorePlaybackRate = useCallback(() => {
@@ -520,7 +547,7 @@ export function ShortVideoSurface({
       longPressTimerRef.current = null;
     }
     if (longPressActiveRef.current && previousRateRef.current !== null) {
-      setPlaybackRate(previousRateRef.current);
+      setShortsPlaybackRate(previousRateRef.current);
       suppressClickRef.current = true;
       window.setTimeout(() => {
         suppressClickRef.current = false;
@@ -529,7 +556,7 @@ export function ShortVideoSurface({
     longPressActiveRef.current = false;
     previousRateRef.current = null;
     setIsBoosting(false);
-  }, [setPlaybackRate]);
+  }, [setShortsPlaybackRate]);
 
   const showCopied = useCallback((label: string) => {
     setCopiedLabel(label);
@@ -544,13 +571,13 @@ export function ShortVideoSurface({
       event.currentTarget.setPointerCapture(event.pointerId);
       if (longPressPlaybackRate === null) return;
       longPressTimerRef.current = setTimeout(() => {
-        previousRateRef.current = playbackRate;
+        previousRateRef.current = shortsPlaybackRate;
         longPressActiveRef.current = true;
         setIsBoosting(true);
-        setPlaybackRate(longPressPlaybackRate);
+        setShortsPlaybackRate(longPressPlaybackRate);
       }, LONG_PRESS_MS);
     },
-    [active, longPressPlaybackRate, playbackRate, setPlaybackRate],
+    [active, longPressPlaybackRate, shortsPlaybackRate, setShortsPlaybackRate],
   );
 
   const handleSurfaceClick = useCallback(
@@ -608,7 +635,7 @@ export function ShortVideoSurface({
     const copied = await copyText(JSON.stringify({
       currentTime: formatTime(progress),
       duration: formatTime(duration),
-      playbackRate,
+      playbackRate: shortsPlaybackRate,
       selectedQualityId,
       readyState: video?.readyState,
       networkState: video?.networkState,
@@ -616,7 +643,7 @@ export function ShortVideoSurface({
       captions: captions.length,
     }, null, 2));
     showCopied(getString(copied ? "player_debug_info_copied" : "player_debug_info_copy_failed"));
-  }, [captions.length, duration, playbackRate, progress, selectedQualityId, showCopied]);
+  }, [captions.length, duration, shortsPlaybackRate, progress, selectedQualityId, showCopied]);
 
   const togglePictureInPicture = useCallback(() => {
     const video = videoRef.current;
@@ -770,7 +797,7 @@ export function ShortVideoSurface({
               <SettingsRow
                 icon={<Gauge size={18} />}
                 label={getString('player_menu_speed')}
-                value={playbackRate === 1 ? "Normal" : `${playbackRate}x`}
+                value={shortsPlaybackRate === 1 ? "Normal" : `${shortsPlaybackRate}x`}
                 onClick={() => setSettingsPane("speed")}
               />
               <SettingsRow
@@ -830,7 +857,7 @@ export function ShortVideoSurface({
                 <div className="rounded-md px-3 py-3 text-sm text-chrome-zinc-100">
                   <div className="mb-2 flex items-center justify-between text-xs font-semibold text-chrome-zinc-300">
                     <span>{getString('player_menu_speed_label')}</span>
-                    <span className="font-mono text-primary">{playbackRate}x</span>
+                    <span className="font-mono text-primary">{shortsPlaybackRate}x</span>
                   </div>
                   <input
                     aria-label={getString('player_menu_speed')}
@@ -838,7 +865,7 @@ export function ShortVideoSurface({
                     min={0.25}
                     max={4}
                     step={0.05}
-                    value={playbackRate}
+                    value={shortsPlaybackRate}
                     onChange={(event) => selectPlaybackRate(Number(event.target.value))}
                     className="h-1 w-full accent-primary"
                   />
@@ -847,7 +874,7 @@ export function ShortVideoSurface({
               {(speedOptions.length ? speedOptions : DEFAULT_SPEED_OPTIONS).map((speed) => (
                 <MenuChoice
                   key={speed}
-                  checked={playbackRate === speed}
+                  checked={shortsPlaybackRate === speed}
                   label={speed === 1 ? "Normal" : `${speed}x`}
                   onClick={() => {
                     selectPlaybackRate(speed);
@@ -1026,7 +1053,7 @@ export function ShortVideoSurface({
           videoRef={videoRef}
           currentTime={progress}
           duration={duration}
-          playbackRate={playbackRate}
+          playbackRate={shortsPlaybackRate}
           qualityLabel={selectedQualityLabel}
           mimeType={selectedVariant?.mimeType}
           bitrate={selectedVariant?.bitrate}

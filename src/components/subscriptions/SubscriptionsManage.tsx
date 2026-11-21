@@ -118,7 +118,7 @@ export function SubscriptionsManage({
         <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-chrome-neutral-800 bg-surface-container-low p-8 text-center">
           <User className="mb-3 text-chrome-neutral-600" size={36} />
           <h3 className="text-base font-medium text-chrome-neutral-200">{getString("subscriptions_empty_manage")}</h3>
-          <p className="mt-1 max-w-md text-sm text-chrome-neutral-400">{getString("subscriptions_empty_manage_body")}</p>
+          <p className="mt-1 max-w-md text-sm text-chrome-neutral-400">{getString("subscriptions_empty_manage_hint")}</p>
         </div>
       )}
     </section>

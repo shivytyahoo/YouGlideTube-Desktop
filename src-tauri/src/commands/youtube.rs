@@ -835,6 +835,34 @@ pub async fn get_post_comments(
         .map_err(ErrorResponse::from)
 }
 
+/// Posts a top-level comment on a video, with the create box token the
+/// comments page carried. Signed in only.
+#[tauri::command]
+pub async fn create_comment(
+    youtube_service: State<'_, YoutubeService>,
+    create_comment_params: String,
+    comment_text: String,
+) -> Result<(), ErrorResponse> {
+    youtube_service
+        .create_comment(&create_comment_params, &comment_text)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+/// Likes or unlikes a community post, with the toggle endpoint the posts
+/// page carried. Signed in only.
+#[tauri::command]
+pub async fn like_post(
+    youtube_service: State<'_, YoutubeService>,
+    endpoint_json: String,
+) -> Result<(), ErrorResponse> {
+    youtube_service
+        .like_post(&endpoint_json)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+
 #[tauri::command]
 pub async fn get_live_chat(
     video_id: String,

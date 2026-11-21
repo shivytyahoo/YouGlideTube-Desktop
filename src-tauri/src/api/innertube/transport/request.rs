@@ -42,6 +42,9 @@ pub struct RequestSpec<'a> {
     pub referer: Option<&'a str>,
     /// Appended to the URL, such as the music search's `&ctoken=…`.
     pub extra_query: Option<&'a str>,
+    /// Extra headers for this one call, such as the comment create's
+    /// `X-Goog-AuthUser` retry. Empty for every other call.
+    pub extra_headers: &'a [(&'static str, &'static str)],
 }
 
 impl RequestSpec<'_> {
@@ -90,6 +93,9 @@ impl RequestSpec<'_> {
                 *cookie = auth.cookie.clone();
             }
             headers.push(("Authorization", auth.authorization.clone()));
+        }
+        for (name, value) in self.extra_headers {
+            headers.push((name, (*value).to_string()));
         }
         headers
     }
@@ -161,6 +167,7 @@ mod tests {
                 client,
                 referer: None,
                 extra_query: None,
+                extra_headers: &[],
             };
             let headers = spec.headers(Some("visitor-1"), None);
             assert_eq!(header(&headers, "User-Agent"), Some(client.user_agent));
@@ -187,6 +194,7 @@ mod tests {
             client: &WEB,
             referer: Some("https://youtu.be/abc"),
             extra_query: None,
+            extra_headers: &[],
         };
         let headers = spec.headers(None, None);
         assert!(header(&headers, "X-Goog-Visitor-Id").is_none());
@@ -202,6 +210,7 @@ mod tests {
             client: &WEB_REMIX,
             referer: None,
             extra_query: Some("&ctoken=abc"),
+            extra_headers: &[],
         };
         assert_eq!(
             spec.url(),
@@ -247,6 +256,7 @@ mod tests {
             client: &WEB,
             referer: None,
             extra_query: None,
+            extra_headers: &[],
         };
         let auth = crate::auth::sapisid::AuthHeaders {
             authorization: "SAPISIDHASH 1000_deadbeef".to_string(),
@@ -277,9 +287,34 @@ mod tests {
             client: &WEB,
             referer: None,
             extra_query: None,
+            extra_headers: &[],
         };
         let headers = spec.headers(None, None);
         assert_eq!(header(&headers, "Cookie"), Some("SOCS=CAE="));
         assert!(header(&headers, "Authorization").is_none());
+    }
+
+    #[test]
+    fn extra_headers_ride_alongside_auth() {
+        // The comment create's delegated-channel retry carries
+        // X-Goog-AuthUser; nothing else sends extra headers.
+        let spec = RequestSpec {
+            host: Host::Www,
+            endpoint: "comment/create_comment",
+            client: &WEB,
+            referer: None,
+            extra_query: None,
+            extra_headers: &[("X-Goog-AuthUser", "0")],
+        };
+        let auth = crate::auth::sapisid::AuthHeaders {
+            authorization: "SAPISIDHASH 1000_deadbeef".to_string(),
+            cookie: "SAPISID=abc; SID=def".to_string(),
+        };
+        let headers = spec.headers(None, Some(&auth));
+        assert_eq!(header(&headers, "X-Goog-AuthUser"), Some("0"));
+        assert_eq!(
+            header(&headers, "Authorization"),
+            Some("SAPISIDHASH 1000_deadbeef")
+        );
     }
 }

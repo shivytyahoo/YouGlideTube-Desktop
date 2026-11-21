@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, BellOff, Clock3, X } from "lucide-react";
+import { Bell, BellOff, Clock3, RefreshCw, X } from "lucide-react";
 import { IconButton } from "../ui/IconButton";
 import { AnchoredPortalMenu, type MenuAnchor } from "../ui/AnchoredPortalMenu";
 import { useNotificationStore } from "../../store/useNotificationStore";
@@ -129,13 +129,19 @@ export function NotificationsBell() {
   const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
 
   const notifications = useNotificationStore((state) => state.notifications);
+  const notificationsRef = useRef(notifications);
+  notificationsRef.current = notifications;
   const unreadCount = useNotificationStore((state) => state.unreadCount);
   const loadNotifications = useNotificationStore((state) => state.loadNotifications);
   const prependNotifications = useNotificationStore((state) => state.prependNotifications);
-  const markAllRead = useNotificationStore((state) => state.markAllRead);
+  const markRead = useNotificationStore((state) => state.markRead);
+  const checkNow = useNotificationStore((state) => state.checkNow);
+  const refreshIfStale = useNotificationStore((state) => state.refreshIfStale);
+  const checking = useNotificationStore((state) => state.checking);
   const removeNotification = useNotificationStore((state) => state.removeNotification);
   const restoreRemoved = useNotificationStore((state) => state.restoreRemoved);
   const clearAll = useNotificationStore((state) => state.clearAll);
+  const showToast = useUiStore((state) => state.showToast);
   const loadReminders = useUpcomingReminderStore((state) => state.load);
   const forgetReminders = useUpcomingReminderStore((state) => state.forget);
 
@@ -157,11 +163,14 @@ export function NotificationsBell() {
     };
   }, [loadNotifications, loadReminders, forgetReminders, prependNotifications]);
 
-  // Clicking a native system toast opens and plays that video in the app.
+  // Clicking a native system toast opens and plays that video in the app;
+  // the tap is what clears its badge.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     let active = true;
     void onNotificationActivated((videoId) => {
+      const notification = notificationsRef.current.find((item) => item.videoId === videoId);
+      if (notification) void markRead(notification.id);
       prefetchStreamInfo(videoId);
       navigate(`/watch/${videoId}`);
     }).then((fn) => {
@@ -172,32 +181,41 @@ export function NotificationsBell() {
       active = false;
       unlisten?.();
     };
-  }, [navigate]);
+  }, [navigate, markRead]);
 
   const open = anchor !== null;
 
   const closePanel = useCallback(() => {
     setAnchor(null);
-    void markAllRead();
-  }, [markAllRead]);
+  }, []);
 
   const toggle = useCallback(() => {
     if (open) {
       closePanel();
       return;
     }
+    // Opening the bell fetches fresh videos itself, at most every 5 minutes.
+    void refreshIfStale();
     const rect = wrapRef.current?.getBoundingClientRect();
     if (rect) setAnchor({ top: rect.bottom + 8, ...alignToEnd(rect) });
-  }, [open, closePanel]);
+  }, [open, closePanel, refreshIfStale]);
 
   const handleOpen = useCallback(
     (notification: NotificationRecord) => {
+      // Tapping a notification to watch it is what clears its badge.
+      void markRead(notification.id);
       closePanel();
       prefetchStreamInfo(notification.videoId);
       navigate(notificationRoute(notification));
     },
-    [closePanel, navigate],
+    [closePanel, markRead, navigate],
   );
+
+  const handleRefresh = useCallback(async () => {
+    if (!(await checkNow())) {
+      showToast({ message: getString("notifications_refresh_failed"), variant: "error" });
+    }
+  }, [checkNow, showToast]);
 
   const handleDismiss = useCallback(
     (notification: NotificationRecord) => {
@@ -256,15 +274,27 @@ export function NotificationsBell() {
             <h2 className="text-base font-medium text-chrome-neutral-200">
               {getString("notifications_title")}
             </h2>
-            {notifications.length > 0 && (
+            <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => void clearAll()}
-                className="rounded-full px-2 py-1 text-xs font-medium text-chrome-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-highest hover:text-chrome-neutral-200"
+                title={getString("notifications_refresh")}
+                aria-label={getString("notifications_refresh")}
+                onClick={() => void handleRefresh()}
+                disabled={checking}
+                className="grid h-7 w-7 place-items-center rounded-full text-chrome-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-highest hover:text-chrome-neutral-200 disabled:opacity-50"
               >
-                {getString("notifications_clear_all")}
+                <RefreshCw size={15} className={checking ? "animate-spin" : undefined} />
               </button>
-            )}
+              {notifications.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => void clearAll()}
+                  className="rounded-full px-2 py-1 text-xs font-medium text-chrome-neutral-400 transition-colors duration-200 ease-out hover:bg-surface-container-highest hover:text-chrome-neutral-200"
+                >
+                  {getString("notifications_clear_all")}
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">

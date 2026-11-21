@@ -30,10 +30,11 @@ pub async fn get_unread_notification_count(
 }
 
 #[tauri::command]
-pub async fn mark_notifications_read(
+pub async fn mark_notification_read(
+    id: i64,
     pool: State<'_, sqlx::SqlitePool>,
 ) -> Result<(), ErrorResponse> {
-    db::notifications::mark_all_read(&pool)
+    db::notifications::mark_read(&pool, id)
         .await
         .map_err(ErrorResponse::from)
 }

@@ -30,6 +30,7 @@ mod muxer;
 mod naming;
 mod progress;
 mod recovery;
+mod segment_clip;
 mod sidecars;
 mod source;
 mod subtitles;
@@ -524,6 +525,12 @@ pub async fn start_download(
             )));
         }
     }
+
+    // A kind already at its storage limit takes no new downloads; nothing is
+    // deleted to make room.
+    crate::commands::download_storage::check_storage_limit(&pool, request.media_kind)
+        .await
+        .map_err(ErrorResponse::from)?;
 
     let directory = naming::resolve_destination_directory(
         &app,
