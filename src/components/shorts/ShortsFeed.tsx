@@ -1,0 +1,309 @@
+import { getString } from "../../lib/i18n/index";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useParams } from "react-router-dom";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { useShortsFeed, type ShortsQueueEnd } from "../../lib/useShortsFeed";
+import { listenForShortsKeys } from "../../lib/shortsKeys";
+import { prefetchShortStreams } from "../../lib/useShortStream";
+import { IMPRESSION_DWELL_MS, noteImpression } from "../../lib/feedImpressions";
+import { finishShortView, startShortView } from "../../lib/shortViews";
+import { SETTINGS } from "../../lib/settings/schema";
+import { useAppSettingsStore } from "../../store/useAppSettingsStore";
+import { usePlayerStore } from "../../store/usePlayerStore";
+import { ShortPlayer } from "./ShortPlayer";
+import type { ShortItem, ShortsPanelState } from "../../types/shorts";
+
+const PREFETCH_WITHIN = 5;
+const STREAM_PRELOAD_RADIUS = 1;
+const RENDER_RADIUS = 2;
+
+export function ShortsFeed() {
+  const { videoId } = useParams<{ videoId?: string }>();
+  const location = useLocation();
+  const routeState = location.state as {
+    initialShort?: ShortItem;
+    initialQueue?: ShortItem[];
+    queueEnd?: ShortsQueueEnd;
+  } | null;
+  const initialShort = useMemo(() => {
+    const candidate = routeState?.initialShort;
+    if (!candidate || candidate.id !== videoId) return null;
+    return candidate;
+  }, [routeState, videoId]);
+  const initialQueue = useMemo(() => {
+    const candidate = routeState?.initialQueue;
+    if (!candidate?.length || !videoId) return null;
+    if (!candidate.some((short) => short.id === videoId)) return null;
+    return candidate;
+  }, [routeState, videoId]);
+  const { items, loading, error, loadMore, moreLikeThis } = useShortsFeed(
+    videoId,
+    initialShort,
+    initialQueue,
+    initialQueue ? routeState?.queueEnd : undefined,
+  );
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [panelState, setPanelState] = useState<ShortsPanelState>("none");
+  const [muted, setMuted] = useState(true);
+  const volume = usePlayerStore((state) => state.volume);
+  const setVolume = usePlayerStore((state) => state.setVolume);
+  const [unavailableIds, setUnavailableIds] = useState<Set<string>>(new Set());
+  const playbackMode = useAppSettingsStore((state) => state.values[SETTINGS.SHORTS_PLAYBACK_MODE] ?? "loop");
+  const autoScrollSeconds = useAppSettingsStore((state) => Number(state.values[SETTINGS.SHORTS_AUTO_SCROLL_SECONDS] ?? "10"));
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const slideRefs = useRef<(HTMLElement | null)[]>([]);
+  const syncedRouteVideoIdRef = useRef<string | null>(null);
+
+  // The first gesture of any kind lifts the muted start, so that same key press isn't also a toggle.
+  const muteLiftedByRef = useRef<Event | null>(null);
+  useEffect(() => {
+    const unmute = (event: Event) => {
+      muteLiftedByRef.current = event;
+      setMuted(false);
+    };
+    const opts = { once: true, capture: true } as const;
+    window.addEventListener("pointerdown", unmute, opts);
+    window.addEventListener("keydown", unmute, opts);
+    window.addEventListener("wheel", unmute, opts);
+    return () => {
+      window.removeEventListener("pointerdown", unmute, opts);
+      window.removeEventListener("keydown", unmute, opts);
+      window.removeEventListener("wheel", unmute, opts);
+    };
+  }, []);
+
+  const markUnavailable = useCallback((id: string) => {
+    setUnavailableIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+  }, []);
+
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root || items.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+            const index = Number((entry.target as HTMLElement).dataset.index);
+            if (!Number.isNaN(index)) setActiveIndex(index);
+          }
+        }
+      },
+      { root, threshold: [0.6] },
+    );
+
+    slideRefs.current.slice(0, items.length).forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, [items.length]);
+
+  useEffect(() => {
+    if (items.length > 0 && activeIndex >= items.length - PREFETCH_WITHIN) {
+      void loadMore();
+    }
+  }, [activeIndex, items.length, loadMore]);
+
+  useEffect(() => {
+    setPanelState("none");
+  }, [activeIndex]);
+
+  // A reel counts as seen once it stays on screen; buffered ones never do.
+  const activeShort = items[activeIndex];
+  useEffect(() => {
+    if (activeShort) startShortView(activeShort);
+  }, [activeShort]);
+  useEffect(() => finishShortView, []);
+  useEffect(() => {
+    if (!activeShort) return;
+    const timer = window.setTimeout(() => {
+      noteImpression({
+        id: activeShort.id,
+        title: activeShort.title,
+        channelName: activeShort.channelName,
+        channelId: activeShort.channelId ?? null,
+      });
+    }, IMPRESSION_DWELL_MS);
+    return () => window.clearTimeout(timer);
+  }, [activeShort]);
+
+  // Resolve the Shorts a swipe is about to reach, ahead of the pager mounting a
+  // player for them. Forward first — that is where a swipe almost always goes —
+  // and one back so returning is instant too.
+  useEffect(() => {
+    if (items.length === 0) return;
+    prefetchShortStreams([
+      items[activeIndex + 1]?.id,
+      items[activeIndex + 2]?.id,
+      items[activeIndex - 1]?.id,
+    ]);
+  }, [activeIndex, items]);
+
+  useEffect(() => {
+    syncedRouteVideoIdRef.current = null;
+    setActiveIndex(0);
+    slideRefs.current[0]?.scrollIntoView({ behavior: "instant", block: "start" });
+    // Start on the Short that was opened, not on whichever request the feed
+    // source happens to need first — playback is not gated on the queue loading.
+    prefetchShortStreams([videoId]);
+  }, [videoId]);
+
+  useEffect(() => {
+    if (!videoId || items.length === 0) return;
+    if (syncedRouteVideoIdRef.current === videoId) return;
+    const index = items.findIndex((item) => item.id === videoId);
+    if (index < 0) return;
+    syncedRouteVideoIdRef.current = videoId;
+    setActiveIndex(index);
+    slideRefs.current[index]?.scrollIntoView({ behavior: "instant", block: "start" });
+  }, [items, videoId]);
+
+  const feedStateRef = useRef({ activeIndex: 0, itemCount: 0 });
+  useEffect(() => {
+    feedStateRef.current = { activeIndex, itemCount: items.length };
+  }, [activeIndex, items.length]);
+
+  const scrollToIndex = useCallback((index: number) => {
+    const clamped = Math.max(0, Math.min(index, feedStateRef.current.itemCount - 1));
+    slideRefs.current[clamped]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  const advanceToNext = useCallback(() => {
+    const { activeIndex: current, itemCount } = feedStateRef.current;
+    if (itemCount === 0) return;
+    if (current >= itemCount - 1) {
+      void loadMore();
+      return;
+    }
+    scrollToIndex(current + 1);
+  }, [loadMore, scrollToIndex]);
+
+  useEffect(
+    () =>
+      listenForShortsKeys((action, event) => {
+        if (action.type === "mute") {
+          if (muteLiftedByRef.current !== event) setMuted((value) => !value);
+          return true;
+        }
+        if (action.type !== "page") return false;
+        if (action.offset > 0) advanceToNext();
+        else scrollToIndex(feedStateRef.current.activeIndex - 1);
+        return true;
+      }),
+    [advanceToNext, scrollToIndex],
+  );
+
+  useEffect(() => {
+    const active = items[activeIndex];
+    if (!active || !unavailableIds.has(active.id)) return;
+    if (activeIndex >= items.length - 1) {
+      void loadMore();
+      return;
+    }
+    const timer = window.setTimeout(() => scrollToIndex(activeIndex + 1), 500);
+    return () => window.clearTimeout(timer);
+  }, [activeIndex, items, unavailableIds, scrollToIndex, loadMore]);
+
+  if (loading && items.length === 0) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!loading && items.length === 0) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-background px-6 text-center">
+        <p className="text-sm text-chrome-neutral-400">
+          {error ? "Couldn't load Shorts right now." : "No Shorts to show yet."}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative h-full w-full bg-background" data-panel={panelState}>
+      <div
+        ref={containerRef}
+        className="h-full w-full snap-y snap-mandatory overflow-y-auto"
+      >
+        {items.map((short, index) => {
+          const distance = Math.abs(index - activeIndex);
+          return (
+            <section
+              key={short.id}
+              ref={(el) => {
+                slideRefs.current[index] = el;
+              }}
+              data-index={index}
+              className="h-full w-full snap-start"
+            >
+              {distance <= RENDER_RADIUS && (
+                <ShortPlayer
+                  short={short}
+                  active={index === activeIndex}
+                  preload={distance <= STREAM_PRELOAD_RADIUS}
+                  muted={muted}
+                  volume={volume}
+                  playbackMode={playbackMode}
+                  autoScrollSeconds={Number.isFinite(autoScrollSeconds) ? autoScrollSeconds : 10}
+                  panelState={panelState}
+                  onRequestPanel={setPanelState}
+                  onToggleMute={() => setMuted((value) => !value)}
+                  onVolumeChange={(value) => {
+                    setVolume(value);
+                    setMuted(value === 0);
+                  }}
+                  onRequestAdvance={advanceToNext}
+                  onMoreLikeThis={() => void moreLikeThis(short)}
+                  onUnavailable={() => markUnavailable(short.id)}
+                />
+              )}
+            </section>
+          );
+        })}
+      </div>
+
+      <div className="absolute end-4 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-3">
+        <NavButton
+          ariaLabel={getString('shorts_previous_short')}
+          disabled={activeIndex <= 0}
+          onClick={() => scrollToIndex(activeIndex - 1)}
+        >
+          <ChevronUp className="h-5 w-5" />
+        </NavButton>
+        <NavButton
+          ariaLabel={getString('shorts_next_short')}
+          disabled={activeIndex >= items.length - 1}
+          onClick={() => scrollToIndex(activeIndex + 1)}
+        >
+          <ChevronDown className="h-5 w-5" />
+        </NavButton>
+      </div>
+    </div>
+  );
+}
+
+function NavButton({
+  ariaLabel,
+  disabled,
+  onClick,
+  children,
+}: {
+  ariaLabel: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex h-11 w-11 items-center justify-center rounded-full border border-chrome-neutral-800 bg-chrome-neutral-900 text-chrome-neutral-200 transition-colors duration-200 ease-out hover:bg-chrome-neutral-800 disabled:pointer-events-none disabled:opacity-40"
+    >
+      {children}
+    </button>
+  );
+}

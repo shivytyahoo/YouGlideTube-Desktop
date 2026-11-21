@@ -1,0 +1,2877 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as dashjs from "dashjs";
+import Hls from "hls.js";
+import { Loader2, RotateCcw } from "lucide-react";
+import { PlayerErrorState } from "../ui/PlayerErrorState";
+import { CurrentVideoReminderButton } from "../watch/UpcomingReminderButton";
+import type { PlayerErrorInfo } from "../../lib/playerError";
+import { getString } from "../../lib/i18n/index";
+import { SUBTITLE_FONT_SCALES, usePlayerStore } from "../../store/usePlayerStore";
+import { useSettingsStore, type SponsorBlockCategory } from "../../store/useSettingsStore";
+import type {
+  AudioTrack,
+  CaptionTrack,
+  HeatmapMarker,
+  StoryboardLevel,
+  StreamVariant,
+  VideoChapter,
+} from "../../types/video";
+import { CodecMissingBanner } from "./CodecMissingBanner";
+import { FlowPlayerControls } from "./FlowPlayerControls";
+import { MiniPlayerControls } from "./MiniPlayerControls";
+import {
+  allVideoRepresentations,
+  autoRepresentationToSwitchTo,
+  droppedLastAdaptationSet,
+  nearestSupportedQuality,
+  pickAutoVideoTrack,
+  representationLabel,
+  representationLabelWithCodec,
+  type DashVideoTrack,
+} from "../../lib/dashVideoTrack";
+import {
+  manifestVideoTracks,
+  pickDashStart,
+  readMeasuredSpeedKbps,
+  recordVideoSegmentSpeed,
+} from "../../lib/dashStartQuality";
+import {
+  codecFamily,
+  codecToLeaveAfterDecodeError,
+  codecToLeaveWhenNoPicture,
+  isCodecRuledOut,
+  withoutRuledOutCodecs,
+  type VideoCodecFamily,
+} from "../../lib/codecHealth";
+import { useCodecHealthStore } from "../../store/useCodecHealthStore";
+import { sponsorBlockCategoryLabel } from "../../lib/sponsorBlockCategories";
+import { usePersistedPlayerVolume } from "../../lib/usePersistedPlayerVolume";
+import { recordPlayerEvent } from "../../lib/playerDiagnostics";
+import { shouldPublishPlaybackTime } from "../../lib/playerProgress";
+import { SponsorBlockTracker } from "../../lib/sponsorBlockPolicy";
+import { useManualSponsorSegment } from "../../lib/useManualSponsorSegment";
+import { useVolumeFeedback } from "../../lib/useVolumeFeedback";
+import { useSeekFeedback } from "../../lib/useSeekFeedback";
+import type { SponsorBlockSegment } from "../../lib/api/foss";
+import { recapSponsorSkip } from "../../lib/recap/recapQueue";
+import { longPressRate } from "../../lib/pointerGesture";
+import { isPopOutWindow } from "../../lib/api/pip";
+import { PlayerGestureOverlay } from "./gesture/overlay";
+import { SubtitleOverlay } from "./SubtitleOverlay";
+import { isLocalCaption } from "../../lib/captionText";
+import { useSubtitleFileDrop } from "../../lib/localSubtitles";
+import { useLocalSubtitleStore, videoSubtitleState } from "../../store/useLocalSubtitleStore";
+import { SponsorBlockSkipButton } from "./SponsorBlockSkipButton";
+import { SETTINGS } from "../../lib/settings/schema";
+import { loudnessFactor } from "../../lib/loudness";
+import { useVideoEq } from "../../lib/audio/useVideoEq";
+import { useVolumeLevel } from "../../lib/audio/volumeBoost";
+import { adaptivePlayerAspect, useReportVideoAspect } from "../../lib/adaptivePlayer";
+import { IS_LINUX_RUNTIME } from "../../lib/platform";
+import { videoPlayerKeyAction } from "../../lib/videoPlayerKeys";
+import { IS_MAIN_WINDOW } from "../../lib/appWindow";
+import { useAmbientSettings } from "../../lib/ambient/useAmbientSettings";
+import { AmbientGlow } from "./AmbientGlow";
+import { useUiStore } from "../../store/useUiStore";
+import { SphericalView, type LookAround } from "./SphericalView";
+import type { Projection } from "../../lib/spherical/view";
+import { useLookSpeed } from "../../lib/spherical/useLookSpeed";
+import {
+  AUDIO_DRIFT_TOLERANCE_SECONDS,
+  AUDIO_RESYNC_MIN_INTERVAL_MS,
+  decideExternalAudioSync,
+} from "../../lib/externalAudioSync";
+import { useSubtitleSettingsSync } from "../../lib/useSubtitleSettingsSync";
+import { openPopoutPlayer } from "../../lib/pipHandoff";
+import { sleepTimerTakesEnd } from "../../lib/useSleepTimerDriver";
+import { usePlaybackStartSpeed } from "../../lib/playbackStartSpeed";
+import { VIDEO_FIT_CLASS } from "../../lib/videoFit";
+import { ambientShown } from "../../lib/ambient/ambientShown";
+import {
+  formatPlaybackRate,
+  normalizePlaybackRate,
+  parseCustomSpeedPresets,
+  selectPreferredAudioTrackId,
+  selectPreferredCaptionId,
+} from "../../lib/settings/playerRuntime";
+import { hlsAudioChoice } from "../../lib/hlsAudioTrack";
+import { setSettingValue, useAppSettingsStore } from "../../store/useAppSettingsStore";
+import {
+  clearLiveTiming,
+  isAtLiveEdge,
+  liveEdgePosition,
+  liveStallRecoveryTarget,
+  liveTimingFromPlaylist,
+  liveWindow,
+  readLiveTiming,
+  stampLiveTiming,
+} from "../../lib/liveEdge";
+import {
+  createWindowFullscreenController,
+  watchNativeFullscreen,
+  type WindowFullscreenController,
+} from "../../lib/windowFullscreen";
+import {
+  SOURCE_SWITCH_TIMEOUT_MS,
+  hasMediaPlaybackProgressed,
+  hasSourceSwitchTimedOut,
+  shouldEnterMediaBuffering,
+} from "../../lib/mediaBuffering";
+import {
+  canAutoHidePlayerChrome,
+  PLAYER_CHROME_HIDE_DELAY_MS,
+  shouldPinPlayerChrome,
+} from "../../lib/playerChrome";
+
+type PlayerProps = {
+  src?: string | null;
+  dashManifestUrl?: string | null;
+  hlsManifestUrl?: string | null;
+  isLive?: boolean;
+  title?: string;
+  poster?: string | null;
+  isLoading?: boolean;
+  error?: string | null;
+  errorInfo?: PlayerErrorInfo | null;
+  qualities?: StreamVariant[];
+  captions?: CaptionTrack[];
+  audioTracks?: AudioTrack[];
+  selectedQualityId?: string | null;
+  resumeTime?: number;
+  onSelectQuality?: (variant: StreamVariant | "auto") => void;
+  onEnded?: () => void;
+  onTimeUpdate?: (currentTime: number, duration: number) => void;
+  onRetry?: () => void;
+  onCopyLogs?: () => Promise<boolean> | boolean | void;
+  onOpenInBrowser?: () => void;
+  /** YouTube's category, once known, for the music at normal speed setting. */
+  category?: string | null;
+  /** Drawn over the video and the controls, such as the Up next card. */
+  overlay?: React.ReactNode;
+  /** A small label on the picture, left out of the mini player. */
+  badge?: React.ReactNode;
+  onRetrySource?: (reason: string) => void;
+  sourceMode?: string;
+  className?: string;
+  chapters?: VideoChapter[];
+  heatmap?: HeatmapMarker[];
+  storyboard?: StoryboardLevel[];
+  /** How a 360 video maps onto its sphere; null for a flat one. */
+  projection?: Projection | null;
+  /** How many dB louder than the site's target the video plays. */
+  loudnessDb?: number | null;
+};
+
+type DashBitrateInfo = {
+  qualityIndex: number;
+  height?: number;
+  bitrate?: number;
+};
+
+type DashRepresentationInfo = {
+  id: string;
+  absoluteIndex?: number;
+  bandwidth?: number;
+  codecs?: string | null;
+  frameRate?: number;
+  height?: number;
+  mimeType?: string | null;
+  width?: number;
+};
+
+type DashTrackInfo = {
+  id?: string;
+  index?: number;
+  lang?: string;
+  labels?: Array<{ text?: string; lang?: string }>;
+  roles?: Array<{ value?: string }>;
+  audioChannelConfiguration?: Array<{ audioChannelConfiguration?: string }>;
+  bitrateList?: DashVideoTrack["bitrateList"];
+  codec?: string | null;
+  mimeType?: string | null;
+  [key: string]: unknown;
+};
+
+type DashPlayerController = {
+  initialize: (element: HTMLMediaElement, source: string, autoPlay: boolean, startTime?: number) => void;
+  destroy: () => void;
+  off: (type: string, listener: (event: unknown) => void, scope?: object) => void;
+  on: (type: string, listener: (event: unknown) => void, scope?: object) => void;
+  updateSettings: (settings: unknown) => void;
+  getBitrateInfoListFor: (type: string) => DashBitrateInfo[];
+  getRepresentationsByType: (type: string) => DashRepresentationInfo[];
+  setRepresentationForTypeById: (type: string, id: string, forceReplace?: boolean) => void;
+  setInitialMediaSettingsFor: (type: string, value: { id: string }) => void;
+  extend?: (parentNameString: string, childInstance: () => unknown, override: boolean) => void;
+  getQualityFor: (type: string) => number;
+  getCurrentRepresentationForType: (type: string) => DashRepresentationInfo | null;
+  getTracksFor?: (type: string) => DashTrackInfo[];
+  getCurrentTrackFor?: (type: string) => DashTrackInfo | null;
+  setCurrentTrack?: (track: DashTrackInfo) => void;
+  getDashMetrics?: () => { getCurrentBufferLevel: (type: string) => number } | null;
+};
+
+type PendingQualitySwitch = {
+  label: string;
+  etaSeconds: number | null;
+};
+
+type QualitySwitchSnapshot = {
+  appliedAt: number;
+  corrected: boolean;
+  fromTime: number;
+  targetQualityId: string;
+};
+
+const fastQualitySwitchEnabled = () =>
+  useAppSettingsStore.getState().values[SETTINGS.FAST_QUALITY_SWITCH_ENABLED] === "true";
+
+/** Null with fast switching on: the new quality no longer waits for the buffer to play out. */
+function readBufferedAheadSeconds(player: DashPlayerController): number | null {
+  if (fastQualitySwitchEnabled()) return null;
+  try {
+    const level = player.getDashMetrics?.()?.getCurrentBufferLevel("video");
+    return typeof level === "number" && Number.isFinite(level) ? Math.round(level) : null;
+  } catch {
+    return null;
+  }
+}
+
+const FULLSCREEN_SETTLE_MS = 120;
+/** Video kept behind the playhead. Keeping as much behind as ahead held up to
+ * two extra minutes of 1080p in memory. */
+const BACK_BUFFER_SECONDS = 30;
+const PLAYER_LOG_MAX_CHARS = 500;
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+function extractCodecMimeType(mimeType?: string | null) {
+  if (!mimeType) return null;
+  const [baseType, ...rest] = mimeType.split(";");
+  const codecMatch = rest.join(";").match(/codecs\s*=\s*(?:"([^"]+)"|([^;\s]+))/i);
+  if (!baseType) return null;
+  const trimmedBaseType = baseType.trim();
+  let codecsValue = codecMatch?.[1] || codecMatch?.[2];
+  if (codecsValue === "vp9") {
+    codecsValue = "vp09.00.10.08";
+  }
+  return codecsValue ? `${trimmedBaseType}; codecs="${codecsValue}"` : trimmedBaseType;
+}
+
+// A minimal Linux install often ships the audio decoders but not H.264/VP9/AV1,
+// so audio plays while video hangs. This failure mode is Linux-only — gate the
+// probe there to avoid firing on transient first-frame delays elsewhere.
+const CODEC_PROBE_SECONDS = 4;
+
+const MAX_EXTERNAL_AUDIO_RECOVERIES = 2;
+
+// Per media identity; reset once a fragment or manifest actually loads.
+const MAX_HLS_FATAL_RECOVERY_ATTEMPTS = 3;
+
+function isVariantSupported(mimeType?: string | null) {
+  const codecMimeType = extractCodecMimeType(mimeType);
+  if (!codecMimeType) return true;
+  if (typeof MediaSource !== "undefined" && typeof MediaSource.isTypeSupported === "function") {
+    return MediaSource.isTypeSupported(codecMimeType);
+  }
+  const probe = document.createElement("video");
+  return probe.canPlayType(codecMimeType) !== "";
+}
+
+function formatPlayerLogPayload(payload: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  );
+}
+
+/**
+ * dash.js event payloads carry live representation objects that reference their
+ * own segment list, so JSON.stringify throws on them. Only scalars carry
+ * diagnostic value here anyway.
+ */
+function summarizePlayerLogPayload(payload: Record<string, unknown>): string {
+  return Object.entries(payload)
+    .map(([key, value]) => {
+      if (Array.isArray(value)) return `${key}=[${value.length}]`;
+      if (typeof value === "object") return `${key}={}`;
+      return `${key}=${String(value)}`;
+    })
+    .join(" ");
+}
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
+
+export const Player: React.FC<PlayerProps> = ({
+  src,
+  dashManifestUrl,
+  hlsManifestUrl,
+  isLive = false,
+  title,
+  poster,
+  isLoading = false,
+  error,
+  errorInfo,
+  qualities = [],
+  captions = [],
+  audioTracks = [],
+  selectedQualityId,
+  resumeTime = 0,
+  onSelectQuality,
+  onEnded,
+  onTimeUpdate,
+  onRetry,
+  onCopyLogs,
+  onOpenInBrowser,
+  category,
+  overlay,
+  badge,
+  onRetrySource,
+  sourceMode,
+  className,
+  chapters = [],
+  heatmap,
+  storyboard,
+  projection = null,
+  loudnessDb,
+}) => {
+  const [activeQualityLabel, setActiveQualityLabel] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pointerInsideRef = useRef(false);
+  const keyboardFocusInsideRef = useRef(false);
+  const sbTrackerRef = useRef(new SponsorBlockTracker());
+  const undoSkippedSegmentsRef = useRef<Set<string>>(new Set());
+  const lastMediaIdentityRef = useRef<string>(src || dashManifestUrl || hlsManifestUrl || "");
+  const desiredPlayingRef = useRef(false);
+  const pendingResumeTimeRef = useRef(0);
+  const sourceSwitchingRef = useRef(false);
+  const dashPlayerRef = useRef<DashPlayerController | null>(null);
+  const dashReadyRef = useRef(false);
+  const hlsPlayerRef = useRef<Hls | null>(null);
+  const liveSeekedBackRef = useRef(false);
+  const qualitySwitchSnapshotRef = useRef<QualitySwitchSnapshot | null>(null);
+  const qualitySwitchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mediaBufferingRef = useRef(false);
+  const bufferingStartedAtRef = useRef<number | null>(null);
+  // Stall watchdog / source-fallback bookkeeping.
+  const waitingSinceRef = useRef<number | null>(null);
+  const stallCountRef = useRef(0);
+  const retrySourceFiredRef = useRef(false);
+  const playbackStartAtRef = useRef<number | null>(null);
+  const lastSeekAtRef = useRef<number | null>(null);
+  const onRetrySourceRef = useRef(onRetrySource);
+  // Missing-video-codec probe (Linux/WebKitGTK): baseline playback position and dismissal.
+  const codecProbeBaselineRef = useRef<number | null>(null);
+  const codecWarningDismissedRef = useRef(false);
+  // External-audio clock bookkeeping (see AUDIO_DRIFT_TOLERANCE_SECONDS).
+  const lastAudioResyncAtRef = useRef(0);
+  const audioHoldRef = useRef(false);
+  // A source swap stamps lastAudioResyncAtRef several times (seek, attach,
+  // loadedmetadata hard-sync), which used to rate-limit away the one realign
+  // that matters when the new source finally reaches canplay.
+  const postSwitchRealignPendingRef = useRef(false);
+  const audioRecoveryAttemptsRef = useRef(0);
+  const attachedAudioIdentityRef = useRef<string | null>(null);
+  const videoProgressSampleRef = useRef<{ time: number; at: number } | null>(null);
+
+  const {
+    isPlaying,
+    setIsPlaying,
+    volume,
+    muted,
+    setMuted,
+    playbackRate,
+    setPlaybackRate,
+    currentTime,
+    duration,
+    setCurrentTime,
+    setDuration,
+    playNext,
+    playPrevious,
+    videoFit,
+    isTheaterMode,
+    setIsTheaterMode,
+    sponsorBlockSegments,
+    videoPlayerMode,
+    enterVideoPip,
+    expandVideoPlayer,
+    isVideoFullscreen: isFullscreen,
+    setIsVideoFullscreen: setIsFullscreen,
+    setIsVideoFullscreenTransitioning,
+  } = usePlayerStore();
+
+  usePersistedPlayerVolume();
+
+
+  const autoplayEnabled = useAppSettingsStore((state) => state.values[SETTINGS.AUTOPLAY_ENABLED] !== "false");
+  const videoLoopEnabled = useAppSettingsStore((state) => state.values[SETTINGS.VIDEO_LOOP_ENABLED] === "true");
+  const rememberPlaybackSpeed = useAppSettingsStore((state) => state.values[SETTINGS.REMEMBER_PLAYBACK_SPEED] === "true");
+  const normalizeLoudness = useAppSettingsStore((state) => state.values[SETTINGS.VIDEO_LOUDNESS_NORMALIZATION] === "true");
+  // The slider keeps showing the chosen volume; only what reaches the element is scaled.
+  const outputVolume = volume * loudnessFactor(loudnessDb, normalizeLoudness);
+  const playbackSpeedSetting = useAppSettingsStore((state) => state.values[SETTINGS.PLAYBACK_SPEED] ?? "1.0");
+  const customSpeedsEnabled = useAppSettingsStore((state) => state.values[SETTINGS.CUSTOM_SPEEDS_ENABLED] === "true");
+  const customSpeedPresets = useAppSettingsStore((state) => state.values[SETTINGS.CUSTOM_SPEED_PRESETS] ?? "");
+  const longPressSpeedSetting = useAppSettingsStore((state) => state.values[SETTINGS.LONG_PRESS_PLAYBACK_SPEED] ?? "2.0");
+  const speedSliderEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SPEED_SLIDER_ENABLED] === "true");
+  const seekIntervalSetting = useAppSettingsStore((state) => state.values[SETTINGS.DOUBLE_TAP_SEEK_SECONDS] ?? "10");
+  const doubleClickSeek = useAppSettingsStore((state) => state.values[SETTINGS.DOUBLE_CLICK_SEEK_ENABLED] !== "false");
+  const subtitlesEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SUBTITLES_ENABLED] === "true");
+  const preferredAudioLanguage = useAppSettingsStore((state) => state.values[SETTINGS.PREFERRED_AUDIO_LANGUAGE]);
+  const preferredSubtitleLanguage = useAppSettingsStore((state) => state.values[SETTINGS.PREFERRED_SUBTITLE_LANGUAGE] ?? "en");
+  // Silences this player while it warms up behind a handoff the other window is
+  // still playing out loud; user mute and volume stay untouched.
+  const isHandoffSilent = usePlayerStore((state) => state.isHandoffSilent);
+  const manualPipButtonEnabled = useAppSettingsStore((state) => state.values[SETTINGS.MANUAL_PIP_BUTTON_ENABLED] !== "false");
+  const popoutPipEnabled = useAppSettingsStore((state) => state.values[SETTINGS.PIP_SEPARATE_WINDOW] !== "false");
+  const miniPlayerShowSkipControls = useAppSettingsStore((state) => state.values[SETTINGS.MINI_PLAYER_SHOW_SKIP_CONTROLS] !== "false");
+  const miniPlayerShowNextPrevControls = useAppSettingsStore((state) => state.values[SETTINGS.MINI_PLAYER_SHOW_NEXT_PREV_CONTROLS] !== "false");
+  const showFullscreenTitle = useAppSettingsStore((state) => state.values[SETTINGS.SHOW_FULLSCREEN_TITLE] === "true");
+  const bufferProfile = useAppSettingsStore((state) => state.values[SETTINGS.BUFFER_PROFILE] ?? "STABLE");
+  const minBufferSetting = useAppSettingsStore((state) => state.values[SETTINGS.MIN_BUFFER_MS] ?? "30000");
+  const maxBufferSetting = useAppSettingsStore((state) => state.values[SETTINGS.MAX_BUFFER_MS] ?? "50000");
+  const startupBufferSetting = useAppSettingsStore((state) => state.values[SETTINGS.BUFFER_FOR_PLAYBACK_MS] ?? "2500");
+  const rebufferSetting = useAppSettingsStore((state) => state.values[SETTINGS.BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS] ?? "5000");
+
+  const defaultPlaybackRate = useMemo(
+    () => normalizePlaybackRate(playbackSpeedSetting),
+    [playbackSpeedSetting],
+  );
+  const longPressPlaybackRate = useMemo(() => longPressRate(longPressSpeedSetting), [longPressSpeedSetting]);
+  const [isPopOut] = useState(isPopOutWindow);
+  const configuredSpeedOptions = useMemo(
+    () => parseCustomSpeedPresets(customSpeedPresets, customSpeedsEnabled),
+    [customSpeedPresets, customSpeedsEnabled],
+  );
+  const seekIntervalSeconds = useMemo(() => {
+    const parsed = Number(seekIntervalSetting);
+    return Number.isFinite(parsed) ? Math.min(30, Math.max(5, parsed)) : 10;
+  }, [seekIntervalSetting]);
+  const bufferConfig = useMemo(() => {
+    const custom = {
+      minMs: Number(minBufferSetting),
+      maxMs: Number(maxBufferSetting),
+      startupMs: Number(startupBufferSetting),
+      rebufferMs: Number(rebufferSetting),
+    };
+    const stable = { minMs: 30000, maxMs: 50000, startupMs: 2500, rebufferMs: 5000 };
+    const profiles: Record<string, typeof custom> = {
+      AGGRESSIVE: { minMs: 5000, maxMs: 30000, startupMs: 500, rebufferMs: 2500 },
+      STABLE: stable,
+      DATASAVER: { minMs: 12000, maxMs: 25000, startupMs: 1500, rebufferMs: 5000 },
+      CUSTOM: custom,
+    };
+    const selected = profiles[bufferProfile] ?? stable;
+    const minMs = Number.isFinite(selected.minMs) ? selected.minMs : stable.minMs;
+    const maxMs = Number.isFinite(selected.maxMs) ? selected.maxMs : stable.maxMs;
+    const startupMs = Number.isFinite(selected.startupMs) ? selected.startupMs : stable.startupMs;
+    const rebufferMs = Number.isFinite(selected.rebufferMs) ? selected.rebufferMs : stable.rebufferMs;
+    const normalizedMinMs = Math.min(120000, Math.max(5000, minMs));
+    const normalizedMaxMs = Math.min(120000, Math.max(25000, Math.max(maxMs, normalizedMinMs)));
+
+    return {
+      minSeconds: normalizedMinMs / 1000,
+      maxSeconds: normalizedMaxMs / 1000,
+      startupSeconds: Math.min(5, Math.max(0.5, startupMs / 1000)),
+      rebufferSeconds: Math.min(10, Math.max(2.5, rebufferMs / 1000)),
+    };
+  }, [bufferProfile, maxBufferSetting, minBufferSetting, rebufferSetting, startupBufferSetting]);
+
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [cursorHidden, setCursorHidden] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const ambient = useAmbientSettings();
+  const {
+    sponsorBlockEnabled,
+    sponsorBlockActions,
+    incrementStats,
+    loadSettings
+  } = useSettingsStore();
+  const [sbMuted, setSbMuted] = useState(false);
+  const [notifyToast, setNotifyToast] = useState<{ segment: any; categoryName: string; visible: boolean } | null>(null);
+  const notifyTimeoutRef = useRef<number | null>(null);
+  const [currentSBMuteSegment, setCurrentSBMuteSegment] = useState<string | null>(null);
+  const [isPip, setIsPip] = useState(false);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
+
+  // Every exit from buffering has to drop both the flag and the clock reading
+  // it started from; leaving one behind is what strands the spinner.
+  const clearMediaBuffering = useCallback(() => {
+    mediaBufferingRef.current = false;
+    bufferingStartedAtRef.current = null;
+    setIsBuffering(false);
+  }, []);
+  const [bufferedPct, setBufferedPct] = useState(0);
+  const [selectedCaptionId, setSelectedCaptionId] = useState<string>("off");
+  const [selectedAudioTrackId, setSelectedAudioTrackId] = useState<string | null>(null);
+  const [hasStartedPlayback, setHasStartedPlayback] = useState(false);
+  const [isSourceSwitching, setIsSourceSwitching] = useState(false);
+  const { feedback: seekFeedback, show: showSeekFeedback } = useSeekFeedback();
+  const { feedback: volumeFeedback, show: showVolumeFeedback } = useVolumeFeedback();
+  const [videoCodecUnsupported, setVideoCodecUnsupported] = useState(false);
+  const [pendingQualitySwitch, setPendingQualitySwitch] = useState<PendingQualitySwitch | null>(null);
+  const [dashRestartCount, setDashRestartCount] = useState(0);
+  const decodeFallbackPendingRef = useRef(false);
+  const decodeFallbackAtRef = useRef<number | null>(null);
+  const dashStartFamilyRef = useRef<VideoCodecFamily | null>(null);
+
+  const fastQualitySwitch = useAppSettingsStore((s) => s.values[SETTINGS.FAST_QUALITY_SWITCH_ENABLED] === "true");
+  useEffect(() => {
+    dashPlayerRef.current?.updateSettings({ streaming: { buffer: { fastSwitchEnabled: fastQualitySwitch } } });
+  }, [fastQualitySwitch]);
+
+  const qualitySwitchPending = pendingQualitySwitch !== null;
+  useEffect(() => {
+    if (!qualitySwitchPending) return;
+    const timer = setInterval(() => {
+      const player = dashPlayerRef.current;
+      if (!player) return;
+      const etaSeconds = readBufferedAheadSeconds(player);
+      setPendingQualitySwitch((current) =>
+        !current || current.etaSeconds === etaSeconds ? current : { ...current, etaSeconds },
+      );
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [qualitySwitchPending]);
+
+  const isDashPlayback = !!dashManifestUrl;
+  const isHlsPlayback = !!hlsManifestUrl && !isDashPlayback;
+  const dashProxyPrefix = useMemo(() => {
+    if (!dashManifestUrl) return null;
+    const marker = "?url=";
+    const markerIndex = dashManifestUrl.indexOf(marker);
+    if (markerIndex < 0) return null;
+    return dashManifestUrl.slice(0, markerIndex + marker.length);
+  }, [dashManifestUrl]);
+  const hlsProxyPrefix = useMemo(() => {
+    if (!hlsManifestUrl) return null;
+    const marker = "?url=";
+    const markerIndex = hlsManifestUrl.indexOf(marker);
+    if (markerIndex < 0) return null;
+    return hlsManifestUrl.slice(0, markerIndex + marker.length);
+  }, [hlsManifestUrl]);
+
+  const decodeFailures = useCodecHealthStore((state) => state.failures);
+  const currentVideoId = usePlayerStore((state) => state.currentVideo?.id);
+  const subtitleOffsetMs = useLocalSubtitleStore((state) => videoSubtitleState(state.videos, currentVideoId).offsetMs);
+  const supportedQualities = useMemo(() => {
+    if (!isDashPlayback) return qualities;
+    const decodable = qualities.filter((quality) => isVariantSupported(quality.mimeType));
+    const healthy = decodable.filter((quality) => !isCodecRuledOut(decodeFailures, quality.mimeType, currentVideoId));
+    return healthy.some((quality) => quality.isVideoOnly) ? healthy : decodable;
+  }, [currentVideoId, decodeFailures, isDashPlayback, qualities]);
+  const supportedQualitiesRef = useRef(supportedQualities);
+  supportedQualitiesRef.current = supportedQualities;
+
+  const selectedQuality = useMemo(() => {
+    return (
+      supportedQualities.find((quality) => quality.id === selectedQualityId) ||
+      nearestSupportedQuality(qualities.find((quality) => quality.id === selectedQualityId), supportedQualities) ||
+      supportedQualities.find((quality) => quality.isDefault) ||
+      supportedQualities[0] ||
+      null
+    );
+  }, [qualities, selectedQualityId, supportedQualities]);
+  const dashStartChoiceRef = useRef<StreamVariant | null>(null);
+  dashStartChoiceRef.current = selectedQualityId && selectedQualityId !== "auto" ? selectedQuality : null;
+
+  const selectedAudioTrack = audioTracks.find((track) => track.id === selectedAudioTrackId)
+    || audioTracks.find((track) => track.isDefault)
+    || audioTracks[0]
+    || null;
+  const selectedAudioTrackRef = useRef(selectedAudioTrack);
+  selectedAudioTrackRef.current = selectedAudioTrack;
+
+  const hasSelectedAlternateAudio =
+    !!selectedAudioTrackId && !!selectedAudioTrack && !selectedAudioTrack.isDefault;
+  const usesExternalAudio =
+    !!selectedAudioTrack?.localUrl &&
+    selectedAudioTrack.available !== false &&
+    !isDashPlayback &&
+    !isHlsPlayback &&
+    (hasSelectedAlternateAudio || (!!selectedQuality && !selectedQuality.hasAudio));
+
+  const { level: volumeLevelNow, maxLevel, setLevel: setVolumeLevel, gain: boostGain } = useVolumeLevel();
+  useVideoEq(videoRef, audioRef, usesExternalAudio ? selectedAudioTrack?.localUrl ?? null : null, boostGain);
+  useReportVideoAspect(videoRef, currentVideoId);
+  const adaptiveEnabled = useAppSettingsStore((state) => state.values[SETTINGS.ADAPTIVE_PLAYER_SIZE_ENABLED] !== "false");
+  const videoAspect = usePlayerStore((state) => state.videoAspect);
+
+  const isPipMode = videoPlayerMode === "pip";
+  // The viewer's own 360 view choice for this video, or null to follow the stream (Android #1967).
+  const [sphericalChoice, setSphericalChoice] = useState<{ videoId: string | undefined; shown: boolean } | null>(null);
+  const [sphericalUnavailable, setSphericalUnavailable] = useState(false);
+  const sphericalPicked = sphericalChoice && sphericalChoice.videoId === currentVideoId ? sphericalChoice.shown : null;
+  // The small player shows the flat picture, as on Android.
+  const showsSpherical = !isPipMode && !sphericalUnavailable && (sphericalPicked ?? projection !== null);
+  const lookAround = useRef<LookAround | null>(null);
+  const [lookSpeed] = useLookSpeed();
+  const onSphericalUnavailable = useCallback(() => {
+    setSphericalUnavailable(true);
+    useUiStore.getState().showToast({ message: getString("player_spherical_unavailable") });
+  }, []);
+  const sphericalMenu = useMemo(
+    () =>
+      isPipMode
+        ? null
+        : {
+            shown: showsSpherical,
+            onToggle: (shown: boolean) => {
+              setSphericalUnavailable(false);
+              setSphericalChoice({ videoId: currentVideoId, shown });
+            },
+          },
+    [isPipMode, showsSpherical, currentVideoId],
+  );
+  const isTheaterSurface = isTheaterMode && !isPipMode;
+  const shouldShowControls = controlsVisible || !isPlaying || settingsOpen || isScrubbing;
+  const setIsPlayerChromeShown = usePlayerStore((state) => state.setIsPlayerChromeShown);
+  useEffect(() => {
+    setIsPlayerChromeShown(shouldShowControls);
+  }, [shouldShowControls, setIsPlayerChromeShown]);
+  // The pop-out holds a window of its own, with no page around the video to light.
+  const showAmbient = ambientShown({
+    enabled: ambient.enabled,
+    glow: ambient.glow,
+    theater: isTheaterSurface,
+    videoFit,
+    blocked: !IS_MAIN_WINDOW || isPipMode || isFullscreen || Boolean(error) || showsSpherical,
+  });
+  const ambientSpreadShown = showAmbient && ambient.glow;
+  const setIsAmbientSpreadShown = usePlayerStore((state) => state.setIsAmbientSpreadShown);
+  useEffect(() => {
+    setIsAmbientSpreadShown(ambientSpreadShown);
+    return () => setIsAmbientSpreadShown(false);
+  }, [ambientSpreadShown, setIsAmbientSpreadShown]);
+  const effectivePoster = hasStartedPlayback || resumeTime > 0 || isSourceSwitching ? undefined : poster || undefined;
+  const logPlayerEvent = useCallback((event: string, payload: Record<string, unknown> = {}) => {
+    const entry = formatPlayerLogPayload({
+      currentTime: videoRef.current?.currentTime,
+      duration: videoRef.current?.duration,
+      isDashPlayback,
+      selectedQualityId,
+      ...payload,
+    });
+    if (import.meta.env.DEV) console.log(`[Player] ${event}`, entry);
+    recordPlayerEvent(`${event} ${summarizePlayerLogPayload(entry)}`.slice(0, PLAYER_LOG_MAX_CHARS));
+    const globalWindow = window as Window & {
+      __FLOW_PLAYER_LOGS__?: Array<{ event: string; payload: Record<string, unknown>; at: string }>;
+    };
+    globalWindow.__FLOW_PLAYER_LOGS__ = globalWindow.__FLOW_PLAYER_LOGS__ || [];
+    globalWindow.__FLOW_PLAYER_LOGS__.push({
+      event,
+      payload: entry,
+      at: new Date().toISOString(),
+    });
+    if (globalWindow.__FLOW_PLAYER_LOGS__.length > 200) {
+      globalWindow.__FLOW_PLAYER_LOGS__.shift();
+    }
+  }, [isDashPlayback, selectedQualityId]);
+  const logPlayerEventRef = useRef(logPlayerEvent);
+
+  const applyDashQualitySelection = useCallback(() => {
+    const player = dashPlayerRef.current;
+    const video = videoRef.current;
+    if (!player || !video || !dashReadyRef.current) return;
+
+    const videoTracks = withoutRuledOutCodecs(
+      player.getTracksFor?.("video") ?? [],
+      useCodecHealthStore.getState().failures,
+      usePlayerStore.getState().currentVideo?.id,
+    );
+
+    if (selectedQualityId === "auto") {
+      const currentRep = player.getCurrentRepresentationForType("video");
+      const autoTrack = pickAutoVideoTrack(
+        videoTracks,
+        useAppSettingsStore.getState().values[SETTINGS.DEFAULT_VIDEO_CODEC] ?? "H.264",
+      );
+      const autoStart = autoRepresentationToSwitchTo(autoTrack, currentRep);
+      if (autoStart) {
+        player.setRepresentationForTypeById("video", autoStart, false);
+      }
+      player.updateSettings({
+        streaming: {
+          abr: {
+            autoSwitchBitrate: {
+              video: true,
+              audio: false,
+            },
+          },
+        },
+      });
+      logPlayerEvent("dash-quality-auto-requested", {
+        switchTime: video.currentTime,
+        autoTrack: autoTrack?.id,
+      });
+
+      if (currentRep && currentRep.height) {
+        setActiveQualityLabel(representationLabel(currentRep, supportedQualitiesRef.current));
+      }
+      return;
+    }
+
+    if (!selectedQuality) return;
+
+    const representations: DashRepresentationInfo[] = allVideoRepresentations(videoTracks);
+    const targetRepresentation = representations.find((representation) => representation.id === selectedQuality.id)
+      || representations
+        .filter((representation) => typeof representation.height === "number")
+        .sort((left, right) => Math.abs((left.height || 0) - (selectedQuality.height || 0)) - Math.abs((right.height || 0) - (selectedQuality.height || 0)))[0];
+
+    if (!targetRepresentation) {
+      logPlayerEvent("dash-quality-target-missing", {
+        requestedQualityId: selectedQuality.id,
+        requestedHeight: selectedQuality.height,
+        availableRepresentations: representations.map((representation) => ({
+          id: representation.id,
+          height: representation.height,
+          codecs: representation.codecs,
+          mimeType: representation.mimeType,
+        })),
+      });
+      return;
+    }
+
+    const currentRepresentation = player.getCurrentRepresentationForType("video");
+    if (currentRepresentation?.id === targetRepresentation.id) {
+      player.updateSettings({
+        streaming: {
+          abr: {
+            autoSwitchBitrate: {
+              video: false,
+              audio: false,
+            },
+          },
+        },
+      });
+      if (currentRepresentation.height) {
+        setActiveQualityLabel(representationLabel(currentRepresentation, supportedQualitiesRef.current));
+      }
+      logPlayerEvent("dash-quality-already-selected", {
+        targetRepresentationId: targetRepresentation.id,
+      });
+      return;
+    }
+
+    qualitySwitchSnapshotRef.current = {
+      appliedAt: performance.now(),
+      corrected: false,
+      fromTime: video.currentTime,
+      targetQualityId: targetRepresentation.id,
+    };
+    setPendingQualitySwitch({
+      label: representationLabelWithCodec(targetRepresentation, supportedQualitiesRef.current, selectedQuality.qualityLabel),
+      etaSeconds: readBufferedAheadSeconds(player),
+    });
+    if (qualitySwitchTimeoutRef.current) {
+      clearTimeout(qualitySwitchTimeoutRef.current);
+    }
+    qualitySwitchTimeoutRef.current = setTimeout(() => {
+      if (qualitySwitchSnapshotRef.current) {
+        logPlayerEvent("dash-quality-switch-timeout", {
+          snapshot: qualitySwitchSnapshotRef.current,
+        });
+        qualitySwitchSnapshotRef.current = null;
+      }
+      setPendingQualitySwitch(null);
+    }, 8000);
+
+    try {
+      player.updateSettings({
+        streaming: {
+          abr: {
+            autoSwitchBitrate: {
+              video: false,
+              audio: false,
+            },
+          },
+        },
+      });
+      player.setRepresentationForTypeById("video", targetRepresentation.id, false);
+    } catch (switchError) {
+      qualitySwitchSnapshotRef.current = null;
+      setPendingQualitySwitch(null);
+      if (qualitySwitchTimeoutRef.current) {
+        clearTimeout(qualitySwitchTimeoutRef.current);
+        qualitySwitchTimeoutRef.current = null;
+      }
+      logPlayerEvent("dash-quality-switch-rejected", {
+        requestedQualityId: selectedQuality.id,
+        targetRepresentationId: targetRepresentation.id,
+        error: switchError instanceof Error ? switchError.message : String(switchError),
+      });
+      return;
+    }
+    logPlayerEvent("dash-quality-switch-requested", {
+      requestedQualityId: selectedQuality.id,
+      selectedMimeType: selectedQuality.mimeType,
+      targetRepresentationId: targetRepresentation.id,
+      targetHeight: targetRepresentation.height,
+      targetCodecs: targetRepresentation.codecs,
+      targetMimeType: targetRepresentation.mimeType,
+      switchTime: video.currentTime,
+    });
+  }, [logPlayerEvent, selectedQuality, selectedQualityId]);
+  const applyDashQualitySelectionRef = useRef(applyDashQualitySelection);
+
+  // Re-resolving would fetch the same codec and fail again, then wait out a source switch.
+  const leaveFailingCodec = useCallback((reason: "decode-error" | "no-picture" = "decode-error") => {
+    if (decodeFallbackPendingRef.current) return true;
+    const player = dashPlayerRef.current;
+    const video = videoRef.current;
+    const videoId = usePlayerStore.getState().currentVideo?.id;
+    if (!player || !video || !videoId || !Number.isFinite(video.duration)) return false;
+
+    const current = player.getCurrentRepresentationForType("video");
+    const codec = current?.codecs ?? current?.mimeType;
+    const family =
+      reason === "no-picture"
+        ? codecToLeaveWhenNoPicture(codec, supportedQualitiesRef.current, useCodecHealthStore.getState().failures, videoId)
+        : codecToLeaveAfterDecodeError(codec, supportedQualitiesRef.current);
+    if (!family) return false;
+
+    const directStart = dashStartFamilyRef.current === null || dashStartFamilyRef.current === family;
+    logPlayerEventRef.current(reason === "no-picture" ? "video-no-picture-fallback" : "dash-decode-fallback", {
+      family,
+      directStart,
+      resumeAt: video.currentTime,
+    });
+    decodeFallbackPendingRef.current = true;
+    decodeFallbackAtRef.current = video.currentTime;
+    useCodecHealthStore.getState().recordFailure(family, videoId, directStart);
+    setDashRestartCount((count) => count + 1);
+    return true;
+  }, []);
+  const leaveFailingCodecRef = useRef(leaveFailingCodec);
+  leaveFailingCodecRef.current = leaveFailingCodec;
+
+  const applyDashAudioSelection = useCallback(() => {
+    const player = dashPlayerRef.current;
+    if (
+      !dashReadyRef.current ||
+      !player?.getTracksFor ||
+      !player.getCurrentTrackFor ||
+      !player.setCurrentTrack
+    ) return;
+
+    const dashAudioTracks = player.getTracksFor("audio") || [];
+    if (dashAudioTracks.length === 0) return;
+
+    const normalizedSelectedId = (selectedAudioTrack?.id || "").toLowerCase();
+    const normalizedSelectedLang = (selectedAudioTrack?.languageCode || "").toLowerCase();
+    const normalizedSelectedLabel = (selectedAudioTrack?.label || "").toLowerCase();
+
+    const trackLabel = (track: DashTrackInfo) =>
+      (track.labels || [])
+        .map((label) => label.text || "")
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+    const targetTrack = selectedAudioTrack
+      ? dashAudioTracks.find((track) => String(track.id || "").toLowerCase().includes(normalizedSelectedId))
+        || dashAudioTracks.find((track) => normalizedSelectedLang && String(track.lang || "").toLowerCase() === normalizedSelectedLang)
+        || dashAudioTracks.find((track) => normalizedSelectedLabel && trackLabel(track).includes(normalizedSelectedLabel))
+      : dashAudioTracks.find((track) => (track.roles || []).some((role) => role.value === "main"))
+        || dashAudioTracks[0];
+
+    if (!targetTrack) return;
+
+    const currentTrack = player.getCurrentTrackFor("audio");
+    const isCurrentTrack =
+      currentTrack === targetTrack ||
+      (!!currentTrack?.id && !!targetTrack.id && String(currentTrack.id) === String(targetTrack.id)) ||
+      (
+        currentTrack?.index !== undefined &&
+        targetTrack.index !== undefined &&
+        currentTrack.index === targetTrack.index &&
+        String(currentTrack.lang || "") === String(targetTrack.lang || "")
+      );
+
+    if (isCurrentTrack) {
+      logPlayerEvent("dash-audio-track-already-selected", {
+        selectedAudioTrackId,
+        dashTrackId: targetTrack.id,
+        dashTrackIndex: targetTrack.index,
+      });
+      return;
+    }
+
+    try {
+      player.setCurrentTrack(targetTrack);
+    } catch (trackError) {
+      logPlayerEvent("dash-audio-track-selection-rejected", {
+        selectedAudioTrackId,
+        dashTrackId: targetTrack.id,
+        error: trackError instanceof Error ? trackError.message : String(trackError),
+      });
+      return;
+    }
+    logPlayerEvent("dash-audio-track-selected", {
+      selectedAudioTrackId,
+      selectedAudioLabel: selectedAudioTrack?.label,
+      selectedAudioLanguage: selectedAudioTrack?.languageCode,
+      dashTrack: {
+        id: targetTrack.id,
+        index: targetTrack.index,
+        lang: targetTrack.lang,
+        labels: targetTrack.labels,
+        roles: targetTrack.roles,
+      },
+      availableDashAudioTracks: dashAudioTracks.map((track) => ({
+        id: track.id,
+        index: track.index,
+        lang: track.lang,
+        labels: track.labels,
+        roles: track.roles,
+      })),
+    });
+  }, [logPlayerEvent, selectedAudioTrack, selectedAudioTrackId]);
+  const applyDashAudioSelectionRef = useRef(applyDashAudioSelection);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  const mediaIdentity = src || dashManifestUrl || hlsManifestUrl || "";
+  const [manualSegment, setManualSegment] = useManualSponsorSegment(mediaIdentity, sponsorBlockEnabled);
+  const notePickedSpeed = usePlaybackStartSpeed(mediaIdentity, defaultPlaybackRate, category);
+
+  const selectPlaybackRate = useCallback((nextRate: number) => {
+    const normalizedRate = normalizePlaybackRate(nextRate);
+    setPlaybackRate(normalizedRate);
+    notePickedSpeed(normalizedRate);
+    if (rememberPlaybackSpeed) {
+      void setSettingValue(SETTINGS.PLAYBACK_SPEED, formatPlaybackRate(normalizedRate));
+    }
+  }, [notePickedSpeed, rememberPlaybackSpeed, setPlaybackRate]);
+
+  const toggleLoopSetting = useCallback(() => {
+    void setSettingValue(SETTINGS.VIDEO_LOOP_ENABLED, String(!videoLoopEnabled));
+  }, [videoLoopEnabled]);
+
+  useSubtitleSettingsSync();
+  useSubtitleFileDrop(containerRef, currentVideoId);
+
+  useEffect(() => {
+    // A file added for this video is what the viewer wants, whatever the switch in Settings says.
+    const added = captions.find(isLocalCaption);
+    if (added) {
+      setSelectedCaptionId(added.id);
+      return;
+    }
+    if (!subtitlesEnabled) {
+      setSelectedCaptionId("off");
+      return;
+    }
+
+    const preferredCaptionId = selectPreferredCaptionId(captions, preferredSubtitleLanguage);
+    setSelectedCaptionId(preferredCaptionId ?? "off");
+  }, [captions, preferredSubtitleLanguage, subtitlesEnabled]);
+
+  useEffect(() => {
+    setSelectedAudioTrackId(selectPreferredAudioTrackId(audioTracks, preferredAudioLanguage ?? "original"));
+  }, [audioTracks, preferredAudioLanguage]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) video.loop = videoLoopEnabled && !isLive;
+  }, [isLive, videoLoopEnabled]);
+
+  useEffect(() => {
+    return () => {
+      if (notifyTimeoutRef.current !== null) {
+        window.clearTimeout(notifyTimeoutRef.current);
+      }
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    applyDashQualitySelectionRef.current = applyDashQualitySelection;
+  }, [applyDashQualitySelection]);
+
+  useEffect(() => {
+    applyDashAudioSelectionRef.current = applyDashAudioSelection;
+  }, [applyDashAudioSelection]);
+
+  useEffect(() => {
+    if (!isDashPlayback) return;
+    applyDashAudioSelection();
+  }, [applyDashAudioSelection, isDashPlayback, selectedAudioTrackId]);
+
+  useEffect(() => {
+    logPlayerEventRef.current = logPlayerEvent;
+  }, [logPlayerEvent]);
+
+  const resumeTimeRef = useRef(resumeTime);
+  useEffect(() => {
+    resumeTimeRef.current = resumeTime;
+  }, [resumeTime]);
+
+  useEffect(() => {
+    onRetrySourceRef.current = onRetrySource;
+  }, [onRetrySource]);
+
+  const fireRetrySource = useCallback((reason: string) => {
+    if (retrySourceFiredRef.current && !reason.startsWith("buffering-stall")) return;
+    retrySourceFiredRef.current = true;
+    logPlayerEventRef.current("source-mode-fallback", { reason, sourceMode });
+    onRetrySourceRef.current?.(reason);
+  }, [sourceMode]);
+  const fireRetrySourceRef = useRef(fireRetrySource);
+  useEffect(() => {
+    fireRetrySourceRef.current = fireRetrySource;
+  }, [fireRetrySource]);
+
+  useEffect(() => {
+    retrySourceFiredRef.current = false;
+    stallCountRef.current = 0;
+    waitingSinceRef.current = null;
+    playbackStartAtRef.current = null;
+    logPlayerEventRef.current("source-mode-selected", {
+      sourceMode,
+      hasDash: isDashPlayback,
+      hasHls: isHlsPlayback,
+    });
+  }, [src, dashManifestUrl, hlsManifestUrl, isDashPlayback, isHlsPlayback, sourceMode]);
+
+  // Detect the WebKitGTK "audio plays, video frozen" state (missing system video codecs)
+  // so the user gets an actionable hint instead of an endless spinner. Non-destructive:
+  // playback is left running; only a dismissible banner is shown.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !IS_LINUX_RUNTIME || !mediaIdentity) return;
+
+    codecProbeBaselineRef.current = null;
+    codecWarningDismissedRef.current = false;
+    setVideoCodecUnsupported(false);
+
+    const evaluate = () => {
+      // A decoded frame gives the element real dimensions — the codec works.
+      if (video.videoWidth > 0) {
+        codecProbeBaselineRef.current = null;
+        setVideoCodecUnsupported(false);
+        return;
+      }
+      if (codecWarningDismissedRef.current) return;
+      // Only meaningful once media is actually advancing (i.e. audio is decoding/playing).
+      if (video.paused || video.readyState < 2) return;
+      if (codecProbeBaselineRef.current === null || video.currentTime < codecProbeBaselineRef.current) {
+        codecProbeBaselineRef.current = video.currentTime;
+        return;
+      }
+      if (video.currentTime - codecProbeBaselineRef.current >= CODEC_PROBE_SECONDS) {
+        // Another codec in the manifest may decode where this one can't; the banner is for when none is left.
+        if (leaveFailingCodecRef.current("no-picture")) {
+          codecProbeBaselineRef.current = null;
+          return;
+        }
+        logPlayerEventRef.current("video-codec-unsupported", {
+          currentTime: video.currentTime,
+          readyState: video.readyState,
+          videoWidth: video.videoWidth,
+        });
+        setVideoCodecUnsupported(true);
+      }
+    };
+
+    const interval = window.setInterval(evaluate, 1000);
+    video.addEventListener("timeupdate", evaluate);
+    return () => {
+      window.clearInterval(interval);
+      video.removeEventListener("timeupdate", evaluate);
+    };
+  }, [mediaIdentity]);
+
+  useEffect(() => {
+    if (!isPlaying || !!error) return;
+
+    const interval = window.setInterval(() => {
+      const video = videoRef.current;
+      if (!video || isScrubbing) return;
+
+      const sinceSeek = lastSeekAtRef.current ? Date.now() - lastSeekAtRef.current : Infinity;
+      if (sinceSeek < 12000) return;
+
+      let bufferedAhead = 0;
+      const t = video.currentTime;
+      for (let i = 0; i < video.buffered.length; i += 1) {
+        if (video.buffered.start(i) <= t && t <= video.buffered.end(i) + 0.25) {
+          bufferedAhead = Math.max(0, video.buffered.end(i) - t);
+          break;
+        }
+      }
+
+      const waitingSince = waitingSinceRef.current;
+      // Startup gets a much longer leash than a mid-playback stall: live
+      // manifests + init + first segments arrive through the loopback proxy
+      // (one TCP connection per request) and can take well over 12s before
+      // the first frame without anything being wrong.
+      const started = playbackStartAtRef.current !== null;
+      const stallThresholdMs = started ? 12000 : 45000;
+      const stalledLongEnough = waitingSince !== null && Date.now() - waitingSince > stallThresholdMs;
+
+      if (stalledLongEnough && bufferedAhead < 0.5 && video.readyState < 3) {
+        logPlayerEventRef.current("source-watchdog-trip", {
+          bufferedAhead,
+          waitedMs: waitingSince ? Date.now() - waitingSince : 0,
+          stallCount: stallCountRef.current,
+          phase: started ? "playback" : "startup",
+        });
+        waitingSinceRef.current = Date.now();
+        fireRetrySourceRef.current("buffering-stall");
+      }
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [isPlaying, error, isScrubbing]);
+
+  const canAutoHideChrome = canAutoHidePlayerChrome({
+    isPlaying,
+    settingsOpen,
+    isScrubbing,
+    isLoading,
+    hasError: Boolean(error || errorInfo),
+  });
+  // Read at call time instead of captured: revealControls is a dependency of
+  // the keyboard effect and is handed to the control bar, so rebuilding it on
+  // every playback-state flip would re-subscribe that listener and defeat
+  // memoisation on the children holding it.
+  const canAutoHideChromeRef = useRef(canAutoHideChrome);
+
+  const clearHideTimer = useCallback(() => {
+    if (!hideTimerRef.current) return;
+    clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = null;
+  }, []);
+
+  const revealControls = useCallback(() => {
+    setControlsVisible(true);
+    setCursorHidden(false);
+    clearHideTimer();
+    if (!canAutoHideChromeRef.current || keyboardFocusInsideRef.current) return;
+    hideTimerRef.current = setTimeout(() => {
+      hideTimerRef.current = null;
+      setControlsVisible(false);
+      if (pointerInsideRef.current) setCursorHidden(true);
+    }, PLAYER_CHROME_HIDE_DELAY_MS);
+  }, [clearHideTimer]);
+
+  useEffect(() => {
+    canAutoHideChromeRef.current = canAutoHideChrome;
+    revealControls();
+  }, [canAutoHideChrome, isFullscreen, mediaIdentity, revealControls]);
+
+  const handlePointerEnter = useCallback(() => {
+    pointerInsideRef.current = true;
+    revealControls();
+  }, [revealControls]);
+
+  const handlePointerLeave = useCallback(() => {
+    pointerInsideRef.current = false;
+    setCursorHidden(false);
+    if (keyboardFocusInsideRef.current) return;
+    clearHideTimer();
+    setControlsVisible(false);
+  }, [clearHideTimer]);
+
+  const handleFocusCapture = useCallback((event: React.FocusEvent<HTMLDivElement>) => {
+    keyboardFocusInsideRef.current = shouldPinPlayerChrome(event.currentTarget, event.target);
+    revealControls();
+  }, [revealControls]);
+
+  const handleBlurCapture = useCallback(() => {
+    // Focus moving within the player fires this before the matching focus
+    // event, which re-evaluates; focus leaving the player fires nothing
+    // further, so clearing here is what lets the chrome hide again.
+    keyboardFocusInsideRef.current = false;
+    revealControls();
+  }, [revealControls]);
+
+  // Stats and Recap count a segment once per video, however often a rewind brings it back.
+  const recordSponsorSkip = useCallback((segment: SponsorBlockSegment) => {
+    if (!sbTrackerRef.current.countsOnce(segment.UUID)) return;
+    const [start, end] = segment.segment;
+    void incrementStats(segment.category as SponsorBlockCategory, Math.max(0, end - start));
+    recapSponsorSkip(usePlayerStore.getState().currentVideo ?? {}, segment.category, Math.max(0, end - start) * 1000);
+  }, [incrementStats]);
+
+  // A seek let go of inside a segment that skips automatically lands at its end, as on Android.
+  const sponsorSkipTarget = useCallback((time: number): number | null => {
+    if (!sponsorBlockEnabled || isLive || isScrubbing) return null;
+    const segment = sbTrackerRef.current.skipForSeek(time, sponsorBlockSegments, sponsorBlockActions);
+    if (!segment) return null;
+    recordSponsorSkip(segment);
+    return segment.segment[1];
+  }, [sponsorBlockEnabled, isLive, isScrubbing, sponsorBlockSegments, sponsorBlockActions, recordSponsorSkip]);
+
+  const seekTo = useCallback((time: number) => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video) return;
+    let nextTime: number;
+    if (isLive && video.seekable.length) {
+      const { start, end } = liveWindow(video);
+      nextTime = Math.min(Math.max(time, start), end);
+      liveSeekedBackRef.current = !isAtLiveEdge(nextTime, end, readLiveTiming(video));
+    } else {
+      const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : duration || 0;
+      nextTime = dur > 0 ? Math.min(Math.max(time, 0), dur) : Math.max(time, 0);
+      nextTime = sponsorSkipTarget(nextTime) ?? nextTime;
+    }
+    video.currentTime = nextTime;
+    if (audio) {
+      audioHoldRef.current = false;
+      lastAudioResyncAtRef.current = performance.now();
+      try {
+        audio.currentTime = nextTime;
+      } catch {
+      }
+    }
+    setCurrentTime(nextTime);
+  }, [duration, isLive, setCurrentTime, sponsorSkipTarget]);
+
+  // Letting go of the seek bar inside such a segment skips it too.
+  const wasScrubbingRef = useRef(false);
+  useEffect(() => {
+    const released = wasScrubbingRef.current && !isScrubbing;
+    wasScrubbingRef.current = isScrubbing;
+    const video = videoRef.current;
+    if (released && video) {
+      const target = sponsorSkipTarget(video.currentTime);
+      if (target !== null) seekTo(target);
+    }
+  }, [isScrubbing, sponsorSkipTarget, seekTo]);
+
+  const seekBy = useCallback((delta: number) => {
+    const video = videoRef.current;
+    const baseTime = video ? video.currentTime : currentTime;
+    seekTo(baseTime + delta);
+    showSeekFeedback(delta > 0 ? "forward" : "backward", Math.abs(delta));
+  }, [currentTime, seekTo, showSeekFeedback]);
+
+
+  useEffect(() => {
+    const handleExternalSeek = (e: Event) => {
+      const customEvent = e as CustomEvent<{ time: number }>;
+      if (customEvent.detail && typeof customEvent.detail.time === "number") {
+        seekTo(customEvent.detail.time);
+      }
+    };
+    window.addEventListener("flow-player-seek", handleExternalSeek);
+    return () => {
+      window.removeEventListener("flow-player-seek", handleExternalSeek);
+    };
+  }, [seekTo]);
+
+  const setPlaybackDesired = useCallback((shouldPlay: boolean) => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    desiredPlayingRef.current = shouldPlay;
+    setIsPlaying(shouldPlay);
+
+    if (!video) return;
+    if (shouldPlay && (isDashPlayback || isHlsPlayback || src) && !error) {
+      void video.play().catch((cause) => {
+        if ((cause as DOMException | null)?.name === "AbortError") return;
+        desiredPlayingRef.current = false;
+        setIsPlaying(false);
+      });
+      if (usesExternalAudio && audio) {
+        void audio.play().catch(() => {});
+      }
+    } else {
+      video.pause();
+      audio?.pause();
+    }
+  }, [error, isDashPlayback, setIsPlaying, src, usesExternalAudio]);
+
+  const togglePlay = useCallback(() => {
+    const video = videoRef.current;
+    setPlaybackDesired(video ? video.paused : !isPlaying);
+    revealControls();
+  }, [isPlaying, revealControls, setPlaybackDesired]);
+
+  const toggleCaptions = useCallback(() => {
+    setSelectedCaptionId((current) =>
+      current === "off"
+        ? selectPreferredCaptionId(captions, preferredSubtitleLanguage) ?? "off"
+        : "off",
+    );
+  }, [captions, preferredSubtitleLanguage]);
+
+  const nudgeSubtitleFontSize = useCallback((delta: number) => {
+    const { subtitleStyle: current, setSubtitleStyle } = usePlayerStore.getState();
+    const index = SUBTITLE_FONT_SCALES.indexOf(current.fontScale) + delta;
+    const fontScale = SUBTITLE_FONT_SCALES[Math.min(SUBTITLE_FONT_SCALES.length - 1, Math.max(0, index))];
+    if (fontScale === undefined || fontScale === current.fontScale) return;
+    setSubtitleStyle({ ...current, fontScale });
+  }, []);
+
+  const stepFrame = useCallback((direction: 1 | -1) => {
+    const video = videoRef.current;
+    if (!video || isLive) return;
+    setPlaybackDesired(false);
+    const frameDuration = 1 / (selectedQuality?.fps || 30);
+    seekTo(video.currentTime + direction * frameDuration);
+  }, [isLive, seekTo, selectedQuality, setPlaybackDesired]);
+
+  const stepPlaybackRate = useCallback((direction: 1 | -1) => {
+    const nextRate = direction === 1
+      ? configuredSpeedOptions.find((rate) => rate > playbackRate)
+      : [...configuredSpeedOptions].reverse().find((rate) => rate < playbackRate);
+    if (nextRate !== undefined) selectPlaybackRate(nextRate);
+  }, [configuredSpeedOptions, playbackRate, selectPlaybackRate]);
+
+  const jumpChapter = useCallback((direction: 1 | -1) => {
+    if (chapters.length === 0) return;
+    const video = videoRef.current;
+    const time = video?.currentTime ?? currentTime;
+    if (direction === 1) {
+      const next = chapters.find((chapter) => chapter.startSeconds > time + 0.5);
+      seekTo(next ? next.startSeconds : video?.duration ?? duration);
+      return;
+    }
+    const passed = chapters.filter((chapter) => chapter.startSeconds < time - 2);
+    seekTo(passed.length > 0 ? passed[passed.length - 1]!.startSeconds : 0);
+  }, [chapters, currentTime, duration, seekTo]);
+
+  const windowFullscreenControllerRef = useRef<WindowFullscreenController | null>(null);
+  if (!windowFullscreenControllerRef.current) {
+    windowFullscreenControllerRef.current = createWindowFullscreenController();
+  }
+
+  const syncNativeFullscreen = useCallback((active: boolean) => {
+    return windowFullscreenControllerRef.current?.sync(active) ?? Promise.resolve(false);
+  }, []);
+
+  useEffect(() => {
+    const controller = windowFullscreenControllerRef.current;
+    if (!controller) return;
+
+    let disposed = false;
+    let unlisten: (() => void) | null = null;
+    watchNativeFullscreen(
+      controller,
+      () => usePlayerStore.getState().isVideoFullscreen,
+      () => usePlayerStore.getState().setIsVideoFullscreen(false),
+    )
+      .then((dispose) => {
+        if (disposed) dispose();
+        else unlisten = dispose;
+      })
+      .catch(() => {
+        // Not running under Tauri (tests/dev shells): fullscreen still works,
+        // only OS-initiated exits go untracked.
+      });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const active = !isFullscreen;
+    // The layout follows the native window rather than leading it: flipping the
+    // CSS first showed the video stretched across the pre-transition viewport,
+    // and on Windows the unmaximize step of the transition flashed a restored
+    // window through it. The cover hides the resize either way.
+    setIsVideoFullscreenTransitioning(true);
+    void syncNativeFullscreen(active).then((applied) => {
+      if (applied) setIsFullscreen(active);
+    }).finally(() => {
+      setTimeout(() => setIsVideoFullscreenTransitioning(false), FULLSCREEN_SETTLE_MS);
+    });
+  }, [isFullscreen, setIsFullscreen, setIsVideoFullscreenTransitioning, syncNativeFullscreen]);
+
+  const togglePictureInPicture = useCallback(() => {
+    if (videoPlayerMode === "pip") {
+      expandVideoPlayer();
+      window.dispatchEvent(new CustomEvent("flow-video-expand-request"));
+      return;
+    }
+    if (isFullscreen) {
+      setIsFullscreen(false);
+      void syncNativeFullscreen(false);
+    }
+    if (popoutPipEnabled) {
+      // Falls back to the in-app mini player if the OS window cannot be opened,
+      // rather than leaving the click with nothing to show for it.
+      void openPopoutPlayer().then((opened) => {
+        if (!opened) enterVideoPip("manual");
+      });
+      return;
+    }
+    enterVideoPip("manual");
+  }, [
+    enterVideoPip,
+    expandVideoPlayer,
+    isFullscreen,
+    popoutPipEnabled,
+    setIsFullscreen,
+    syncNativeFullscreen,
+    videoPlayerMode,
+  ]);
+
+  const updateBuffered = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !Number.isFinite(video.duration) || video.duration <= 0 || video.buffered.length === 0) {
+      setBufferedPct(0);
+      return;
+    }
+
+    const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+    setBufferedPct(Math.min(100, (bufferedEnd / video.duration) * 100));
+  }, []);
+
+  const realignExternalAudioClock = useCallback(
+    (audio: HTMLAudioElement, video: HTMLVideoElement, force: boolean) => {
+      const now = performance.now();
+      if (!force) {
+        if (now - lastAudioResyncAtRef.current < AUDIO_RESYNC_MIN_INTERVAL_MS) return false;
+        if (audio.seeking || audio.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return false;
+      }
+      lastAudioResyncAtRef.current = now;
+      try {
+        audio.currentTime = video.currentTime;
+      } catch {
+        return false;
+      }
+      return true;
+    },
+    [],
+  );
+
+  const resumeExternalAudioPlayback = useCallback((audio: HTMLAudioElement, video: HTMLVideoElement) => {
+    if (!desiredPlayingRef.current || video.paused || video.ended) return;
+    void audio.play().catch(() => {});
+  }, []);
+
+  const isVideoAdvancing = useCallback((video: HTMLVideoElement, rate: number) => {
+    const now = performance.now();
+    const sample = videoProgressSampleRef.current;
+    if (!sample || now - sample.at < 400) {
+      if (!sample) videoProgressSampleRef.current = { time: video.currentTime, at: now };
+      return sample ? video.currentTime > sample.time : true;
+    }
+    const expected = ((now - sample.at) / 1000) * rate;
+    const advanced = video.currentTime - sample.time;
+    videoProgressSampleRef.current = { time: video.currentTime, at: now };
+    return advanced > expected * 0.5;
+  }, []);
+
+  const syncExternalAudio = useCallback((hard = false) => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video || !audio || !usesExternalAudio) return;
+
+    // WebKitGTK flushes the GStreamer audio pipeline on every playbackRate
+    // assignment, so each write is an audible glitch there. Never write a
+    // value that is already set, and skip micro rate-nudging on Linux
+    // entirely — a rarer hard resync keeps sync without continuous glitches.
+    const applyAudioRate = (rate: number) => {
+      if (Math.abs(audio.playbackRate - rate) > 0.001) {
+        audio.playbackRate = rate;
+      }
+    };
+
+    if (hard) {
+      audioHoldRef.current = false;
+      realignExternalAudioClock(audio, video, true);
+      applyAudioRate(playbackRate);
+      resumeExternalAudioPlayback(audio, video);
+      return;
+    }
+
+    const videoStarved = video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA;
+    if (mediaBufferingRef.current && !video.paused && !videoStarved) {
+      clearMediaBuffering();
+    }
+
+    const drift = audio.currentTime - video.currentTime;
+    const action = decideExternalAudioSync({
+      drift,
+      held: audioHoldRef.current,
+      videoAdvancing: isVideoAdvancing(video, playbackRate),
+      videoStarved,
+      audioSeeking: audio.seeking,
+      audioReadyState: audio.readyState,
+      msSinceLastRealign: performance.now() - lastAudioResyncAtRef.current,
+    });
+
+    switch (action) {
+      case "steady":
+        if (!IS_LINUX_RUNTIME && Math.abs(drift) > 0.08 && !video.paused && !video.ended) {
+          applyAudioRate(clamp(playbackRate - drift * 0.12, playbackRate - 0.05, playbackRate + 0.05));
+        } else {
+          applyAudioRate(playbackRate);
+        }
+        return;
+      case "hold":
+        audioHoldRef.current = true;
+        audio.pause();
+        logPlayerEventRef.current("external-audio-hold", {
+          drift,
+          videoReadyState: video.readyState,
+        });
+        return;
+      case "resume":
+        audioHoldRef.current = false;
+        applyAudioRate(playbackRate);
+        resumeExternalAudioPlayback(audio, video);
+        return;
+      case "realign":
+        realignExternalAudioClock(audio, video, true);
+        applyAudioRate(playbackRate);
+        resumeExternalAudioPlayback(audio, video);
+        return;
+      case "wait":
+        return;
+    }
+  }, [
+    clearMediaBuffering,
+    isVideoAdvancing,
+    playbackRate,
+    realignExternalAudioClock,
+    resumeExternalAudioPlayback,
+    usesExternalAudio,
+  ]);
+
+  useEffect(() => {
+    if (!usesExternalAudio || isSourceSwitching) return;
+    const interval = window.setInterval(() => syncExternalAudio(false), 250);
+    return () => window.clearInterval(interval);
+  }, [isSourceSwitching, syncExternalAudio, usesExternalAudio]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!isDashPlayback || !dashManifestUrl) {
+      dashReadyRef.current = false;
+      dashPlayerRef.current?.destroy();
+      dashPlayerRef.current = null;
+      return;
+    }
+
+    dashReadyRef.current = false;
+    decodeFallbackPendingRef.current = false;
+    dashStartFamilyRef.current = null;
+    const player = dashjs.MediaPlayer().create() as unknown as DashPlayerController;
+    if (dashProxyPrefix) {
+      player.extend?.("RequestModifier", () => ({
+        modifyRequestURL: (url: string) => {
+          if (url.startsWith("http://127.0.0.1:") || url.startsWith("blob:")) {
+            return url;
+          }
+          return `${dashProxyPrefix}${encodeURIComponent(url)}`;
+        },
+        modifyRequestHeader: (xhr: XMLHttpRequest) => xhr,
+      }), true);
+    }
+    player.updateSettings({
+      streaming: {
+        capabilities: {
+          useMediaCapabilitiesApi: false,
+        },
+        // Its default picks the set with the fewest bits per pixel, usually AV1, however the
+        // manifest is ordered. The first set is H.264, the one every platform decodes.
+        selectionModeForInitialTrack: "firstTrack",
+        // dash.js otherwise keeps these in localStorage, which every profile shares.
+        lastBitrateCachingInfo: { enabled: false },
+        lastMediaSettingsCachingInfo: { enabled: false },
+        abr: {
+          autoSwitchBitrate: {
+            video: false,
+            audio: false,
+          },
+        },
+        buffer: {
+          fastSwitchEnabled: fastQualitySwitchEnabled(),
+          bufferToKeep: BACK_BUFFER_SECONDS,
+          bufferPruningInterval: 120,
+          bufferTimeDefault: bufferConfig.minSeconds,
+          bufferTimeAtTopQuality: bufferConfig.maxSeconds,
+          bufferTimeAtTopQualityLongForm: bufferConfig.maxSeconds,
+          longFormContentDurationThreshold: 600,
+        },
+      },
+    });
+    logPlayerEventRef.current("dash-initialize", {
+      dashManifestUrl,
+      usesProxyModifier: !!dashProxyPrefix,
+    });
+
+    const dashEvents = dashjs.MediaPlayer.events;
+    // STREAM_INITIALIZED is too late for this: the first segment has already been requested.
+    const onManifestLoaded = (event: unknown) => {
+      const speedKbps = readMeasuredSpeedKbps();
+      const start = pickDashStart({
+        selected: dashStartChoiceRef.current,
+        tracks: withoutRuledOutCodecs(
+          manifestVideoTracks((event as { data?: unknown } | null)?.data)
+            .filter((track) => isVariantSupported(track.codec)),
+          useCodecHealthStore.getState().failures,
+          usePlayerStore.getState().currentVideo?.id,
+        ),
+        preferredCodec: useAppSettingsStore.getState().values[SETTINGS.DEFAULT_VIDEO_CODEC] ?? "H.264",
+        speedKbps,
+      });
+      if (start.bitrateKbps) {
+        player.updateSettings({ streaming: { abr: { initialBitrate: { video: start.bitrateKbps } } } });
+      }
+      if (start.setId) player.setInitialMediaSettingsFor("video", { id: start.setId });
+      logPlayerEventRef.current("dash-start-quality", { ...start, speedKbps });
+    };
+    const onPlaybackWaiting = () => {
+      logPlayerEventRef.current("dash-playback-waiting", {
+        readyState: video.readyState,
+        networkState: video.networkState,
+      });
+    };
+    const onBufferStateChanged = (event: unknown) => {
+      logPlayerEventRef.current("dash-buffer-state", event as Record<string, unknown>);
+    };
+    const onQualityChangeRequested = (event: unknown) => {
+      logPlayerEventRef.current("dash-quality-change-requested", event as Record<string, unknown>);
+    };
+    const onQualityChangeRendered = (event: unknown) => {
+      const snapshot = qualitySwitchSnapshotRef.current;
+      const qualityEvent = (event || {}) as Record<string, unknown>;
+      logPlayerEventRef.current("dash-quality-change-rendered", {
+        ...qualityEvent,
+        snapshotFromTime: snapshot?.fromTime,
+        snapshotAgeMs: snapshot ? Math.round(performance.now() - snapshot.appliedAt) : undefined,
+      });
+
+      const currentRep = player.getCurrentRepresentationForType("video");
+      if (currentRep && currentRep.height) {
+        setActiveQualityLabel(representationLabel(currentRep, supportedQualitiesRef.current));
+      }
+      setPendingQualitySwitch(null);
+
+      if (snapshot && video.currentTime < Math.max(1, snapshot.fromTime - 2)) {
+        const rewindTime = snapshot.fromTime;
+        video.currentTime = rewindTime;
+        snapshot.corrected = true;
+        logPlayerEventRef.current("dash-quality-rewind-corrected", {
+          rewindTime,
+        });
+      }
+      if (qualitySwitchTimeoutRef.current) {
+        clearTimeout(qualitySwitchTimeoutRef.current);
+        qualitySwitchTimeoutRef.current = null;
+      }
+      qualitySwitchSnapshotRef.current = null;
+    };
+    const classifyDashError = (event: unknown): { label: string; fatal: boolean } => {
+      const outer = (event || {}) as {
+        error?: unknown;
+        event?: unknown;
+        message?: string;
+      };
+      const err = outer.error ?? outer.event ?? event;
+      const code = Number((err as { code?: number })?.code);
+      const rawMessage =
+        typeof err === "string"
+          ? err
+          : (err as { message?: string })?.message ||
+            outer.message ||
+            String(err);
+      const message = rawMessage.toLowerCase();
+      if (code === 17 || code === 27 || code === 28) {
+        return { label: "fragment-load-failure", fatal: true };
+      }
+      if (code === 25) {
+        return { label: "manifest-load-failure", fatal: true };
+      }
+      if (message.includes("segmentbase") || message.includes("webm")) {
+        return { label: "webm-segmentbase-loader", fatal: true };
+      }
+      if (message.includes("manifest")) {
+        return { label: "manifest-parse", fatal: true };
+      }
+      if (message.includes("timeout") || message.includes("non-computable")) {
+        return { label: "fragment-load-timeout", fatal: true };
+      }
+      if (message.includes("decode") || code === 3) {
+        return { label: "media-decode", fatal: true };
+      }
+      if (message.includes("buffer")) {
+        return { label: "buffer-stalled", fatal: false };
+      }
+      return { label: "dash-unknown", fatal: false };
+    };
+    const onPlaybackError = (event: unknown) => {
+      const { label, fatal } = classifyDashError(event);
+      logPlayerEventRef.current("dash-playback-error", { event, errorClass: label, fatal });
+      if (label === "media-decode" && leaveFailingCodecRef.current()) return;
+      if (fatal) fireRetrySourceRef.current(`dash:${label}`);
+    };
+    const onDashError = (event: unknown) => {
+      const { label, fatal } = classifyDashError(event);
+      logPlayerEventRef.current("dash-error", { event, errorClass: label, fatal });
+      if (label === "media-decode" && leaveFailingCodecRef.current()) return;
+      if (fatal) fireRetrySourceRef.current(`dash:${label}`);
+    };
+    const onCapabilitiesDrop = (event: unknown) => {
+      logPlayerEventRef.current("dash-capabilities-dropped", { event });
+      // A machine without AV1 or VP9 still has the other sets, so only the last one is a failure.
+      if (droppedLastAdaptationSet(event)) fireRetrySourceRef.current("dash:capabilities-dropped");
+    };
+    const onStreamInitialized = () => {
+      dashReadyRef.current = true;
+      const startRepresentation = player.getCurrentRepresentationForType("video");
+      dashStartFamilyRef.current = codecFamily(startRepresentation?.codecs ?? startRepresentation?.mimeType);
+      logPlayerEventRef.current("dash-stream-initialized", {
+        representations: player.getRepresentationsByType("video").map((representation) => ({
+          id: representation.id,
+          height: representation.height,
+          width: representation.width,
+          codecs: representation.codecs,
+          mimeType: representation.mimeType,
+          bandwidth: representation.bandwidth,
+        })),
+      });
+      applyDashQualitySelectionRef.current();
+      applyDashAudioSelectionRef.current();
+
+      const currentRep = player.getCurrentRepresentationForType("video");
+      if (currentRep && currentRep.height) {
+        setActiveQualityLabel(representationLabel(currentRep, supportedQualitiesRef.current));
+      }
+    };
+
+    player.on(dashEvents.MANIFEST_LOADED, onManifestLoaded);
+    player.on(dashEvents.FRAGMENT_LOADING_COMPLETED, recordVideoSegmentSpeed);
+    player.on(dashEvents.PLAYBACK_WAITING, onPlaybackWaiting);
+    player.on(dashEvents.BUFFER_LEVEL_STATE_CHANGED, onBufferStateChanged);
+    player.on(dashEvents.QUALITY_CHANGE_REQUESTED, onQualityChangeRequested);
+    player.on(dashEvents.QUALITY_CHANGE_RENDERED, onQualityChangeRendered);
+    player.on(dashEvents.PLAYBACK_ERROR, onPlaybackError);
+    player.on(dashEvents.ERROR, onDashError);
+    player.on(dashEvents.ADAPTATION_SET_REMOVED_NO_CAPABILITIES, onCapabilitiesDrop);
+    player.on(dashEvents.STREAM_INITIALIZED, onStreamInitialized);
+
+    dashPlayerRef.current = player;
+    // Starting at 0 and seeking once loaded fetched the opening segments first.
+    const startAt = decodeFallbackAtRef.current ?? resumeTimeRef.current;
+    decodeFallbackAtRef.current = null;
+    player.initialize(video, dashManifestUrl, desiredPlayingRef.current || isPlaying, startAt > 0 ? startAt : undefined);
+
+    return () => {
+      dashReadyRef.current = false;
+      player.off(dashEvents.MANIFEST_LOADED, onManifestLoaded);
+      player.off(dashEvents.FRAGMENT_LOADING_COMPLETED, recordVideoSegmentSpeed);
+      player.off(dashEvents.PLAYBACK_WAITING, onPlaybackWaiting);
+      player.off(dashEvents.BUFFER_LEVEL_STATE_CHANGED, onBufferStateChanged);
+      player.off(dashEvents.QUALITY_CHANGE_REQUESTED, onQualityChangeRequested);
+      player.off(dashEvents.QUALITY_CHANGE_RENDERED, onQualityChangeRendered);
+      player.off(dashEvents.PLAYBACK_ERROR, onPlaybackError);
+      player.off(dashEvents.ERROR, onDashError);
+      player.off(dashEvents.ADAPTATION_SET_REMOVED_NO_CAPABILITIES, onCapabilitiesDrop);
+      player.off(dashEvents.STREAM_INITIALIZED, onStreamInitialized);
+      if (qualitySwitchTimeoutRef.current) {
+        clearTimeout(qualitySwitchTimeoutRef.current);
+        qualitySwitchTimeoutRef.current = null;
+      }
+      // A snapshot left from the previous manifest would "correct" the next
+      // video back to the old one's position.
+      qualitySwitchSnapshotRef.current = null;
+      setPendingQualitySwitch(null);
+      player.destroy();
+      if (dashPlayerRef.current === player) {
+        dashPlayerRef.current = null;
+      }
+    };
+  }, [bufferConfig, dashManifestUrl, dashProxyPrefix, dashRestartCount, isDashPlayback]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!isHlsPlayback || !hlsManifestUrl) {
+      hlsPlayerRef.current?.destroy();
+      hlsPlayerRef.current = null;
+      return;
+    }
+
+    const rewrite = (url: string) =>
+      hlsProxyPrefix && !url.startsWith("http://127.0.0.1:") && !url.startsWith("blob:")
+        ? `${hlsProxyPrefix}${encodeURIComponent(url)}`
+        : url;
+
+    if (!Hls.isSupported()) {
+      logPlayerEventRef.current("hls-mse-unsupported", { hlsManifestUrl });
+      fireRetrySourceRef.current("hls:mse-unsupported");
+      return;
+    }
+
+    const DefaultLoader = Hls.DefaultConfig.loader as any;
+    class ProxyLoader extends DefaultLoader {
+      load(context: any, config: any, callbacks: any) {
+        if (context?.url) context.url = rewrite(context.url);
+        super.load(context, config, callbacks);
+      }
+    }
+
+    // hls.js picks its first track inside its own manifest handling, before any listener here runs.
+    const audioLanguage = selectedAudioTrackRef.current?.languageCode;
+    const hls = new Hls({
+      audioPreference: audioLanguage ? { lang: audioLanguage } : undefined,
+      enableWorker: true,
+      lowLatencyMode: false,
+      maxBufferLength: bufferConfig.maxSeconds,
+      maxMaxBufferLength: bufferConfig.maxSeconds,
+      backBufferLength: Math.max(30, bufferConfig.maxSeconds),
+      liveBackBufferLength: null,
+      liveSyncDurationCount: 3,
+      liveMaxLatencyDurationCount: Infinity,
+      liveDurationInfinity: isLive,
+      loader: ProxyLoader as unknown as typeof Hls.DefaultConfig.loader,
+    });
+    hlsPlayerRef.current = hls;
+    liveSeekedBackRef.current = false;
+    let fatalRecoveryAttempts = 0;
+    let destroyedAfterFatal = false;
+
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      fatalRecoveryAttempts = 0;
+      logPlayerEventRef.current("hls-manifest-parsed", { levels: hls.levels.length });
+      const audioChoice = hlsAudioChoice(hls.allAudioTracks, selectedAudioTrackRef.current);
+      if (audioChoice) hls.setAudioOption(audioChoice);
+      if (desiredPlayingRef.current) void video.play().catch(() => {});
+    });
+    hls.on(Hls.Events.FRAG_LOADED, () => {
+      fatalRecoveryAttempts = 0;
+    });
+    hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_event, data) => {
+      const track = hls.audioTracks[data.id];
+      logPlayerEventRef.current("hls-audio-track", { name: track?.name, lang: track?.lang, groupId: track?.groupId });
+    });
+    hls.on(Hls.Events.LEVEL_UPDATED, (_event, data) => {
+      if (isLive) stampLiveTiming(video, liveTimingFromPlaylist(hls.targetLatency, data.details.targetduration));
+    });
+    hls.on(Hls.Events.ERROR, (_event, data) => {
+      logPlayerEventRef.current("hls-error", {
+        type: data.type,
+        details: data.details,
+        fatal: data.fatal,
+      });
+      if (!data.fatal) {
+        if (isLive && data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+          const target = liveStallRecoveryTarget({
+            position: video.currentTime,
+            window: liveWindow(video),
+            syncPosition: hls.liveSyncPosition,
+            seekedBack: liveSeekedBackRef.current,
+          });
+          if (target !== null) {
+            video.currentTime = target;
+            if (desiredPlayingRef.current) void video.play().catch(() => {});
+          }
+        }
+        return;
+      }
+      if (data.type === Hls.ErrorTypes.NETWORK_ERROR || data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        fatalRecoveryAttempts += 1;
+        if (fatalRecoveryAttempts > MAX_HLS_FATAL_RECOVERY_ATTEMPTS) {
+          // startLoad()/recoverMediaError() were looping unbounded on a dead
+          // stream; give up and let the normal source fallback run.
+          logPlayerEventRef.current("hls-fatal-recovery-exhausted", {
+            details: data.details,
+            attempts: fatalRecoveryAttempts,
+          });
+          destroyedAfterFatal = true;
+          if (hlsPlayerRef.current === hls) hlsPlayerRef.current = null;
+          hls.destroy();
+          fireRetrySourceRef.current(`hls:fatal:${data.details}`);
+          return;
+        }
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          hls.startLoad();
+        } else {
+          hls.recoverMediaError();
+        }
+      } else {
+        fireRetrySourceRef.current(`hls:${data.details}`);
+      }
+    });
+
+    hls.loadSource(hlsManifestUrl);
+    hls.attachMedia(video);
+
+    return () => {
+      if (!destroyedAfterFatal) hls.destroy();
+      if (hlsPlayerRef.current === hls) hlsPlayerRef.current = null;
+      clearLiveTiming(video);
+    };
+  }, [bufferConfig, hlsManifestUrl, hlsProxyPrefix, isHlsPlayback, isLive]);
+
+  useEffect(() => {
+    const hls = hlsPlayerRef.current;
+    if (!hls || hls.allAudioTracks.length === 0) return;
+    const choice = hlsAudioChoice(hls.allAudioTracks, selectedAudioTrackRef.current);
+    if (choice) hls.setAudioOption(choice);
+  }, [selectedAudioTrack?.id]);
+
+  useEffect(() => {
+    if (!isDashPlayback) return;
+    applyDashQualitySelection();
+  }, [applyDashQualitySelection, isDashPlayback, selectedQualityId]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const enterBuffering = () => {
+      if (!shouldEnterMediaBuffering({
+        paused: video.paused,
+        ended: video.ended,
+        readyState: video.readyState,
+      })) return;
+
+      mediaBufferingRef.current = true;
+      bufferingStartedAtRef.current = video.currentTime;
+      setIsBuffering(true);
+      if (waitingSinceRef.current === null) waitingSinceRef.current = Date.now();
+      stallCountRef.current += 1;
+      if (usesExternalAudio) {
+        // Record the pause as a hold so the drift policy agrees with the event
+        // path and releases it through its resume rules.
+        audioHoldRef.current = true;
+        audioRef.current?.pause();
+      }
+    };
+    const onVideoWaiting = () => {
+      enterBuffering();
+      logPlayerEvent("html-video-waiting", {
+        readyState: video.readyState,
+        networkState: video.networkState,
+        audioTime: audioRef.current?.currentTime,
+      });
+    };
+    const onVideoStalled = () => {
+      enterBuffering();
+      logPlayerEvent("html-video-stalled", {
+        readyState: video.readyState,
+        networkState: video.networkState,
+        audioTime: audioRef.current?.currentTime,
+      });
+    };
+    const resumeExternalAudio = (eventName: string) => {
+      clearMediaBuffering();
+      waitingSinceRef.current = null;
+      if (playbackStartAtRef.current === null) playbackStartAtRef.current = Date.now();
+      const audio = audioRef.current;
+      if (!usesExternalAudio || !audio) {
+        logPlayerEvent(eventName, {
+          readyState: video.readyState,
+          networkState: video.networkState,
+        });
+        return;
+      }
+
+      audioHoldRef.current = false;
+      if (Math.abs(audio.currentTime - video.currentTime) > AUDIO_DRIFT_TOLERANCE_SECONDS) {
+        realignExternalAudioClock(audio, video, postSwitchRealignPendingRef.current);
+      }
+      postSwitchRealignPendingRef.current = false;
+      if (Math.abs(audio.playbackRate - playbackRate) > 0.001) {
+        audio.playbackRate = playbackRate;
+      }
+      resumeExternalAudioPlayback(audio, video);
+
+      logPlayerEvent(eventName, {
+        readyState: video.readyState,
+        networkState: video.networkState,
+        audioTime: audio.currentTime,
+      });
+    };
+    const onVideoCanPlay = () => resumeExternalAudio("html-video-canplay");
+    const onVideoPlaying = () => resumeExternalAudio("html-video-playing");
+    const onVideoSeeking = () => {
+      lastSeekAtRef.current = Date.now();
+      clearMediaBuffering();
+      waitingSinceRef.current = null;
+      stallCountRef.current = 0;
+      videoProgressSampleRef.current = null;
+      const snapshot = qualitySwitchSnapshotRef.current;
+      logPlayerEvent("html-video-seeking", {
+        snapshotFromTime: snapshot?.fromTime,
+        snapshotTargetQualityId: snapshot?.targetQualityId,
+      });
+      if (
+        snapshot
+        && !snapshot.corrected
+        && performance.now() - snapshot.appliedAt < 10_000
+        && video.currentTime < Math.max(1, snapshot.fromTime - 2)
+      ) {
+        const rewindTime = snapshot.fromTime;
+        snapshot.corrected = true;
+        requestAnimationFrame(() => {
+          video.currentTime = rewindTime;
+          logPlayerEvent("html-video-rewind-corrected", { rewindTime });
+        });
+      }
+    };
+    const onVideoError = () => {
+      clearMediaBuffering();
+      const code = video.error?.code;
+      logPlayerEvent("html-video-error", {
+        mediaError: video.error ? {
+          code,
+          message: video.error.message,
+        } : null,
+      });
+      if ((code === 3 || code === 4) && leaveFailingCodecRef.current()) return;
+      if (code && code !== 1) {
+        fireRetrySourceRef.current(`media-error:${code}`);
+      }
+    };
+
+    video.addEventListener("waiting", onVideoWaiting);
+    video.addEventListener("stalled", onVideoStalled);
+    video.addEventListener("canplay", onVideoCanPlay);
+    video.addEventListener("playing", onVideoPlaying);
+    video.addEventListener("seeking", onVideoSeeking);
+    video.addEventListener("error", onVideoError);
+
+    return () => {
+      video.removeEventListener("waiting", onVideoWaiting);
+      video.removeEventListener("stalled", onVideoStalled);
+      video.removeEventListener("canplay", onVideoCanPlay);
+      video.removeEventListener("playing", onVideoPlaying);
+      video.removeEventListener("seeking", onVideoSeeking);
+      video.removeEventListener("error", onVideoError);
+    };
+  }, [
+    clearMediaBuffering,
+    logPlayerEvent,
+    playbackRate,
+    realignExternalAudioClock,
+    resumeExternalAudioPlayback,
+    usesExternalAudio,
+  ]);
+
+  useEffect(() => {
+    if (lastMediaIdentityRef.current === mediaIdentity) return;
+
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    const targetTime = Math.max(0, resumeTime || 0);
+
+    pendingResumeTimeRef.current = targetTime;
+    sbTrackerRef.current.reset();
+    undoSkippedSegmentsRef.current.clear();
+    lastMediaIdentityRef.current = mediaIdentity;
+    // A new source gets its own failure report; a re-resolve keeps the mode.
+    retrySourceFiredRef.current = false;
+
+    clearMediaBuffering();
+    videoProgressSampleRef.current = null;
+    postSwitchRealignPendingRef.current = true;
+
+    if (targetTime > 0) {
+      sourceSwitchingRef.current = true;
+      setIsSourceSwitching(true);
+      video?.pause();
+      audio?.pause();
+    } else {
+      sourceSwitchingRef.current = false;
+      setHasStartedPlayback(false);
+      setIsSourceSwitching(false);
+      if (video && Number.isFinite(video.currentTime) && video.currentTime !== 0) {
+        try {
+          video.currentTime = 0;
+        } catch {
+        }
+      }
+      if (audio && Number.isFinite(audio.currentTime) && audio.currentTime !== 0) {
+        try {
+          audio.currentTime = 0;
+        } catch {
+        }
+      }
+    }
+  }, [clearMediaBuffering, mediaIdentity, resumeTime]);
+
+  useEffect(() => {
+    if (!isSourceSwitching) return;
+    const startedAt = Date.now();
+    const timer = window.setTimeout(() => {
+      const video = videoRef.current;
+      if (!video || !sourceSwitchingRef.current) return;
+      if (!hasSourceSwitchTimedOut(startedAt, Date.now(), video.readyState)) return;
+      logPlayerEventRef.current("source-switch-timeout", { waitedMs: Date.now() - startedAt });
+      fireRetrySourceRef.current("source-switch-timeout");
+    }, SOURCE_SWITCH_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [isSourceSwitching, mediaIdentity]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video) return;
+
+    if (isSourceSwitching || sourceSwitchingRef.current) return;
+
+    desiredPlayingRef.current = isPlaying;
+    if (isPlaying && (isDashPlayback || isHlsPlayback || src) && !error) {
+      void video.play().catch((cause) => {
+        if ((cause as DOMException | null)?.name === "AbortError") return;
+        desiredPlayingRef.current = false;
+        setIsPlaying(false);
+      });
+      if (usesExternalAudio && audio) {
+        void audio.play().catch(() => {});
+      }
+    } else {
+      video.pause();
+      audio?.pause();
+    }
+  }, [error, isDashPlayback, isHlsPlayback, isPlaying, isSourceSwitching, setIsPlaying, src, usesExternalAudio]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!audio || !video || !usesExternalAudio || isSourceSwitching) return;
+
+    audio.playbackRate = playbackRate;
+    audio.preservesPitch = true;
+    audio.volume = muted ? 0 : outputVolume;
+    audio.muted = muted || volume === 0;
+
+    const audioIdentity = `${mediaIdentity}|${selectedAudioTrack?.localUrl ?? ""}`;
+    if (attachedAudioIdentityRef.current !== audioIdentity) {
+      attachedAudioIdentityRef.current = audioIdentity;
+      audioHoldRef.current = false;
+      audioRecoveryAttemptsRef.current = 0;
+      lastAudioResyncAtRef.current = performance.now();
+      try {
+        audio.currentTime = video.currentTime;
+      } catch {
+      }
+    }
+
+    if (isPlaying && !error) {
+      void audio.play().catch(() => {});
+    }
+  }, [
+    error,
+    isPlaying,
+    isSourceSwitching,
+    mediaIdentity,
+    muted,
+    outputVolume,
+    playbackRate,
+    selectedAudioTrack?.localUrl,
+    usesExternalAudio,
+    volume,
+  ]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video) return;
+    const effectiveMuted = muted || sbMuted || isHandoffSilent;
+    video.volume = usesExternalAudio ? 0 : (effectiveMuted ? 0 : outputVolume);
+    video.muted = usesExternalAudio || effectiveMuted || volume === 0;
+    if (audio) {
+      audio.volume = effectiveMuted ? 0 : outputVolume;
+      audio.muted = effectiveMuted || volume === 0;
+    }
+  }, [isHandoffSilent, muted, outputVolume, sbMuted, usesExternalAudio, volume]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (video) {
+      video.playbackRate = playbackRate;
+      video.preservesPitch = true;
+    }
+    if (audio) {
+      audio.playbackRate = playbackRate;
+      audio.preservesPitch = true;
+    }
+  }, [playbackRate]);
+
+  useEffect(() => () => {
+    const controller = windowFullscreenControllerRef.current;
+    const ownsFullscreen = usePlayerStore.getState().isVideoFullscreen || controller?.isTransitioning();
+    setIsFullscreen(false);
+    if (ownsFullscreen) void syncNativeFullscreen(false);
+  }, [setIsFullscreen, syncNativeFullscreen]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const onEnter = () => setIsPip(true);
+    const onLeave = () => setIsPip(false);
+    video.addEventListener("enterpictureinpicture", onEnter);
+    video.addEventListener("leavepictureinpicture", onLeave);
+    return () => {
+      video.removeEventListener("enterpictureinpicture", onEnter);
+      video.removeEventListener("leavepictureinpicture", onLeave);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      const action = videoPlayerKeyAction(event.key, event.shiftKey);
+      if (action && action.kind !== "exit-fullscreen") event.preventDefault();
+      switch (action?.kind) {
+        case "toggle-play":
+          togglePlay();
+          break;
+        case "next":
+          playNext(true);
+          break;
+        case "previous":
+          playPrevious();
+          break;
+        case "seek-back":
+          seekBy(-seekIntervalSeconds);
+          break;
+        case "seek-forward":
+          seekBy(seekIntervalSeconds);
+          break;
+        case "volume-up": {
+          const raised = Math.min(maxLevel, volumeLevelNow + 0.05);
+          setVolumeLevel(raised);
+          setMuted(false);
+          showVolumeFeedback(raised, false);
+          break;
+        }
+        case "volume-down": {
+          const lowered = Math.max(0, volumeLevelNow - 0.05);
+          setVolumeLevel(lowered);
+          showVolumeFeedback(lowered, muted);
+          break;
+        }
+        case "toggle-mute":
+          setMuted((value) => !value);
+          showVolumeFeedback(volume, !muted);
+          break;
+        case "exit-fullscreen":
+          if (isFullscreen && !event.defaultPrevented) {
+            event.preventDefault();
+            toggleFullscreen();
+          }
+          break;
+        case "toggle-fullscreen":
+          toggleFullscreen();
+          break;
+        case "toggle-theater":
+          if (!isFullscreen) setIsTheaterMode(!isTheaterMode);
+          break;
+        case "toggle-pip":
+          togglePictureInPicture();
+          break;
+        case "toggle-captions":
+          toggleCaptions();
+          break;
+        case "captions-larger":
+          nudgeSubtitleFontSize(1);
+          break;
+        case "captions-smaller":
+          nudgeSubtitleFontSize(-1);
+          break;
+        case "frame-back":
+          stepFrame(-1);
+          break;
+        case "frame-forward":
+          stepFrame(1);
+          break;
+        case "slower":
+          stepPlaybackRate(-1);
+          break;
+        case "faster":
+          stepPlaybackRate(1);
+          break;
+        case "previous-chapter":
+          jumpChapter(-1);
+          break;
+        case "next-chapter":
+          jumpChapter(1);
+          break;
+        case "seek-start":
+          if (isLive && videoRef.current?.seekable.length) {
+            seekTo(liveWindow(videoRef.current).start);
+          } else {
+            seekTo(0);
+          }
+          break;
+        case "seek-end":
+          if (isLive && videoRef.current?.seekable.length) {
+            seekTo(liveEdgePosition(liveWindow(videoRef.current), readLiveTiming(videoRef.current)));
+          } else {
+            seekTo(duration);
+          }
+          break;
+        case "seek-to-fraction":
+          if (!isLive && duration > 0) seekTo(duration * action.fraction);
+          break;
+        case "look":
+          lookAround.current?.key(action.key);
+          break;
+      }
+      revealControls();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    currentTime,
+    isFullscreen,
+    isTheaterMode,
+    muted,
+    revealControls,
+    seekBy,
+    seekIntervalSeconds,
+    seekTo,
+    duration,
+    isLive,
+    jumpChapter,
+    nudgeSubtitleFontSize,
+    playNext,
+    playPrevious,
+    setIsTheaterMode,
+    setMuted,
+    setVolumeLevel,
+    maxLevel,
+    volumeLevelNow,
+    showVolumeFeedback,
+    stepFrame,
+    stepPlaybackRate,
+    toggleCaptions,
+    toggleFullscreen,
+    togglePictureInPicture,
+    togglePlay,
+    volume,
+  ]);
+
+  const handleLoadedMetadata = () => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video) return;
+    const nextDuration = video.duration || duration || 0;
+    setDuration(nextDuration);
+    const pendingResumeTime = Math.max(resumeTime, pendingResumeTimeRef.current);
+    if (pendingResumeTime > 0 && Math.abs(video.currentTime - pendingResumeTime) > 0.25) {
+      const restoredTime = Math.min(pendingResumeTime, Math.max(0, nextDuration - 0.25));
+      video.currentTime = restoredTime;
+      if (audio) {
+        try {
+          audio.currentTime = restoredTime;
+        } catch {
+        }
+      }
+    }
+    if (pendingResumeTime > 0 || isLive) {
+      setHasStartedPlayback(true);
+      sourceSwitchingRef.current = false;
+      setIsSourceSwitching(false);
+      requestAnimationFrame(() => {
+        syncExternalAudio(true);
+        if (desiredPlayingRef.current || isPlaying) {
+          void videoRef.current?.play().catch(() => {});
+          if (usesExternalAudio) void audioRef.current?.play().catch(() => {});
+        }
+      });
+    }
+    updateBuffered();
+  };
+
+  const handleAudioLoadedMetadata = () => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video || !audio) return;
+
+    audioHoldRef.current = false;
+    realignExternalAudioClock(audio, video, true);
+
+    if ((desiredPlayingRef.current || isPlaying) && usesExternalAudio && !isSourceSwitching) {
+      void audio.play().catch(() => {});
+    }
+  };
+
+  const handleAudioError = () => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video || !audio || !usesExternalAudio) return;
+
+    const attempts = audioRecoveryAttemptsRef.current + 1;
+    audioRecoveryAttemptsRef.current = attempts;
+    logPlayerEvent("external-audio-error", {
+      mediaError: audio.error ? { code: audio.error.code, message: audio.error.message } : null,
+      attempts,
+    });
+
+    if (attempts > MAX_EXTERNAL_AUDIO_RECOVERIES) {
+      fireRetrySourceRef.current("external-audio-error");
+      return;
+    }
+
+    const resumeAt = video.currentTime;
+    const onReloaded = () => {
+      audio.removeEventListener("loadedmetadata", onReloaded);
+      lastAudioResyncAtRef.current = performance.now();
+      try {
+        audio.currentTime = resumeAt;
+      } catch {
+      }
+      resumeExternalAudioPlayback(audio, video);
+    };
+    audio.addEventListener("loadedmetadata", onReloaded);
+    audio.load();
+  };
+
+  const showSponsorBlockNotice = (segment: SponsorBlockSegment) => {
+    setNotifyToast({ segment, categoryName: sponsorBlockCategoryLabel(segment.category), visible: true });
+    if (notifyTimeoutRef.current !== null) window.clearTimeout(notifyTimeoutRef.current);
+    notifyTimeoutRef.current = window.setTimeout(() => {
+      setNotifyToast((prev) => (prev ? { ...prev, visible: false } : null));
+      notifyTimeoutRef.current = null;
+    }, 2000);
+  };
+
+  const skipManualSegment = () => {
+    if (!manualSegment) return;
+    sbTrackerRef.current.dismiss(manualSegment.UUID);
+    seekTo(manualSegment.segment[1]);
+    setManualSegment(null);
+  };
+
+
+  const handleTimeUpdate = () => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video) return;
+    if (!shouldPublishPlaybackTime(sourceSwitchingRef.current, video.readyState, lastMediaIdentityRef.current !== "")) {
+      return;
+    }
+    const nextTime = video.currentTime;
+    const nextDuration = video.duration || duration || 0;
+
+    if (
+      mediaBufferingRef.current
+      && !video.paused
+      && hasMediaPlaybackProgressed(bufferingStartedAtRef.current, nextTime)
+    ) {
+      clearMediaBuffering();
+      waitingSinceRef.current = null;
+    }
+
+    let inMuteSegment = false;
+    let muteSegmentCategoryName = "";
+    let manualSegment: SponsorBlockSegment | null = null;
+
+    if (sponsorBlockEnabled) {
+      const sb = sbTrackerRef.current.tick(nextTime, sponsorBlockSegments, sponsorBlockActions, !!video?.ended);
+      if (sb.skip) {
+        seekTo(sb.skip.segment[1]);
+        recordSponsorSkip(sb.skip);
+        return;
+      }
+      if (sb.muteStarted) recordSponsorSkip(sb.muteStarted);
+      if (sb.mute) {
+        inMuteSegment = true;
+        muteSegmentCategoryName = sb.mute.category;
+      }
+      if (sb.notify) showSponsorBlockNotice(sb.notify);
+      manualSegment = sb.manual;
+    }
+    setManualSegment((current) => (current?.UUID === manualSegment?.UUID ? current : manualSegment));
+
+    if (inMuteSegment) {
+      if (!sbMuted) {
+        setSbMuted(true);
+        setCurrentSBMuteSegment(muteSegmentCategoryName);
+      }
+    } else {
+      if (sbMuted) {
+        setSbMuted(false);
+        setCurrentSBMuteSegment(null);
+      }
+    }
+
+    setCurrentTime(nextTime);
+    setDuration(nextDuration);
+    onTimeUpdate?.(nextTime, nextDuration);
+    if (usesExternalAudio && audio) syncExternalAudio(false);
+    updateBuffered();
+  };
+
+  // The root stays unclipped so the glow can leave it; what it used to clip lives in the content wrapper.
+  const fillsTallerSlot =
+    !isPipMode && !isFullscreen && adaptivePlayerAspect(videoAspect, adaptiveEnabled, isTheaterSurface) !== null;
+  const playerRootClasses = cx(
+    "relative w-full outline-none",
+    fillsTallerSlot ? "h-full" : "aspect-video",
+    isTheaterSurface ? "max-h-[calc(100vh-160px)] min-h-[480px] rounded-none" : "rounded-xl",
+    isFullscreen && "rounded-none",
+    className
+  );
+
+  return (
+    <div
+      ref={containerRef}
+      id="flow-player-root"
+      // The frame and its controls run left to right in every language, as on Android: the
+      // timeline, the skip buttons and the double-tap sides all follow the video, not the text.
+      dir="ltr"
+      data-fullscreen={isFullscreen || undefined}
+      className={cx(
+        "group/player",
+        cursorHidden && "cursor-none [&_*]:!cursor-none",
+        playerRootClasses,
+      )}
+      tabIndex={0}
+      onPointerEnter={handlePointerEnter}
+      onPointerMove={revealControls}
+      onPointerDown={revealControls}
+      onPointerLeave={handlePointerLeave}
+      onFocusCapture={handleFocusCapture}
+      onBlurCapture={handleBlurCapture}
+    >
+      {showAmbient && <AmbientGlow videoRef={videoRef} intensity={ambient.intensity} spread={ambient.glow} />}
+
+      <div
+        data-player-content
+        // Inset, not h-full: WebKit resolves a percentage height against the root's uncapped aspect
+        // ratio, so in theater mode h-full ran past max-h and over the page below.
+        className={cx(
+          "absolute inset-0 z-10 overflow-hidden text-chrome-white",
+          !showAmbient && "bg-chrome-black",
+          isTheaterSurface ? "flex items-center justify-center rounded-none" : "rounded-xl",
+          isFullscreen && "rounded-none",
+        )}
+      >
+      <video
+        ref={videoRef}
+        // Set before src: the equalizer can only read cross-origin audio fetched with CORS.
+        crossOrigin="anonymous"
+        src={isDashPlayback || isHlsPlayback ? undefined : src || undefined}
+        poster={effectivePoster}
+        loop={videoLoopEnabled && !isLive}
+        playsInline
+        preload="auto"
+        onLoadedMetadata={handleLoadedMetadata}
+        onProgress={updateBuffered}
+        onTimeUpdate={handleTimeUpdate}
+        onPlaying={() => {
+          const activeVideoId = usePlayerStore.getState().currentVideo?.id;
+          if (activeVideoId) usePlayerStore.getState().markPlaybackStarted(activeVideoId);
+        }}
+        onPlay={() => {
+          desiredPlayingRef.current = true;
+          setHasStartedPlayback(true);
+          setIsPlaying(true);
+        }}
+        onPause={() => {
+          const video = videoRef.current;
+          clearMediaBuffering();
+          waitingSinceRef.current = null;
+          if (isDashPlayback && qualitySwitchSnapshotRef.current) {
+            logPlayerEvent("video-pause-during-quality-switch", {
+              snapshot: qualitySwitchSnapshotRef.current,
+              pausedAt: video?.currentTime,
+            });
+            return;
+          }
+          if (sourceSwitchingRef.current) {
+            logPlayerEvent("video-pause-during-source-switch", {
+              pausedAt: video?.currentTime,
+            });
+            return;
+          }
+          if (desiredPlayingRef.current && src && !error && !video?.ended) {
+            setTimeout(() => {
+              if (desiredPlayingRef.current) {
+                void videoRef.current?.play().catch(() => {});
+                if (usesExternalAudio) void audioRef.current?.play().catch(() => {});
+              }
+            }, 0);
+            return;
+          }
+          setIsPlaying(false);
+        }}
+        onEnded={() => {
+          if (sleepTimerTakesEnd()) {
+            setPlaybackDesired(false);
+            return;
+          }
+          if (videoLoopEnabled && !isLive) {
+            seekTo(0);
+            setPlaybackDesired(true);
+            return;
+          }
+          if (onEnded) {
+            onEnded();
+            return;
+          }
+          if (autoplayEnabled) {
+            playNext();
+          } else {
+            setPlaybackDesired(false);
+          }
+        }}
+        className={cx("relative z-10 h-full w-full", VIDEO_FIT_CLASS[isPipMode ? "fit" : videoFit], showsSpherical && "opacity-0")}
+      />
+      {showsSpherical && (
+        <SphericalView
+          videoRef={videoRef}
+          projection={projection ?? "equirectangular"}
+          speed={lookSpeed}
+          lookAround={lookAround}
+          onUnavailable={onSphericalUnavailable}
+        />
+      )}
+
+      {usesExternalAudio && selectedAudioTrack?.localUrl && (
+        <audio
+          ref={audioRef}
+          crossOrigin="anonymous"
+          src={selectedAudioTrack.localUrl}
+          preload="auto"
+          onLoadedMetadata={handleAudioLoadedMetadata}
+          onError={handleAudioError}
+          className="hidden"
+        />
+      )}
+
+      <PlayerGestureOverlay
+        videoRef={videoRef}
+        title={title}
+        src={src}
+        isPlaying={isPlaying}
+        playbackRate={playbackRate}
+        currentTime={currentTime}
+        duration={duration}
+        seekFeedback={seekFeedback}
+        volumeFeedback={volumeFeedback}
+        qualityLabel={selectedQualityId === "auto" ? activeQualityLabel : selectedQuality?.qualityLabel}
+        mimeType={selectedQuality?.mimeType}
+        bitrate={selectedQuality?.bitrate}
+        captionCount={captions.length}
+        seekIntervalSeconds={seekIntervalSeconds}
+        doubleClickSeek={doubleClickSeek}
+        longPressPlaybackRate={longPressPlaybackRate}
+        loopEnabled={videoLoopEnabled}
+        setPlaybackRate={setPlaybackRate}
+        onToggleLoop={toggleLoopSetting}
+        togglePlay={togglePlay}
+        toggleFullscreen={toggleFullscreen}
+        togglePictureInPicture={togglePictureInPicture}
+        seekBy={seekBy}
+        onRevealControls={revealControls}
+        isCompact={isPipMode}
+        canDragWindow={isPopOut}
+        canDragFrame={isPipMode && !isPopOut && !isFullscreen}
+        settingsOpen={settingsOpen}
+        onCloseSettings={closeSettings}
+        lookAround={showsSpherical ? lookAround : null}
+      />
+
+      {pendingQualitySwitch && (
+        <div className="pointer-events-none absolute left-1/2 top-8 z-30 -translate-x-1/2 rounded-full border border-chrome-neutral-800 bg-chrome-neutral-950/85 px-3.5 py-1 text-xs font-medium tracking-wide text-chrome-neutral-200 animate-fade-in">
+          {pendingQualitySwitch.etaSeconds && pendingQualitySwitch.etaSeconds > 1
+            ? getString("player_quality_switch_in", pendingQualitySwitch.label, pendingQualitySwitch.etaSeconds)
+            : getString("player_quality_switching", pendingQualitySwitch.label)}
+        </div>
+      )}
+
+      {/* buffering spinner */}
+      {isBuffering && !isLoading && !error && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-chrome-black/15 transition-all duration-300">
+          <div className="relative flex items-center justify-center">
+            <svg className="h-12 w-12 animate-spin text-chrome-white" viewBox="0 0 24 24" fill="none">
+              <circle
+                className="opacity-20"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="3"
+              />
+              <path
+                className="opacity-80"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+          </div>
+        </div>
+      )}
+
+      {/* Modular Subtitle Overlay */}
+      <SubtitleOverlay
+        captions={captions}
+        selectedCaptionId={selectedCaptionId}
+        currentTime={currentTime}
+        shouldShowControls={shouldShowControls}
+        offsetMs={subtitleOffsetMs}
+      />
+
+      {(isLoading || error || errorInfo) && (
+        <div className="absolute inset-0 z-30 grid place-items-center bg-chrome-black/60 px-6 text-center">
+          {isLoading ? (
+            <div className="flex flex-col items-center gap-2.5">
+              <Loader2 className="animate-spin text-primary" size={28} />
+              <span className="text-xs font-medium tracking-wide text-chrome-neutral-300">
+                {getString("player_resolving_stream")}
+              </span>
+            </div>
+          ) : errorInfo ? (
+            <PlayerErrorState
+              error={errorInfo}
+              onRetry={onRetry}
+              onCopyLogs={onCopyLogs}
+              onOpenInBrowser={onOpenInBrowser}
+              upcomingAction={
+                errorInfo.startsAtMs != null ? <CurrentVideoReminderButton startsAtMs={errorInfo.startsAtMs} /> : undefined
+              }
+            />
+          ) : (
+            <div className="max-w-md space-y-4">
+              <div className="text-base font-bold">{getString("player_error_generic_title")}</div>
+              <p className="text-sm text-chrome-zinc-300">{error}</p>
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="inline-flex h-10 items-center gap-2 rounded-full bg-chrome-white px-4 text-sm font-bold text-chrome-black transition-transform active:scale-95"
+                >
+                  <RotateCcw size={16} />
+                  {getString("player_error_retry")}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {videoCodecUnsupported && !isLoading && !error && !errorInfo && (
+        <CodecMissingBanner
+          onDismiss={() => {
+            codecWarningDismissedRef.current = true;
+            setVideoCodecUnsupported(false);
+          }}
+        />
+      )}
+
+      {overlay}
+      {!isPipMode && badge}
+
+      {manualSegment && !overlay && (
+        <SponsorBlockSkipButton segment={manualSegment} compact={isPipMode} onClick={skipManualSegment} />
+      )}
+
+      {/* SponsorBlock Notify Toast */}
+      {notifyToast && notifyToast.visible && (
+        <div className="absolute bottom-32 right-3 z-40 sm:right-5 bg-chrome-toast/95 border border-chrome-toast-border rounded-xl px-4 py-3 shadow-2xl flex items-center gap-3 transition-transform duration-300 animate-slide-up select-none animate-fade-in">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-chrome-neutral-400 uppercase tracking-wider">SponsorBlock</span>
+            <span className="text-xs font-semibold text-chrome-neutral-200">
+              {getString("player_sponsorblock_segment_notice", notifyToast.categoryName)}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* SponsorBlock Muted Overlay */}
+      {sbMuted && (
+        <div className="absolute top-6 left-6 z-40 bg-chrome-toast/95 border border-chrome-toast-border rounded-xl px-4 py-2.5 shadow-2xl flex items-center gap-2 transition-all select-none">
+          <svg className="w-4 h-4 text-primary animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+          </svg>
+          <span className="text-xs font-bold text-chrome-neutral-200">
+            {getString("player_sponsorblock_muted", sponsorBlockCategoryLabel(currentSBMuteSegment || "filler"))}
+          </span>
+        </div>
+      )}
+
+      {/* Compact transport for the floating mini player; full controls otherwise. */}
+      {isPipMode ? (
+        <MiniPlayerControls
+          containerRef={containerRef}
+          isPlaying={isPlaying}
+          duration={duration}
+          seekIntervalSeconds={seekIntervalSeconds}
+          shouldShowControls={shouldShowControls}
+          togglePlay={togglePlay}
+          seekTo={seekTo}
+          showSkipControls={miniPlayerShowSkipControls}
+          showNextPrevControls={miniPlayerShowNextPrevControls}
+        />
+      ) : (
+      <FlowPlayerControls
+        title={title}
+        isLoading={isLoading}
+        error={error}
+        onRetry={onRetry}
+        containerRef={containerRef}
+        controlsVisible={controlsVisible}
+        setControlsVisible={setControlsVisible}
+        shouldShowControls={shouldShowControls}
+        qualities={supportedQualities}
+        selectedQualityId={selectedQualityId && selectedQualityId !== "auto" ? selectedQuality?.id ?? selectedQualityId : "auto"}
+        isDashPlayback={isDashPlayback}
+        isLive={isLive}
+        onSelectQuality={onSelectQuality}
+        captions={captions}
+        selectedCaptionId={selectedCaptionId}
+        setSelectedCaptionId={setSelectedCaptionId}
+        audioTracks={audioTracks}
+        selectedAudioTrackId={selectedAudioTrackId}
+        setSelectedAudioTrackId={setSelectedAudioTrackId}
+        bufferedPct={bufferedPct}
+        muted={muted}
+        setMuted={setMuted}
+        isFullscreen={isFullscreen}
+        toggleFullscreen={toggleFullscreen}
+        isPip={isPip}
+        togglePictureInPicture={togglePictureInPicture}
+        showPipButton={manualPipButtonEnabled}
+        showFullscreenTitle={showFullscreenTitle}
+        isPopOut={isPopOut}
+        seekTo={seekTo}
+        togglePlay={togglePlay}
+        stepFrame={isLive ? undefined : stepFrame}
+        speedOptions={configuredSpeedOptions}
+        speedSliderEnabled={speedSliderEnabled}
+        onSelectPlaybackRate={selectPlaybackRate}
+        spherical={sphericalMenu}
+        settingsOpen={settingsOpen}
+        setSettingsOpen={setSettingsOpen}
+        isScrubbing={isScrubbing}
+        setIsScrubbing={setIsScrubbing}
+        chapters={chapters}
+        heatmap={heatmap}
+        storyboard={storyboard}
+        activeQualityLabel={isDashPlayback ? (activeQualityLabel || undefined) : (qualities.find(q => q.localUrl === src)?.qualityLabel || undefined)}
+      />
+      )}
+      </div>
+    </div>
+  );
+};
+
+export default Player;

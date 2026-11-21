@@ -1,0 +1,538 @@
+import React, { useEffect, useRef, useState } from "react";
+import {
+  AppWindow,
+  Bug,
+  Info,
+  Link,
+  Pause,
+  PictureInPicture2,
+  Play,
+  Repeat1,
+} from "lucide-react";
+import { usePlayerStore, type PlaybackRate } from "../../../store/usePlayerStore";
+import { copyText } from "../../../lib/clipboard";
+import { getString } from "../../../lib/i18n/index";
+import { isLocalMediaId } from "../../../lib/localMediaId";
+import type { VolumeFeedback } from "../../../lib/useVolumeFeedback";
+import { VolumeFeedbackPill } from "../../ui/VolumeFeedbackPill";
+import { youtubeWatchUrl } from "../../../lib/youtubeUrl";
+import { LONG_PRESS_MS, shouldStartDrag } from "../../../lib/pointerGesture";
+import { startWindowDrag } from "../../../lib/api/pip";
+import { StatsForNerds } from "../StatsForNerds";
+import type { LookAround } from "../SphericalView";
+import { seekSideAt, type SeekDirection, type SeekFeedback as SeekFeedbackState } from "../../../lib/seekFeedback";
+import { SeekFeedback } from "./SeekFeedback";
+import { PlayerContextMenu, type PlayerContextMenuItem } from "./PlayerContextMenu";
+import { isPopOutWindow } from "../../../lib/api/pip";
+import { moveVideoToNewWindow } from "../../../lib/openTarget";
+import {
+  PLAYER_VIDEO_LAYER_ATTR,
+  classifyPlayerPress,
+  dismissForPress,
+} from "../../../lib/playerMenuDismiss";
+
+const SINGLE_CLICK_DELAY_MS = 220;
+
+type CenterFeedback = {
+  id: number;
+  icon: "play" | "pause";
+};
+
+type ContextMenuState = {
+  x: number;
+  y: number;
+};
+
+type PlayerGestureOverlayProps = {
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  title?: string;
+  src?: string | null;
+  isPlaying: boolean;
+  playbackRate: PlaybackRate;
+  currentTime: number;
+  duration: number;
+  seekFeedback: SeekFeedbackState | null;
+  volumeFeedback: VolumeFeedback | null;
+  qualityLabel?: string | null;
+  mimeType?: string | null;
+  bitrate?: number | null;
+  captionCount?: number;
+  seekIntervalSeconds: number;
+  /** Off: a double-click anywhere toggles fullscreen instead of seeking on the sides. */
+  doubleClickSeek: boolean;
+  /** Null when hold-to-speed-up is off. */
+  longPressPlaybackRate: PlaybackRate | null;
+  loopEnabled: boolean;
+  setPlaybackRate: (playbackRate: PlaybackRate) => void;
+  onToggleLoop: () => void;
+  togglePlay: () => void;
+  toggleFullscreen: () => void;
+  togglePictureInPicture: () => void;
+  /** Seeks from the video's own position and shows the running total. */
+  seekBy: (delta: number) => void;
+  onRevealControls: () => void;
+  isCompact?: boolean;
+  /** In the pop-out window, a press that moves drags the window. */
+  canDragWindow?: boolean;
+  /** The mini player: `useMiniPlayerDrag` on the frame moves it, from these bubbling moves. */
+  canDragFrame?: boolean;
+  /** The settings menu, which shares the "one menu at a time" rule with the right-click menu. */
+  settingsOpen: boolean;
+  onCloseSettings: () => void;
+  /** A 360 video's view: a drag looks around instead of moving anything, and the wheel zooms. */
+  lookAround?: { current: LookAround | null } | null;
+};
+
+function formatTime(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const rounded = Math.floor(seconds);
+  const hours = Math.floor(rounded / 3600);
+  const minutes = Math.floor((rounded % 3600) / 60);
+  const secs = rounded % 60;
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  }
+  return `${minutes}:${secs.toString().padStart(2, "0")}`;
+}
+
+
+export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
+  videoRef,
+  title,
+  src,
+  isPlaying,
+  playbackRate,
+  currentTime,
+  duration,
+  seekFeedback,
+  volumeFeedback,
+  qualityLabel,
+  mimeType,
+  bitrate,
+  captionCount,
+  seekIntervalSeconds,
+  doubleClickSeek,
+  longPressPlaybackRate,
+  loopEnabled,
+  setPlaybackRate,
+  onToggleLoop,
+  togglePlay,
+  toggleFullscreen,
+  togglePictureInPicture,
+  seekBy,
+  onRevealControls,
+  isCompact = false,
+  canDragWindow = false,
+  canDragFrame = false,
+  lookAround = null,
+  settingsOpen,
+  onCloseSettings,
+}) => {
+  const [centerFeedback, setCenterFeedback] = useState<CenterFeedback | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
+  const [isBoosting, setIsBoosting] = useState(false);
+  const [statsVisible, setStatsVisible] = useState(false);
+  const centerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousRateRef = useRef<PlaybackRate | null>(null);
+  const longPressActiveRef = useRef(false);
+  const suppressClickRef = useRef(false);
+  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
+  // The OS takes the pointer for a window drag, so the click that may follow
+  // arrives late or never; it is dropped here and forgotten on the next press.
+  const draggedRef = useRef(false);
+  // A press that closed a menu also eats the click after it, so closing never pauses.
+  const menuClosingPressRef = useRef(false);
+  const layerRef = useRef<HTMLDivElement>(null);
+  const lookFromRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Native and not passive, so a wheel over a 360 video zooms it instead of scrolling the page.
+  useEffect(() => {
+    const layer = layerRef.current;
+    if (!layer || !lookAround) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!lookAround.current) return;
+      event.preventDefault();
+      lookAround.current.zoom(event.deltaY);
+    };
+    layer.addEventListener("wheel", onWheel, { passive: false });
+    return () => layer.removeEventListener("wheel", onWheel);
+  }, [lookAround]);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A second click can arrive after the first one's toggle fired, and then has to undo it.
+  const toggledByFirstClickRef = useRef(false);
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+
+  const seekSide = (direction: SeekDirection) =>
+    seekBy(direction === "forward" ? seekIntervalSeconds : -seekIntervalSeconds);
+
+  const clearClickTimer = () => {
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (!centerFeedback) return;
+    if (centerTimerRef.current) clearTimeout(centerTimerRef.current);
+    centerTimerRef.current = setTimeout(() => setCenterFeedback(null), 1400);
+    return () => {
+      if (centerTimerRef.current) clearTimeout(centerTimerRef.current);
+    };
+  }, [centerFeedback]);
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+      if (previousRateRef.current) setPlaybackRate(previousRateRef.current);
+      clearClickTimer();
+    };
+  }, [setPlaybackRate]);
+
+  const showCopied = (label: string) => {
+    setCopiedLabel(label);
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => setCopiedLabel(null), 1400);
+  };
+
+  const copyVideoUrl = async (includeTime: boolean) => {
+    const videoId = usePlayerStore.getState().currentVideo?.id;
+    if (!videoId) return;
+    const copied = await copyText(youtubeWatchUrl(videoId, includeTime ? currentTime : undefined));
+    showCopied(
+      getString(!copied ? "player_url_copy_failed" : includeTime ? "player_timed_url_copied" : "player_video_url_copied"),
+    );
+  };
+
+  const restorePlaybackRate = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    if (longPressActiveRef.current && previousRateRef.current !== null) {
+      setPlaybackRate(previousRateRef.current);
+      suppressClickRef.current = true;
+      window.setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
+    }
+
+    longPressActiveRef.current = false;
+    previousRateRef.current = null;
+    pressStartRef.current = null;
+    setIsBoosting(false);
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    lookFromRef.current = null;
+    clearClickTimer();
+    onRevealControls();
+    menuClosingPressRef.current = Boolean(contextMenu) || settingsOpen;
+    if (menuClosingPressRef.current) {
+      setContextMenu(null);
+      onCloseSettings();
+      return;
+    }
+    draggedRef.current = false;
+    pressStartRef.current = { x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    if (longPressPlaybackRate === null) return;
+    longPressTimerRef.current = setTimeout(() => {
+      previousRateRef.current = playbackRate;
+      longPressActiveRef.current = true;
+      setIsBoosting(true);
+      setPlaybackRate(longPressPlaybackRate);
+      onRevealControls();
+    }, LONG_PRESS_MS);
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const start = pressStartRef.current;
+    if (!start) return;
+    const view = lookAround?.current;
+    if (view && !canDragFrame && !canDragWindow) {
+      const from = lookFromRef.current;
+      if (!from) {
+        if (!shouldStartDrag({ canDrag: true, boosting: longPressActiveRef.current, dx: event.clientX - start.x, dy: event.clientY - start.y })) return;
+        restorePlaybackRate();
+        // Ending a long press forgets the press; a look-around drag keeps it until the pointer is up.
+        pressStartRef.current = start;
+        draggedRef.current = true;
+      }
+      const last = from ?? start;
+      view.drag(event.clientX - last.x, event.clientY - last.y);
+      lookFromRef.current = { x: event.clientX, y: event.clientY };
+      return;
+    }
+    // A press that sped playback up stays a speed-up, so the frame never hears it moved.
+    if (canDragFrame && longPressActiveRef.current) {
+      event.stopPropagation();
+      return;
+    }
+    const drag = shouldStartDrag({
+      canDrag: canDragWindow || canDragFrame,
+      boosting: longPressActiveRef.current,
+      dx: event.clientX - start.x,
+      dy: event.clientY - start.y,
+    });
+    if (!drag) return;
+    restorePlaybackRate();
+    draggedRef.current = true;
+    if (canDragFrame) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    void startWindowDrag().catch(() => {});
+  };
+
+  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    if (draggedRef.current) {
+      draggedRef.current = false;
+      clearClickTimer();
+      return;
+    }
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      clearClickTimer();
+      return;
+    }
+    if (menuClosingPressRef.current) {
+      menuClosingPressRef.current = false;
+      clearClickTimer();
+      return;
+    }
+
+    // As on Android, every click after a double-click on the same side adds another step:
+    // a third click in the burst, or a single click on the side whose total is still showing.
+    if (doubleClickSeek) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const side = seekSideAt(event.clientX - rect.left, rect.width);
+      const sideShowing = seekFeedback?.visible === true && seekFeedback.direction === side;
+      if (side && (event.detail > 2 || (event.detail === 1 && sideShowing))) {
+        clearClickTimer();
+        toggledByFirstClickRef.current = false;
+        seekSide(side);
+        onRevealControls();
+        return;
+      }
+    }
+
+    if (event.detail > 1) {
+      clearClickTimer();
+      if (toggledByFirstClickRef.current) {
+        toggledByFirstClickRef.current = false;
+        togglePlay();
+        setCenterFeedback(null);
+      }
+      return;
+    }
+
+    clearClickTimer();
+    toggledByFirstClickRef.current = false;
+    clickTimerRef.current = setTimeout(() => {
+      clickTimerRef.current = null;
+      toggledByFirstClickRef.current = true;
+      togglePlay();
+      setCenterFeedback({
+        id: Date.now(),
+        icon: isPlayingRef.current ? "play" : "pause",
+      });
+      onRevealControls();
+    }, SINGLE_CLICK_DELAY_MS);
+  };
+
+  const handleDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    clearClickTimer();
+    // Some engines repeat dblclick on every even click; the click handler already counted those.
+    if (event.detail > 2) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const side = doubleClickSeek ? seekSideAt(event.clientX - rect.left, rect.width) : null;
+    if (side) seekSide(side);
+    else toggleFullscreen();
+  };
+
+  const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    clearClickTimer();
+    restorePlaybackRate();
+    onCloseSettings();
+    const rect = event.currentTarget.getBoundingClientRect();
+    setContextMenu({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+    onRevealControls();
+  };
+
+  const runMenuAction = async (item: PlayerContextMenuItem) => {
+    setContextMenu(null);
+    await item.action();
+  };
+
+  // Opening the settings menu closes this one: one player menu at a time.
+  useEffect(() => {
+    if (settingsOpen) setContextMenu(null);
+  }, [settingsOpen]);
+
+  // Presses on the video are handled above; this catches the control bar, the rest of the
+  // window, and Escape, which closes the menu before it can leave fullscreen.
+  const anyMenuOpen = settingsOpen || contextMenu !== null;
+  useEffect(() => {
+    if (!anyMenuOpen) return;
+    const onPress = (event: PointerEvent) => {
+      const press = classifyPlayerPress(event.target);
+      if (press === "video") return;
+      const dismissal = dismissForPress(press, { settings: settingsOpen, context: contextMenu !== null });
+      if (dismissal.closeSettings) onCloseSettings();
+      if (dismissal.closeContext) setContextMenu(null);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setContextMenu(null);
+      onCloseSettings();
+    };
+    // Fullscreen, theater mode or the mini player resize the player under an open menu.
+    let observedOnce = false;
+    const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
+      if (!observedOnce) {
+        observedOnce = true;
+        return;
+      }
+      setContextMenu(null);
+      onCloseSettings();
+    });
+    if (layerRef.current) resize?.observe(layerRef.current);
+    document.addEventListener("pointerdown", onPress, true);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      resize?.disconnect();
+      document.removeEventListener("pointerdown", onPress, true);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [anyMenuOpen, settingsOpen, contextMenu, onCloseSettings]);
+
+  const copyDebugInfo = async () => {
+    const video = videoRef.current;
+    const copied = await copyText(JSON.stringify({
+      title,
+      src,
+      currentTime: formatTime(currentTime),
+      duration: formatTime(duration),
+      playbackRate,
+      readyState: video?.readyState,
+      networkState: video?.networkState,
+      resolution: video ? `${video.videoWidth}x${video.videoHeight}` : null,
+    }, null, 2));
+    showCopied(getString(copied ? "player_debug_info_copied" : "player_debug_info_copy_failed"));
+  };
+
+  const menuGroups: PlayerContextMenuItem[][] = [
+    [
+      {
+        label: getString(loopEnabled ? "player_menu_loop_on" : "player_menu_loop"),
+        icon: <Repeat1 size={18} />,
+        action: onToggleLoop,
+      },
+      { label: getString("player_menu_miniplayer"), icon: <PictureInPicture2 size={18} />, action: togglePictureInPicture },
+      // The pop-out player is already a window of its own.
+      ...(isPopOutWindow()
+        ? []
+        : [{ label: getString("move_to_new_window"), icon: <AppWindow size={18} />, action: moveVideoToNewWindow }]),
+    ],
+    // A file on this computer has no link to copy.
+    ...(isLocalMediaId(usePlayerStore.getState().currentVideo?.id)
+      ? []
+      : [[
+          { label: getString("player_menu_copy_url"), icon: <Link size={18} />, action: () => copyVideoUrl(false) },
+          { label: getString("player_menu_copy_url_at_time"), icon: <Link size={18} />, action: () => copyVideoUrl(true) },
+        ]]),
+    [
+      { label: getString("player_menu_stats"), icon: <Info size={18} />, action: () => setStatsVisible((value) => !value) },
+      { label: getString("player_menu_copy_debug"), icon: <Bug size={18} />, action: copyDebugInfo },
+    ],
+  ];
+
+  return (
+    <>
+      <div
+        ref={layerRef}
+        {...{ [PLAYER_VIDEO_LAYER_ATTR]: "" }}
+        className={`absolute inset-0 z-[15] ${canDragFrame ? "cursor-grab active:cursor-grabbing" : "cursor-default"}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={restorePlaybackRate}
+        onPointerCancel={restorePlaybackRate}
+        onPointerLeave={restorePlaybackRate}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+        onContextMenu={handleContextMenu}
+      />
+
+      {centerFeedback && (
+        <div
+          key={centerFeedback.id}
+          className="pointer-events-none absolute inset-0 z-30 grid place-items-center"
+        >
+          <div
+            className={`grid place-items-center rounded-full bg-chrome-black/60 text-chrome-white animate-player-feedback ${
+              isCompact ? "h-16 w-16" : "h-28 w-28"
+            }`}
+          >
+            {centerFeedback.icon === "play" ? (
+              <Play size={isCompact ? 30 : 62} fill="currentColor" className="ml-1" />
+            ) : (
+              <Pause size={isCompact ? 30 : 62} fill="currentColor" />
+            )}
+          </div>
+        </div>
+      )}
+
+      {isBoosting && (
+        <div className="pointer-events-none absolute left-1/2 top-8 z-30 -translate-x-1/2 rounded-full bg-chrome-black/60 px-5 py-2 text-sm font-bold text-chrome-white animate-fade-in">
+          {longPressPlaybackRate}x
+        </div>
+      )}
+
+      {volumeFeedback && (
+        <VolumeFeedbackPill feedback={volumeFeedback} tone="video" className="absolute left-1/2 top-8 z-30 -translate-x-1/2" />
+      )}
+
+      {seekFeedback && <SeekFeedback feedback={seekFeedback} compact={isCompact} />}
+
+      {contextMenu && (
+        <PlayerContextMenu at={contextMenu} groups={menuGroups} onSelect={(item) => void runMenuAction(item)} />
+      )}
+
+      {copiedLabel && (
+        <div className="pointer-events-none absolute left-1/2 top-8 z-50 -translate-x-1/2 rounded-full bg-chrome-black/80 px-4 py-2 text-xs font-bold text-chrome-white animate-fade-in">
+          {copiedLabel}
+        </div>
+      )}
+
+      {statsVisible && (
+        <StatsForNerds
+          videoRef={videoRef}
+          currentTime={currentTime}
+          duration={duration}
+          playbackRate={playbackRate}
+          qualityLabel={qualityLabel}
+          mimeType={mimeType}
+          bitrate={bitrate}
+          captionCount={captionCount}
+          compact={isCompact}
+          className="right-5 top-5"
+        />
+      )}
+    </>
+  );
+};
+
+export default PlayerGestureOverlay;
