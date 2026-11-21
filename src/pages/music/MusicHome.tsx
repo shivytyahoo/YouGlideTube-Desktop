@@ -6,13 +6,10 @@ import { CategoryChips } from '../../components/layout/CategoryChips';
 import { MusicItemCard } from '../../components/music/MusicItemCard';
 import { CommunityPlaylistCard } from '../../components/music/CommunityPlaylistCard';
 import { MusicMoodShelf } from '../../components/music/MusicMoodShelf';
-import { MusicQuickPicksShelf } from '../../components/music/MusicQuickPicksShelf';
 import { MusicSpeedDial } from '../../components/music/MusicSpeedDial';
 import { MusicShelf } from '../../components/music/MusicShelf';
 import { Button } from '../../components/ui/Button';
 import { useMusicChipFilter, useMusicHome } from '../../lib/useMusicHome';
-import { useMusicPersonalization } from '../../lib/useMusicPersonalization';
-import { useMusicDiscoverySections } from '../../lib/useMusicDiscoverySections';
 import { useMusicMoreSections } from '../../lib/useMusicMoreSections';
 import { useMusicLibraryShelves } from '../../lib/useMusicLibraryShelves';
 import { useLastFmDiscovery } from '../../lib/useLastFmDiscovery';
@@ -54,8 +51,6 @@ export default function MusicHome() {
   const navigate = useNavigate();
   const playQueue = useMusicPlayerStore((s) => s.playQueue);
   const { data, loading, error, reload, loadMore, hasMore, loadingMore, loadMoreError } = useMusicHome();
-  const personalization = useMusicPersonalization();
-  const discoverySections = useMusicDiscoverySections();
   const [chartCountry] = usePreference(SETTINGS.TRENDING_REGION, 'US');
   const charts = useMusicCharts(chartCountry);
   const moods = useMusicMoods();
@@ -192,8 +187,7 @@ export default function MusicHome() {
   };
 
   const renderBody = () => {
-    const hasLocal = personalization.quickPicks.length > 0 || personalization.sections.length > 0
-      || discoverySections.length > 0;
+    const hasLocal = libraryShelves.length > 0 || moreSections.length > 0 || lastFm.sections.length > 0;
     if (error && !data && !hasLocal) {
       return (
         <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
@@ -237,14 +231,13 @@ export default function MusicHome() {
       );
     }
 
-    const quickPicks = personalization.quickPicks.filter((track) => !isHidden(track));
     const feed = composeMusicFeed(
       [
         ...libraryShelves.map((section) => ({ ...section, items: visible(section.items) })),
-        ...recommendedSections([...personalization.sections, ...discoverySections, ...moreSections, ...lastFm.sections]),
+        ...recommendedSections([...moreSections, ...lastFm.sections]),
       ],
       recommendedSections([...(data?.sections ?? []), ...charts]),
-      personalization.maturity, quickPicks, { hasMoods: moodItems.length > 0 },
+      'new', [], { hasMoods: moodItems.length > 0 },
     ).filter((entry) => isShelfShown(entry, hiddenShelves));
 
     const headerActions = (section: MusicFeedSection, items: YTItem[]) => {
@@ -299,20 +292,9 @@ export default function MusicHome() {
     if (!feed.length && !loading) {
       return <p className="py-20 text-center text-sm text-chrome-neutral-400">{getString('music_empty')}</p>;
     }
-    const quickTitle = getString('music_quick_picks');
     return (
       <div className="flex flex-col gap-10">
         {feed.map((entry) => {
-          if (entry.kind === 'quickPicks') {
-            return (
-              <MusicQuickPicksShelf
-                key="quick-picks"
-                title={quickTitle}
-                tracks={quickPicks}
-                onPlay={(track) => playTrack(track, quickPicks, quickTitle)}
-              />
-            );
-          }
           if (entry.kind === 'moods') {
             return (
               <MusicMoodShelf
@@ -324,6 +306,7 @@ export default function MusicHome() {
               />
             );
           }
+          if (entry.kind === 'quickPicks') return null;
           return <div key={entry.section.id}>{renderShelf(entry.section)}</div>;
         })}
       </div>
@@ -342,8 +325,7 @@ export default function MusicHome() {
       {renderBody()}
       <div ref={feedEndRef} className="h-px w-full" />
 
-      {error && (data || personalization.quickPicks.length || personalization.sections.length
-        || discoverySections.length) && (
+      {error && (data || libraryShelves.length > 0 || moreSections.length > 0 || lastFm.sections.length > 0) && (
         <div className="mt-5 flex items-center gap-3 text-sm text-chrome-neutral-400">
           <span>{getString('music_error_generic')}</span>
           <Button variant="secondary" onClick={() => void reload()}>{getString('music_retry')}</Button>

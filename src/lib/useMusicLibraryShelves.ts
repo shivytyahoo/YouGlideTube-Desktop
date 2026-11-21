@@ -3,7 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { getString } from './i18n/index';
 import { storedAlbumToItem, useAlbumLibraryStore } from '../store/useAlbumLibraryStore';
 import { useSubscriptionStore } from '../store/useSubscriptionStore';
-import type { PersonalSection } from './useMusicPersonalization';
+import type { PersonalSection } from './musicFeedComposer';
 
 /** Your own lists and the artists you follow, at the top of the music home. */
 export function useMusicLibraryShelves(): PersonalSection[] {

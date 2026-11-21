@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Upload, Check, AlertCircle, FolderHeart, Heart, History, Tv, Loader2, Brain, FileText, SlidersHorizontal, StickyNote } from "lucide-react";
+import { Upload, Check, AlertCircle, FolderHeart, Heart, History, Tv, Loader2, FileText, SlidersHorizontal, StickyNote } from "lucide-react";
 import { SettingsGroup } from "../components/settings/SettingsGroup";
 import { SettingItem } from "../components/settings/SettingItem";
 import { ToggleSwitch } from "../components/ui/ToggleSwitch";
@@ -48,7 +48,6 @@ export const ImportData: React.FC = () => {
     { key: "history", label: getString("import_watch_history"), desc: getString("import_watch_history_desc"), icon: <History size={16} /> },
     { key: "likes", label: getString("import_likes"), desc: getString("import_likes_desc"), icon: <Heart size={16} /> },
     { key: "notes", label: getString("import_notes"), desc: getString("import_notes_desc"), icon: <StickyNote size={16} /> },
-    { key: "neuro", label: getString("import_neuro_profile"), desc: getString("import_neuro_profile_desc"), icon: <Brain size={16} /> },
   ];
 
   const formatItems = [

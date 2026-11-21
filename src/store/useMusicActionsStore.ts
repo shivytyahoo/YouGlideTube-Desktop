@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { create } from "zustand";
 import { getSetting, setSetting } from "../lib/api/db";
-import { blockMusicArtist, dislikeMusicArtist, unblockMusicArtist } from "../lib/api/music";
 import { recapArtistSaidNo } from "../lib/recap/recapQueue";
 import { useMusicPlayerStore } from "./useMusicPlayerStore";
 import type { SongItem } from "../types/music";
@@ -169,12 +168,7 @@ export const useMusicActionsStore = create<MusicActionsState>((set, get) => {
       persist();
       syncPlayer();
       if (primary && key) {
-        try {
-          await dislikeMusicArtist(primary.id ?? null, primary.name);
-          recapArtistSaidNo(primary.id ?? null, primary.name, false);
-        } catch (e) {
-          console.warn("Failed to record music not-interested", e);
-        }
+        recapArtistSaidNo(primary.id ?? null, primary.name, false);
       }
     },
 
@@ -189,12 +183,7 @@ export const useMusicActionsStore = create<MusicActionsState>((set, get) => {
       });
       persist();
       syncPlayer();
-      try {
-        await blockMusicArtist(id ?? null, name);
-        recapArtistSaidNo(id ?? null, name, true);
-      } catch (e) {
-        console.warn("Failed to block music artist", e);
-      }
+      recapArtistSaidNo(id ?? null, name, true);
     },
 
     unblockArtist: async (key) => {
@@ -206,11 +195,6 @@ export const useMusicActionsStore = create<MusicActionsState>((set, get) => {
       });
       persist();
       syncPlayer();
-      try {
-        await unblockMusicArtist(key);
-      } catch (e) {
-        console.warn("Failed to unblock music artist", e);
-      }
     },
   };
 });

@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const getHeavyRotation = vi.fn();
+const getMusicHistory = vi.fn();
 const searchMusicTyped = vi.fn();
 const getScrobbleSimilarTracks = vi.fn();
+vi.mock('./api/db', () => ({
+  getMusicHistory: (...args: unknown[]) => getMusicHistory(...args),
+}));
 vi.mock('./api/music', () => ({
-  getHeavyRotation: (...args: unknown[]) => getHeavyRotation(...args),
   searchMusicTyped: (...args: unknown[]) => searchMusicTyped(...args),
 }));
 vi.mock('./api/scrobble', () => ({
@@ -59,7 +61,9 @@ describe('lastFmDiscoverySongs', () => {
   beforeEach(() => {
     clearLastFmDiscoveryCache();
     vi.clearAllMocks();
-    getHeavyRotation.mockResolvedValue([{ id: 's', videoId: 's', title: 'Seed', artists: [{ name: 'Seed Artist' }] }]);
+    getMusicHistory.mockResolvedValue([
+      { videoId: 's', title: 'Seed', channelName: 'Seed Artist', watchDate: '2026-11-21T00:00:00Z', watchDurationSeconds: 200 },
+    ]);
   });
 
   it('keeps a song only when its artist matches, and caches while the seeds stay', async () => {
@@ -74,7 +78,7 @@ describe('lastFmDiscoverySongs', () => {
   });
 
   it('asks nothing when nothing is on repeat, and a failed seed only loses that seed', async () => {
-    getHeavyRotation.mockResolvedValueOnce([]);
+    getMusicHistory.mockResolvedValueOnce([]);
     expect(await lastFmDiscoverySongs()).toEqual([]);
     expect(getScrobbleSimilarTracks).not.toHaveBeenCalled();
 

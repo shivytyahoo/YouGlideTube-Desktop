@@ -5,8 +5,6 @@ import {
   getMusicArtistPage,
   getMusicTrendingSongs,
   getMusicRelatedTyped,
-  rankMusicCandidates,
-  type MusicRankSurface,
 } from './api/music';
 import { segmentArtistPage, type ArtistPageData } from './useArtistPage';
 import { useAppSettingsStore } from '../store/useAppSettingsStore';
@@ -67,14 +65,9 @@ export function shuffled<T>(items: T[], random: () => number = Math.random): T[]
   return out;
 }
 
-/** Local taste ranking; a cold brain is a pass-through and failures keep recall order. */
-export async function ranked(songs: SongItem[], surface: MusicRankSurface): Promise<SongItem[]> {
-  if (songs.length <= 1) return songs;
-  try {
-    return await rankMusicCandidates(songs, surface);
-  } catch {
-    return songs;
-  }
+/** Recall order, as YouTube Music returned it: no local taste ranking anymore. */
+export function ranked(songs: SongItem[]): SongItem[] {
+  return songs;
 }
 
 export async function relatedSongs(videoId: string): Promise<SongItem[]> {

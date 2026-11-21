@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { getSetting, setSetting } from "../lib/api/db";
-import { setFavouriteMusicArtist } from "../lib/api/music";
 import { getString } from "../lib/i18n/index";
 import { useUiStore } from "./useUiStore";
 
@@ -13,11 +12,11 @@ export interface FavouriteArtist {
 }
 
 interface FavouriteArtistsState {
-  /** The brain only keeps their affinity, which listening keeps changing, so the picks live here. */
+  /** The picks live here, in settings. */
   picked: FavouriteArtist[];
   loaded: boolean;
   load: () => Promise<void>;
-  /** Picks or unpicks at once; goes back if the music brain or the save fails. */
+  /** Picks or unpicks at once; goes back if the save fails. */
   toggle: (artist: FavouriteArtist) => Promise<void>;
 }
 
@@ -41,7 +40,6 @@ export const useFavouriteArtistsStore = create<FavouriteArtistsState>((set, get)
     const next = removing ? previous.filter((other) => other.id !== artist.id) : [...previous, artist];
     set({ picked: next });
     try {
-      await setFavouriteMusicArtist(artist.id, artist.name, !removing);
       await setSetting(STORE_KEY, JSON.stringify(next));
     } catch (error) {
       console.error("Failed to save the picked artist", error);

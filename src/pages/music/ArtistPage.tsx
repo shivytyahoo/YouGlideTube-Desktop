@@ -8,7 +8,6 @@ import { AlbumTrackRow } from '../../components/music/AlbumTrackRow';
 import { ArtistSkeleton } from '../../components/music/ArtistSkeleton';
 import { MusicItemCard } from '../../components/music/MusicItemCard';
 import { MusicShelf } from '../../components/music/MusicShelf';
-import { artistListeningLine, useArtistInsights } from '../../lib/useArtistInsights';
 import { useArtistPage, type ArtistMoreEndpoint } from '../../lib/useArtistPage';
 import { usePublishTitle } from '../../lib/usePublishTitle';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
@@ -25,8 +24,6 @@ import { shareLink } from '../../lib/clipboard';
 import { youtubeMusicArtistUrl } from '../../lib/youtubeUrl';
 
 const videoIdOf = (track: SongItem) => track.videoId ?? track.id;
-
-const HISTORY_SONGS_SHOWN = 6;
 
 function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');
@@ -252,7 +249,6 @@ export default function ArtistPage() {
   const followId = (data?.header.id || artistId || '').replace('channel:', '');
   const following = useSubscriptionStore((state) => state.subscriptions.some((channel) => channel.id === followId));
   const [aboutExpanded, setAboutExpanded] = useState(false);
-  const insights = useArtistInsights(followId || null, data?.header.title);
 
   if (loading && !data) return <ArtistSkeleton />;
 
@@ -348,7 +344,7 @@ export default function ArtistPage() {
         subtitle={subtitle}
         hasSongs={topSongs.length > 0}
         following={following}
-        listening={insights ? artistListeningLine(insights) : null}
+        listening={null}
         onPlay={() => startPlayback(false)}
         onShuffle={() => void startMix(shuffle)}
         onRadio={() => void startMix(radio)}
@@ -392,29 +388,6 @@ export default function ArtistPage() {
                   />
                 );
               })}
-            </div>
-          </section>
-        ) : null}
-
-        {insights && insights.topTracks.length > 0 ? (
-          <section data-artist-section="history">
-            <SectionTitle title={getString('music_artist_your_history')} />
-            <p className="mt-1 text-sm tabular-nums text-chrome-neutral-400">{artistListeningLine(insights)}</p>
-            <div className="mt-4 grid gap-x-12 gap-y-2 lg:grid-cols-2">
-              {insights.topTracks.slice(0, HISTORY_SONGS_SHOWN).map((song, index) => (
-                <AlbumTrackRow
-                  key={videoIdOf(song)}
-                  track={song}
-                  index={index}
-                  isCurrent={currentTrackId === videoIdOf(song)}
-                  isPlaying={isPlaying}
-                  showArtwork
-                  showStreamsColumn={false}
-                  compactActions
-                  onPlay={() => playFrom(insights.topTracks, song)}
-                  onAddToQueue={addToQueue}
-                />
-              ))}
             </div>
           </section>
         ) : null}

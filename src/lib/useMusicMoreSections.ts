@@ -1,18 +1,17 @@
 import { getString } from './i18n/index';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { getMusicMoodGenre, getMusicTasteProfile, searchMusicTyped } from './api/music';
+import { getMusicMoodGenre } from './api/music';
 import { pickForSession } from './musicFeedComposer';
 import { audioMusicOnly, ranked, trendingSongs } from './musicRecall';
-import type { PersonalSection } from './useMusicPersonalization';
+import type { PersonalSection } from './musicFeedComposer';
 import type { ArtistItem, MoodAndGenreGroup, MusicHomeChip, PlaylistItem, SongItem, YTItem } from '../types/music';
 
-const SECTION_ORDER = ['vibes', 'mixed-for-you', 'popular-artists'];
+const SECTION_ORDER = ['vibes', 'popular-artists'];
 const LANE_SIZE = 10;
 const MIN_ITEMS = 3;
 const GENRE_MIXES = 3;
 const GENRE_MIX_SIZE = 14;
-const MIXED_FOR_YOU_ARTISTS = 2;
 
 /**
  * Preferred genre order while MusicBrain has no genre signal of its own, the same
@@ -94,32 +93,6 @@ export function useMusicMoreSections(chips: MusicHomeChip[], moodGroups: MoodAnd
         .catch(() => undefined);
     }
 
-    void (async () => {
-      const profile = await getMusicTasteProfile().catch(() => null);
-      const names = pickForSession((profile?.topArtists ?? []).slice(0, 3), MIXED_FOR_YOU_ARTISTS,
-        (artist) => artist.key, 'mixed').map((artist) => artist.name);
-      const results = await Promise.all(names.map((name) =>
-        searchMusicTyped(name, 'featured_playlists')
-          .then((res) => playlistsOf(res.sections.flatMap((section) => section.items)))
-          .catch(() => [] as PlaylistItem[])));
-      const seen = new Set<string>();
-      const mixed: PlaylistItem[] = [];
-      for (let index = 0; mixed.length < LANE_SIZE && results.some((list) => list[index]); index += 1) {
-        for (const list of results) {
-          const playlist = list[index];
-          if (playlist && !seen.has(playlist.id)) {
-            seen.add(playlist.id);
-            mixed.push(playlist);
-          }
-        }
-      }
-      publish({
-        id: 'mixed-for-you',
-        title: getString('music_mixed_for_you'),
-        items: mixed.slice(0, LANE_SIZE).map((item) => ({ type: 'playlist' as const, ...item })),
-      });
-    })();
-
     void trendingSongs().then((songs) => publish({
       id: 'popular-artists',
       title: getString('music_popular_artists'),
@@ -129,7 +102,7 @@ export function useMusicMoreSections(chips: MusicHomeChip[], moodGroups: MoodAnd
     for (const genre of genres) {
       void getMusicMoodGenre(genre.browseId, genre.params ?? undefined)
         .then(async (page) => {
-          const pool = await ranked(audioMusicOnly(songsOf(page.items)), 'discover');
+          const pool = ranked(audioMusicOnly(songsOf(page.items)));
           publish({
             id: `genre-${genre.browseId}:${genre.params ?? ''}`,
             title: getString('music_genre_mix', genre.title),

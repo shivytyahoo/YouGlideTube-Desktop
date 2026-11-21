@@ -1,4 +1,5 @@
-import { getHeavyRotation, searchMusicTyped } from './api/music';
+import { getMusicHistory } from './api/db';
+import { searchMusicTyped } from './api/music';
 import { getScrobbleSimilarTracks, type SimilarTrack } from './api/scrobble';
 import { audioMusicOnly, songIdOf } from './musicRecall';
 import { foldForSearch } from './musicVideoMatching';
@@ -55,13 +56,34 @@ async function findSong({ artist, title }: SimilarTrack): Promise<SongItem | nul
 
 let cached: { seeds: string; at: number; songs: SongItem[] } | null = null;
 
+/** The songs on repeat lately, from the user's own listen history. */
+async function repeatSeeds(): Promise<SimilarTrack[]> {
+  const history = await getMusicHistory(100, 0).catch(() => []);
+  const plays = new Map<string, { artist: string; title: string; count: number; at: number }>();
+  for (const record of history) {
+    const id = record.videoId;
+    if (!id || !record.title) continue;
+    const seen = plays.get(id);
+    const at = Date.parse(record.watchDate) || 0;
+    if (seen) {
+      seen.count += 1;
+      if (at > seen.at) seen.at = at;
+    } else {
+      plays.set(id, { artist: record.channelName ?? '', title: record.title, count: 1, at });
+    }
+  }
+  return [...plays.values()]
+    .sort((a, b) => b.count - a.count || b.at - a.at)
+    .slice(0, SEEDS)
+    .map(({ artist, title }) => ({ artist, title }));
+}
+
 /** Songs Last.fm's listeners pair with what you have on repeat, kept for a while as the seeds stay the same. */
 export async function lastFmDiscoverySongs(now = Date.now()): Promise<SongItem[]> {
-  const seeds = await getHeavyRotation(SEEDS);
-  if (seeds.length === 0) return [];
-  const seedIds = seeds.map(songIdOf).join(',');
+  const seedPairs = await repeatSeeds();
+  if (seedPairs.length === 0) return [];
+  const seedIds = seedPairs.map((seed) => pairKey(seed)).join(',');
   if (cached?.seeds === seedIds && now - cached.at < TTL_MS) return cached.songs;
-  const seedPairs = seeds.map((seed) => ({ artist: seed.artists[0]?.name ?? '', title: seed.title }));
   const similar = await Promise.all(
     seedPairs.map((seed) => getScrobbleSimilarTracks(seed.artist, seed.title, PER_SEED).catch(() => [])),
   );

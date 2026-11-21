@@ -40,7 +40,6 @@ export interface ImportSelection {
   history: boolean;
   likes: boolean;
   notes: boolean;
-  neuro: boolean;
 }
 
 export const IMPORT_EVERYTHING: ImportSelection = {
@@ -50,7 +49,6 @@ export const IMPORT_EVERYTHING: ImportSelection = {
   history: true,
   likes: true,
   notes: true,
-  neuro: true,
 };
 
 export interface ImportCounts {
@@ -59,7 +57,6 @@ export interface ImportCounts {
   history: number;
   likes: number;
   settings: number;
-  neuro: boolean;
 }
 
 export type ImportStage = "reading" | "parsing" | "saving";
@@ -102,7 +99,7 @@ export async function importFile(
     message = next.message ?? message;
     onProgress({ stage, percent, message });
   };
-  const counts: ImportCounts = { subscriptions: 0, playlists: 0, history: 0, likes: 0, settings: 0, neuro: false };
+  const counts: ImportCounts = { subscriptions: 0, playlists: 0, history: 0, likes: 0, settings: 0 };
 
   report({ stage: "reading", percent: 15, message: getString("import_reading") });
   const read = await readBackupFile(path);
@@ -181,7 +178,6 @@ export async function importFile(
       switch (key) {
         case "watch_history":
         case "recap_stats": return selection.history;
-        case "music_brain": return selection.neuro;
         case "subscriptions":
         case "subscription_channels": return selection.subscriptions;
         case "playlists": return selection.playlists;
@@ -208,7 +204,6 @@ export async function importFile(
         counts.subscriptions = restoredOf("subscription_channels") + restoredOf("subscriptions");
         counts.playlists = restoredOf("playlists");
         counts.likes = restoredOf("likes");
-        if (restoredOf("music_brain") > 0) counts.neuro = true;
         report({ percent: 90 });
         await refreshAfterRestore();
       } catch (err) {

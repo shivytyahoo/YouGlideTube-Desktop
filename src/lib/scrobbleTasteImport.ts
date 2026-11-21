@@ -1,6 +1,7 @@
-import { favouriteMusicArtist, searchMusicTyped } from './api/music';
+import { searchMusicTyped } from './api/music';
 import { getScrobbleTopArtists, type ScrobbleService } from './api/scrobble';
 import { inChunks, matchKey } from './lastFmDiscovery';
+import { useFavouriteArtistsStore } from '../store/useFavouriteArtistsStore';
 import type { ArtistItem, YTItem } from '../types/music';
 
 const TOP_ARTISTS = 20;
@@ -24,8 +25,16 @@ export async function importTopArtists(service: ScrobbleService): Promise<number
   const names = await getScrobbleTopArtists(service, TOP_ARTISTS);
   const found = await inChunks(names, PARALLEL_SEARCHES, matchingArtist);
   const unique = new Map(found.filter((artist): artist is ArtistItem => !!artist).map((artist) => [artist.id, artist]));
-  const added = await Promise.all(
-    [...unique.values()].map((artist) => favouriteMusicArtist(artist.id, artist.title).catch(() => false)),
-  );
-  return added.filter(Boolean).length;
+  await useFavouriteArtistsStore.getState().load();
+  let added = 0;
+  for (const artist of unique.values()) {
+    if (useFavouriteArtistsStore.getState().picked.some((other) => other.id === artist.id)) continue;
+    await useFavouriteArtistsStore.getState().toggle({
+      id: artist.id,
+      name: artist.title,
+      thumbnailUrl: artist.thumbnail ?? '',
+    });
+    added += 1;
+  }
+  return added;
 }

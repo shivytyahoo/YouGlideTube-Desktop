@@ -1,6 +1,19 @@
 import { MIN_SHELF_ITEMS } from './musicRecall';
-import type { MusicShelf, SongItem, YTItem } from '../types/music';
-import type { PersonalSection } from './useMusicPersonalization';
+import type { MusicSeedArt, MusicShelf, SongItem, YTItem } from '../types/music';
+
+/** A shelf the app composes itself: library, discovery or server sections share this shape. */
+export interface PersonalSection {
+  id: string;
+  title: string;
+  subtitle?: string;
+  items: YTItem[];
+  /** The whole header opens this route. */
+  route?: string;
+  seedArt?: MusicSeedArt;
+  /** The header offers Play all over the section's songs. */
+  playAll?: boolean;
+  previews?: Record<string, SongItem[]>;
+}
 
 /** `anchor` = charts/releases that can lead a first-run home. */
 export type MusicFeedOrigin = 'anchor' | 'personal' | 'remote';

@@ -264,21 +264,6 @@ export interface MusicSeedArt {
   round?: boolean;
 }
 
-export type MusicDaySlot = 'morning' | 'afternoon' | 'evening' | 'night';
-
-export interface MusicTimeRotation {
-  slot: MusicDaySlot | null;
-  songs: SongItem[];
-}
-
-/** A Daily Mix cluster from the music brain: a label + seed tracks to expand. */
-export interface DailyMixSeed {
-  label: string;
-  seedTrackIds: string[];
-}
-
-export type MusicMaturity = "cold_start" | "warming" | "mature";
-
 export interface MusicTopArtist {
   /** Affinity key: a routable browseId when `idKeyed`, else a normalized name. */
   key: string;
@@ -302,6 +287,8 @@ export interface MusicTimeOfDayBucket {
   plays: number;
   topGenres: MusicGenreWeight[];
 }
+
+export type MusicMaturity = "cold_start" | "warming" | "mature";
 
 export interface MusicTasteProfile {
   topArtists: MusicTopArtist[];

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { composeMusicFeed, feedGroupOf, pickForSession, type MusicFeedEntry } from './musicFeedComposer';
 import type { MusicShelf, SongItem, YTItem } from '../types/music';
-import type { PersonalSection } from './useMusicPersonalization';
+import type { PersonalSection } from './musicFeedComposer';
 
 const song = (id: string, title = id): SongItem => ({
   id, videoId: id, title, artists: [{ name: 'Artist', id: 'artist' }], album: null,

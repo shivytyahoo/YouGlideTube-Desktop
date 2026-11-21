@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getScrobbleStatus } from './api/scrobble';
 import { getString } from './i18n/index';
 import { lastFmDiscoverySongs } from './lastFmDiscovery';
-import type { PersonalSection } from './useMusicPersonalization';
+import type { PersonalSection } from './musicFeedComposer';
 import type { SongItem } from '../types/music';
 
 /**

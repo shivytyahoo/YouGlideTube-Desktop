@@ -49,7 +49,6 @@ const COLLECTIONS = {
   subscription_channels: [{ channelId: "UC1" }],
   playlists: [{ syncId: "p1" }],
   likes: [{ id: "l1" }],
-  music_brain: [{ deviceId: "d" }],
 };
 
 const summaryOf = (collections: Record<string, unknown[]>) => ({
@@ -80,7 +79,7 @@ describe("importFile", () => {
     expect(subscribe).not.toHaveBeenCalled();
     expect(result).toEqual({
       type: "done",
-      counts: { subscriptions: 1, playlists: 1, history: 2, likes: 1, settings: 0, neuro: true },
+      counts: { subscriptions: 1, playlists: 1, history: 2, likes: 1, settings: 0 },
     });
   });
 
@@ -106,7 +105,6 @@ describe("importFile", () => {
       history: false,
       likes: false,
       notes: false,
-      neuro: false,
     };
 
     await importFile("backup.zip", onlySubscriptions, () => {});
@@ -126,7 +124,7 @@ describe("importFile", () => {
     expect(runOtherAppImport).toHaveBeenCalledWith("TAKEOUT", ["takeout.zip"]);
     expect(result).toEqual({
       type: "done",
-      counts: { subscriptions: 3, playlists: 1, history: 4, likes: 5, settings: 0, neuro: false },
+      counts: { subscriptions: 3, playlists: 1, history: 4, likes: 5, settings: 0 },
     });
   });
 

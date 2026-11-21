@@ -1,16 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const favouriteMusicArtist = vi.fn();
+const store = vi.hoisted(() => ({ picked: [] as Array<{ id: string }>, load: vi.fn(), toggle: vi.fn() }));
 const searchMusicTyped = vi.fn();
 const getScrobbleTopArtists = vi.fn();
 vi.mock('./api/music', () => ({
-  favouriteMusicArtist: (...args: unknown[]) => favouriteMusicArtist(...args),
   searchMusicTyped: (...args: unknown[]) => searchMusicTyped(...args),
-  getHeavyRotation: vi.fn(),
 }));
 vi.mock('./api/scrobble', () => ({
   getScrobbleTopArtists: (...args: unknown[]) => getScrobbleTopArtists(...args),
   getScrobbleSimilarTracks: vi.fn(),
+}));
+vi.mock('../store/useFavouriteArtistsStore', () => ({
+  useFavouriteArtistsStore: { getState: () => store },
 }));
 
 import { importTopArtists } from './scrobbleTasteImport';
@@ -18,7 +19,12 @@ import { importTopArtists } from './scrobbleTasteImport';
 const artist = (id: string, title: string) => ({ type: 'artist', id, title, thumbnail: null, channelId: null });
 
 describe('importTopArtists', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    store.picked = [{ id: 'k' }];
+    store.load.mockResolvedValue(undefined);
+    store.toggle.mockResolvedValue(undefined);
+  });
 
   it('adds exact name matches only and counts the new ones', async () => {
     getScrobbleTopArtists.mockResolvedValue(['Beyoncé', 'Near', 'Known']);
@@ -27,10 +33,10 @@ describe('importTopArtists', () => {
         items: name === 'Beyoncé' ? [artist('b', 'BEYONCE')] : name === 'Near' ? [artist('n', 'Nearly')] : [artist('k', 'known')],
       }],
     }));
-    favouriteMusicArtist.mockImplementation(async (id: string) => id === 'b');
 
     expect(await importTopArtists('LASTFM')).toBe(1);
-    expect(favouriteMusicArtist.mock.calls.map((call) => call[0])).toEqual(['b', 'k']);
+    expect(store.toggle).toHaveBeenCalledWith({ id: 'b', name: 'BEYONCE', thumbnailUrl: '' });
+    expect(store.toggle).toHaveBeenCalledTimes(1);
     expect(getScrobbleTopArtists).toHaveBeenCalledWith('LASTFM', 20);
   });
 

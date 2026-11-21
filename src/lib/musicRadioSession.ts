@@ -1,5 +1,5 @@
 import type { SongItem } from "../types/music";
-import { getMusicQueueContinuation, getMusicWatchQueue, rankMusicCandidates } from "./api/music";
+import { getMusicQueueContinuation, getMusicWatchQueue } from "./api/music";
 import { growPool, nextAnchor, nextBatch, radioAnchors } from "./musicRadioPlanner";
 
 type QueuePage = Awaited<ReturnType<typeof getMusicWatchQueue>>;
@@ -106,9 +106,9 @@ class RadioSession {
       return isPlayableAudio(track) && !ctx.queueIds.has(id) && !this.seen.has(id) && !ctx.isHidden(track);
     });
     if (candidates.length === 0) return false;
-    // Ranked once, here: the pool is consumed from its head, so a later top-up
+    // The pool is consumed from its head, in recall order, so a later top-up
     // never reorders songs already chosen.
-    const ranked = await rankMusicCandidates(candidates, "radio").catch(() => candidates);
+    const ranked = candidates;
     if (generation !== this.generation) return false;
     const before = this.pool;
     this.pool = growPool(before, ranked, new Set([...ctx.queueIds, ...this.seen]), ctx.stationTracks);
