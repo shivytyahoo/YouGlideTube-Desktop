@@ -78,8 +78,8 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
       data-expanded={expanded}
       className={
         isOverlay
-          ? 'flex h-full w-60 shrink-0 flex-col bg-background'
-          : 'sidebar-rail hidden shrink-0 overflow-hidden bg-background sm:flex'
+          ? 'flex h-full w-60 shrink-0 flex-col glass'
+          : 'sidebar-rail hidden shrink-0 overflow-hidden glass sm:flex'
       }
     >
       {/* Always 240 px wide, so labels never rewrap while the rail opens and closes. */}

@@ -47,8 +47,8 @@ export function Topbar() {
 
   return (
     <header
-      className={`sticky top-0 z-40 flex h-14 items-center justify-between border-b border-transparent px-3 ${
-        seeThrough ? 'bg-transparent transition-colors duration-200 ease-out' : 'bg-background'
+      className={`sticky top-0 z-40 flex h-14 items-center justify-between border-b px-3 ${
+        seeThrough ? 'bg-transparent transition-colors duration-200 ease-out' : 'glass'
       }`}
     >
       {/* Left */}

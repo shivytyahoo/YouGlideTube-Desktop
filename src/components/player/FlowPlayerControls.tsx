@@ -560,7 +560,7 @@ export const FlowPlayerControls: React.FC<FlowPlayerControlsProps> = ({
         )}
       >
         <div
-          className="pointer-events-auto"
+          className="glass pointer-events-auto rounded-youglide border px-3 py-2"
           onClick={(event) => event.stopPropagation()}
         >
           {title && (isFullscreen ? showFullscreenTitle : isPopOut) && (

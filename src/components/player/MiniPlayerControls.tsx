@@ -94,7 +94,7 @@ export const MiniPlayerControls: React.FC<MiniPlayerControlsProps> = ({
         shouldShowControls ? "opacity-100" : "opacity-0",
       )}
     >
-      <div className="pointer-events-auto" data-drag-ignore="true" onClick={(event) => event.stopPropagation()}>
+      <div className="glass pointer-events-auto rounded-youglide border px-3 py-2" data-drag-ignore="true" onClick={(event) => event.stopPropagation()}>
         {/* Progress bar */}
         <div
           ref={trackRef}

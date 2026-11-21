@@ -235,6 +235,27 @@
   background-color: color-mix(in srgb, var(--color-primary) 22%, transparent);
 }
 
+/* MorpheGlass, after Android's `MorpheGlass.kt`: a frosted surface — the
+   active theme's surface at 72% over whatever sits behind it, blurred, with
+   a hairline edge and a soft lift. Used by the top bar, the sidebar and the
+   player bars. The vars come from the active theme (themes.ts), so every
+   palette gets its own glass. */
+.glass {
+  background-color: color-mix(in srgb, var(--color-surface) 72%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  border-color: color-mix(in srgb, var(--color-on-surface) 12%, transparent);
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.25);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background-color: var(--color-surface);
+  }
+}
+
 @keyframes pane-fade-in {
   from {
     opacity: 0;

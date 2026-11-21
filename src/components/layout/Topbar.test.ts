@@ -43,12 +43,12 @@ describe("Topbar", () => {
 
   it("turns solid at once when the video reaches it", () => {
     const className = barAt("/watch/abc", { spread: true, below: false });
-    expect(className).toContain("bg-background");
+    expect(className).toContain("glass");
     expect(className).not.toContain("transition-colors");
   });
 
   it("stays solid without the spread glow or off the watch page", () => {
-    expect(barAt("/watch/abc", { spread: false, below: true })).toContain("bg-background");
-    expect(barAt("/feed", { spread: true, below: true })).toContain("bg-background");
+    expect(barAt("/watch/abc", { spread: false, below: true })).toContain("glass");
+    expect(barAt("/feed", { spread: true, below: true })).toContain("glass");
   });
 });
