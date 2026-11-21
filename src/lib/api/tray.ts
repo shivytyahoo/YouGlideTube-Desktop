@@ -67,7 +67,7 @@ export async function takeLaunchPage(): Promise<string | null> {
   }
 }
 
-/** The `flow://open` link for a URL this launch was given on its command line, once. */
+/** The `youglidetube://open` link for a URL this launch was given on its command line, once. */
 export async function takeLaunchLink(): Promise<string | null> {
   if (!(await isTauriEnv())) return null;
   try {

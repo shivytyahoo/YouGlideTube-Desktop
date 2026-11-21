@@ -1,8 +1,8 @@
 import { useDeepLinkHandoff } from "../../lib/useDeepLinkHandoff";
 
 /**
- * Bridges the Flow browser extension to the app: routes `flow://` deep links and
- * loopback-bridge handoffs into playback or the download dialog. Renders nothing.
+ * Routes `youglidetube://` deep links and loopback-bridge handoffs (including the browser
+ * extension) into playback or the download dialog. Renders nothing.
  */
 export function DeepLinkController() {
   useDeepLinkHandoff();

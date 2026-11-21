@@ -27,8 +27,6 @@ const STATIC_TITLES: Record<string, StringKey> = {
   "/liked": "liked",
   "/settings": "settings",
   "/settings/import": "import_data",
-  "/sync": "sync",
-  "/support": "support",
   "/sponsorblock": "extensions",
 };
 

@@ -2,7 +2,7 @@
   "name": "youglidetube",
   "private": true,
   "version": "0.1.0-beta4",
-  "description": "YouGlideTube Desktop — a YouTube and YouTube Music desktop client. Forked from Flow Desktop (Flow-Tube/Flow-Desktop, GPL-3.0) with Google sign-in and the YouGlideTube theme.",
+  "description": "YouGlideTube Desktop — a YouTube and YouTube Music desktop client with Google sign-in and the YouGlideTube theme.",
   "author": "shivyt",
   "license": "GPL-3.0-only",
   "repository": {

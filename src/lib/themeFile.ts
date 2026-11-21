@@ -11,8 +11,28 @@ export const THEME_FILE_ID = "user-file";
 
 export type ThemeFileScheme = "light" | "dark";
 
-/** The `--flow-*` names a theme file sets, by the colour each one feeds. */
+/** The `--youglidetube-*` names a theme file sets, by the colour each one feeds. */
 export const THEME_FILE_TOKENS: Record<keyof ThemeColors, string> = {
+  primary: "--youglidetube-primary",
+  onPrimary: "--youglidetube-on-primary",
+  secondary: "--youglidetube-secondary",
+  background: "--youglidetube-background",
+  surface: "--youglidetube-surface",
+  surfaceContainerLow: "--youglidetube-surface-container-low",
+  surfaceContainer: "--youglidetube-surface-container",
+  surfaceContainerHigh: "--youglidetube-surface-container-high",
+  surfaceContainerHighest: "--youglidetube-surface-container-highest",
+  outline: "--youglidetube-outline",
+  onSurface: "--youglidetube-on-surface",
+  onSurfaceVariant: "--youglidetube-on-surface-variant",
+  error: "--youglidetube-error",
+};
+
+/**
+ * The old `--flow-*` names, still read as a fallback so a custom.css written
+ * for an earlier build keeps working. New files should use `--youglidetube-*`.
+ */
+const LEGACY_THEME_FILE_TOKENS: Record<keyof ThemeColors, string> = {
   primary: "--flow-primary",
   onPrimary: "--flow-on-primary",
   secondary: "--flow-secondary",
@@ -28,7 +48,8 @@ export const THEME_FILE_TOKENS: Record<keyof ThemeColors, string> = {
   error: "--flow-error",
 };
 
-const SCHEME_TOKEN = "--flow-scheme";
+const SCHEME_TOKEN = "--youglidetube-scheme";
+const LEGACY_SCHEME_TOKEN = "--flow-scheme";
 
 const SEED_KEYS: (keyof ThemeSeed)[] = [
   "primary", "onPrimary", "secondary", "background", "surface",
@@ -42,7 +63,7 @@ const CONTAINER_KEYS = [
 export interface ThemeFileTheme {
   theme: ThemeDefinition;
   scheme: ThemeFileScheme;
-  /** `--flow-*` names whose value is not a colour, so Flow's default was used. */
+  /** `--youglidetube-*` names whose value is not a colour, so YouGlideTube's default was used. */
   ignoredTokens: string[];
 }
 
@@ -72,8 +93,9 @@ function seedOf(colors: ThemeColors): ThemeSeed {
 /**
  * Builds a theme from the values a file declared. `readToken` returns a token's
  * raw value ("" when unset); `resolveColor` returns it as hex, or null when it is
- * not a colour. Unset or invalid colours keep Flow Default's, and the always-dark
- * surfaces of a light file keep Flow's dark greys with the file's accent.
+ * not a colour. Unset or invalid colours keep YouGlideTube Default's, and the always-dark
+ * surfaces of a light file keep YouGlideTube's dark greys with the file's accent.
+ * A `--flow-*` token is read only when its `--youglidetube-*` name is unset.
  */
 export function buildThemeFileTheme(
   readToken: (name: string) => string,
@@ -83,13 +105,18 @@ export function buildThemeFileTheme(
   const resolved: Partial<ThemeColors> = {};
   for (const [key, name] of Object.entries(THEME_FILE_TOKENS) as [keyof ThemeColors, string][]) {
     const raw = readToken(name).trim();
-    if (!raw) continue;
-    const color = resolveColor(raw);
+    const legacyName = LEGACY_THEME_FILE_TOKENS[key];
+    const value = raw || readToken(legacyName).trim();
+    if (!value) continue;
+    const color = resolveColor(value);
     if (color) resolved[key] = color;
-    else ignoredTokens.push(name);
+    else ignoredTokens.push(raw ? name : legacyName);
   }
 
-  const scheme = themeFileScheme(readToken(SCHEME_TOKEN), resolved.background ?? null);
+  const scheme = themeFileScheme(
+    readToken(SCHEME_TOKEN) || readToken(LEGACY_SCHEME_TOKEN),
+    resolved.background ?? null,
+  );
   const other: ThemeFileScheme = scheme === "light" ? "dark" : "light";
   const fileSeed: ThemeSeed = { ...seedOf(DEFAULT_THEME.variants[scheme]) };
   for (const key of SEED_KEYS) {
@@ -129,7 +156,7 @@ function isLocalReference(target: string): boolean {
   return value.startsWith("data:") || value.startsWith("#");
 }
 
-/** Whether a declared value would make the webview fetch something from outside Flow. */
+/** Whether a declared value would make the webview fetch something from outside YouGlideTube. */
 export function loadsRemoteResource(value: string): boolean {
   for (const match of value.matchAll(URL_ARGUMENT)) {
     if (!isLocalReference(match[2] ?? "")) return true;

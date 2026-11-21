@@ -9,7 +9,7 @@ import { useProfilesStore } from "../store/useProfilesStore";
 
 import { getVideoDetails, resolveChannelId } from "./api/youtube";
 import { getMusicQueue, getMusicWatchQueue } from "./api/music";
-import { handoffToOpen, parseFlowUrl, type Handoff } from "./flowHandoff";
+import { handoffToOpen, parseDeepLinkUrl, type Handoff } from "./flowHandoff";
 import { playLinkedPlaylist } from "./linkedPlaylist";
 import { addWatchRecord } from "./api/db";
 import { shouldRecordWatchHistory } from "./deepFlow";
@@ -50,7 +50,7 @@ async function playSongFromList(videoId: string, playlistId: string): Promise<bo
 }
 
 /**
- * Subscribes to `flow://` deep links and bridge handoffs and routes them:
+ * Subscribes to `youglidetube://` deep links and bridge handoffs and routes them:
  * `watch` → the Watch page (which resolves the video from its id), `music` → the
  * music player, `download` → the global download dialog, and the rest of what a
  * link can name to its own page. Mounted once at the App root.
@@ -189,13 +189,13 @@ export function useDeepLinkHandoff() {
   }, [route]);
 
   const acceptRef = useRef((raw: string) => {
-    const handoff = parseFlowUrl(raw);
+    const handoff = parseDeepLinkUrl(raw);
     if (!handoff) return;
     pendingRef.current = handoff;
     flush();
   });
   acceptRef.current = (raw: string) => {
-    const handoff = parseFlowUrl(raw);
+    const handoff = parseDeepLinkUrl(raw);
     if (!handoff) return;
     // During a profile switch the link belongs to the next profile, not this dying process.
     if (useProfilesStore.getState().switchingTo) {

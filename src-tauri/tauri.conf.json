@@ -32,7 +32,7 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["flow"]
+        "schemes": ["youglidetube"]
       }
     },
     "updater": {
@@ -45,7 +45,7 @@
     "targets": "all",
     "category": "Entertainment",
     "shortDescription": "YouGlideTube Desktop — YouTube and YouTube Music for the desktop, with Google sign-in.",
-    "longDescription": "YouGlideTube Desktop is a YouTube and YouTube Music desktop client with Google sign-in, native playback and local recommendations. Forked from Flow Desktop (Flow-Tube/Flow-Desktop, GPL-3.0).",
+    "longDescription": "YouGlideTube Desktop is a YouTube and YouTube Music desktop client with Google sign-in, native playback and local recommendations.",
     "copyright": "Copyright © 2026 shivyt",
     "icon": [
       "icons/32x32.png",

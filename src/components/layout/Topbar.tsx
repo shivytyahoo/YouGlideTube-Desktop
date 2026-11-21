@@ -15,7 +15,6 @@ import { getString } from '../../lib/i18n/index';
 import { toggleDeepFlow } from '../../lib/deepFlow';
 import { NotificationsBell } from '../notifications/NotificationsBell';
 import { activeTab, useTabsStore } from '../../store/useTabsStore';
-import { ProfileMenuButton } from '../profiles/ProfileMenuButton';
 import { useSidebarDrawer } from '../../lib/useSidebarDrawer';
 
 /** PageWrapper returns focus here when Escape closes the drawer. */
@@ -162,7 +161,6 @@ export function Topbar() {
           </Button>
         )}
         {signInOpen && <GoogleSignInDialog onClose={() => setSignInOpen(false)} />}
-        <ProfileMenuButton />
       </div>
     </header>
   );

@@ -1,6 +1,6 @@
-//! The user's theme file: a `custom.css` in Flow's config folder that desktop
+//! The user's theme file: a `custom.css` in YouGlideTube's config folder that desktop
 //! shells and template tools rewrite whenever the system colours change (#81).
-//! Flow only reads it; the frontend turns its `--flow-*` colours into a theme.
+//! YouGlideTube only reads it; the frontend turns its `--youglidetube-*` colours into a theme.
 
 use serde::Serialize;
 use std::io::ErrorKind;
@@ -12,39 +12,39 @@ pub const FILE_NAME: &str = "custom.css";
 /// Far more than any palette needs; a larger file is almost surely the wrong file.
 pub const MAX_BYTES: u64 = 256 * 1024;
 
-/// What Flow writes when the user asks for a starting point. It doubles as the
+/// What YouGlideTube writes when the user asks for a starting point. It doubles as the
 /// documentation, since the people who want this file are editing it by hand or
 /// turning it into a template.
-pub const STARTER: &str = r"/* Flow theme file. Flow reloads this file whenever it changes.
+pub const STARTER: &str = r"/* YouGlideTube theme file. YouGlideTube reloads this file whenever it changes.
    Select it in Settings > Appearance > Theme file.
 
    Colours: any CSS colour works (hex, rgb(), hsl(), oklch(), color-mix()).
-   Leave a line out to keep Flow's default for it.
-   --flow-scheme picks light or dark controls; without it Flow decides
-   from how bright --flow-background is.
+   Leave a line out to keep YouGlideTube's default for it.
+   --youglidetube-scheme picks light or dark controls; without it YouGlideTube decides
+   from how bright --youglidetube-background is.
    Remote url(), @import and @font-face are ignored. */
 :root {
-  --flow-scheme: dark;
-  --flow-primary: #ff0000;
-  --flow-on-primary: #ffffff;
-  --flow-secondary: #aaaaaa;
-  --flow-background: #0f0f0f;
-  --flow-surface: #1d1d1d;
-  --flow-on-surface: #f4f4f4;
-  --flow-on-surface-variant: #b8b8b8;
-  --flow-outline: #343434;
-  --flow-error: #ef5350;
+  --youglidetube-scheme: dark;
+  --youglidetube-primary: #ff0000;
+  --youglidetube-on-primary: #ffffff;
+  --youglidetube-secondary: #aaaaaa;
+  --youglidetube-background: #0f0f0f;
+  --youglidetube-surface: #1d1d1d;
+  --youglidetube-on-surface: #f4f4f4;
+  --youglidetube-on-surface-variant: #b8b8b8;
+  --youglidetube-outline: #343434;
+  --youglidetube-error: #ef5350;
 
-  /* Optional: Flow mixes these from the colours above when they are left out.
-  --flow-surface-container-low: #171717;
-  --flow-surface-container: #1d1d1d;
-  --flow-surface-container-high: #242424;
-  --flow-surface-container-highest: #303030;
+  /* Optional: YouGlideTube mixes these from the colours above when they are left out.
+  --youglidetube-surface-container-low: #171717;
+  --youglidetube-surface-container: #1d1d1d;
+  --youglidetube-surface-container-high: #242424;
+  --youglidetube-surface-container-highest: #303030;
   */
 }
 
-/* Rules below this line style Flow directly. They can stop matching
-   when Flow's layout changes in an update. */
+/* Rules below this line style YouGlideTube directly. They can stop matching
+   when YouGlideTube's layout changes in an update. */
 ";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -120,7 +120,7 @@ pub fn fingerprint(path: &Path) -> Fingerprint {
 
 /// Decides when a polled file has a new version worth sending: once it has
 /// changed since the last send and held still for one poll, so a tool that is
-/// still writing never hands Flow half a file.
+/// still writing never hands YouGlideTube half a file.
 pub struct ChangeGate {
     sent: Fingerprint,
     seen: Fingerprint,
@@ -170,12 +170,12 @@ mod tests {
     #[test]
     fn a_text_file_is_loaded() {
         let path = temp_dir("loaded").join(FILE_NAME);
-        std::fs::write(&path, ":root { --flow-primary: #00ff00; }").unwrap();
+        std::fs::write(&path, ":root { --youglidetube-primary: #00ff00; }").unwrap();
         let state = read_theme_file(&path);
         assert_eq!(state.status, ThemeFileStatus::Loaded);
         assert_eq!(
             state.css.as_deref(),
-            Some(":root { --flow-primary: #00ff00; }")
+            Some(":root { --youglidetube-primary: #00ff00; }")
         );
     }
 

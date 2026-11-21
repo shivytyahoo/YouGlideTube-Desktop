@@ -14,7 +14,7 @@ export type Handoff =
   | { action: "page"; route: string }
   | { action: "channel"; url: string; music: boolean };
 
-/** Where a `flow://open?url=` link leads, or null for any link Flow has no page for. */
+/** Where a `youglidetube://open?url=` link leads, or null for any link YouGlideTube has no page for. */
 function openHandoff(link: string): Handoff | null {
   if (!WEB_LINK.test(link)) return null;
   const parsed = parseYoutubeUrl(link);
@@ -51,19 +51,19 @@ export function handoffToOpen(handoff: Handoff): Handoff {
   return musicEnabledNow() ? handoff : withoutMusic(handoff);
 }
 
-// Every transport delivers the same `flow://action?…` string: the deep-link plugin (app launched
+// Every transport delivers the same `youglidetube://action?…` string: the deep-link plugin (app launched
 // or already running), the loopback bridge (silent handoff from the extension, re-emitted on the
 // `handoff://url` event) and a link on the command line. All of it is untrusted input.
-export function parseFlowUrl(raw: string): Handoff | null {
+export function parseDeepLinkUrl(raw: string): Handoff | null {
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
     return null;
   }
-  if (url.protocol !== "flow:") return null;
+  if (url.protocol !== "youglidetube:") return null;
 
-  // flow://watch → host "watch"; tolerate flow:///watch → path "/watch".
+  // youglidetube://watch → host "watch"; tolerate youglidetube:///watch → path "/watch".
   const action = (url.host || url.pathname.replace(/^\/+/, "")).toLowerCase();
   if (action === "open") return openHandoff(url.searchParams.get("url") ?? "");
 

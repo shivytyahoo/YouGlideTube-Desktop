@@ -25,7 +25,6 @@ export function useLinkedSyncEvents(): void {
         onJoinRequests((requests) =>
           toast({
             message: getString("linked_join_request_notice", requests.map((r) => r.name).join(", ")),
-            actions: [{ label: getString("linked_open"), to: "/sync" }],
           }),
         ),
       ]);

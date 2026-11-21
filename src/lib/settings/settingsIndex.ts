@@ -4,7 +4,6 @@ import { MUSIC_HOME_SHELVES } from "../musicHomeShelves";
 export type SettingsCategory =
   | "account"
   | "appearance"
-  | "profiles"
   | "player"
   | "keyboard"
   | "music"
@@ -24,7 +23,6 @@ export type SettingsCategory =
 export const SETTINGS_CATEGORY_LABELS: Record<SettingsCategory, StringKey> = {
   account: "account_title",
   appearance: "settings_appearance",
-  profiles: "settings_profiles",
   player: "settings_player",
   keyboard: "settings_keyboard_shortcuts",
   music: "settings_music",
@@ -78,9 +76,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     { title: "theme_variant" },
     { title: "theme_custom" },
     { title: "theme_file", summary: "theme_file_description" },
-  ]),
-  ...rows("profiles", [
-    { title: "profiles_ask_whos_watching", summary: "profiles_ask_whos_watching_summary", keywords: ["launch", "startup", "picker"] },
   ]),
   ...rows("player", [
     { title: "settings_autoplay", summary: "settings_autoplay_desc" },

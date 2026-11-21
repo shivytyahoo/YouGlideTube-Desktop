@@ -1,13 +1,13 @@
-//! Loopback bridge for the Flow browser extension.
+//! Loopback bridge for the browser extension.
 //!
 //! A tiny fixed-port HTTP server on `127.0.0.1` that lets the extension hand a
-//! video off to a *running* Flow instance silently (no OS "Open Flow?" prompt)
-//! and detect whether Flow is installed at all (`/flow/ping`). It is the
-//! sibling of the `flow://` deep link: the deep link *launches* Flow when it is
+//! video off to a *running* YouGlideTube instance silently (no OS "Open YouGlideTube?" prompt)
+//! and detect whether YouGlideTube is installed at all (`/youglidetube/ping`). It is the
+//! sibling of the `youglidetube://` deep link: the deep link *launches* YouGlideTube when it is
 //! closed; this server serves it while it is already open.
 //!
 //! Both transports converge on the same frontend handler — this server just
-//! translates a validated request into the equivalent `flow://…` URL and emits
+//! translates a validated request into the equivalent `youglidetube://…` URL and emits
 //! it on the `handoff://url` event, exactly as the deep-link plugin would.
 //!
 //! Security model (browser threat only — a native process can already do
@@ -110,15 +110,15 @@ async fn handle_connection(mut socket: TcpStream, app: &AppHandle) -> std::io::R
     }
 
     match req.path.as_str() {
-        "/flow/ping" => {
+        "/youglidetube/ping" => {
             let body = format!(
-                r#"{{"app":"flow","version":"{}"}}"#,
+                r#"{{"app":"youglidetube","version":"{}"}}"#,
                 env!("CARGO_PKG_VERSION")
             );
             write_response(&mut socket, 200, "OK", cors, &body).await
         }
-        "/flow/watch" | "/flow/download" | "/flow/music" | "/flow/music-download" => {
-            let action = &req.path["/flow/".len()..];
+        "/youglidetube/watch" | "/youglidetube/download" | "/youglidetube/music" | "/youglidetube/music-download" => {
+            let action = &req.path["/youglidetube/".len()..];
             match build_handoff_url(action, &req.query) {
                 Some(url) => {
                     dispatch(app, url);
@@ -133,7 +133,7 @@ async fn handle_connection(mut socket: TcpStream, app: &AppHandle) -> std::io::R
     }
 }
 
-/// Focus the window and emit the equivalent `flow://` URL so the frontend's
+/// Focus the window and emit the equivalent `youglidetube://` URL so the frontend's
 /// single deep-link handler routes it (play or open the download dialog).
 fn dispatch(app: &AppHandle, url: String) {
     if let Some(window) = app.get_webview_window("main") {
@@ -147,7 +147,7 @@ fn dispatch(app: &AppHandle, url: String) {
     }
 }
 
-/// Rebuild a validated `flow://action?…` URL from the request query. Every field
+/// Rebuild a validated `youglidetube://action?…` URL from the request query. Every field
 /// is validated; `v` is required, `t`/`list` optional. All accepted values are
 /// `[A-Za-z0-9_-]`/digits, so no percent-encoding is needed.
 fn build_handoff_url(action: &str, query: &str) -> Option<String> {
@@ -165,7 +165,7 @@ fn build_handoff_url(action: &str, query: &str) -> Option<String> {
 
     let v = v?;
     validate_video_id(&v).ok()?;
-    let mut url = format!("flow://{action}?v={v}");
+    let mut url = format!("youglidetube://{action}?v={v}");
 
     if let Some(t) = t {
         if !t.is_empty() {
@@ -310,7 +310,7 @@ mod tests {
     #[test]
     fn builds_watch_url_with_optional_params() {
         let url = build_handoff_url("watch", "v=dQw4w9WgXcQ&t=42&list=PLabcdefghij").unwrap();
-        assert_eq!(url, "flow://watch?v=dQw4w9WgXcQ&t=42&list=PLabcdefghij");
+        assert_eq!(url, "youglidetube://watch?v=dQw4w9WgXcQ&t=42&list=PLabcdefghij");
     }
 
     #[test]
@@ -329,18 +329,18 @@ mod tests {
     #[test]
     fn download_url_ignores_watch_only_params() {
         let url = build_handoff_url("download", "v=dQw4w9WgXcQ&t=42").unwrap();
-        assert_eq!(url, "flow://download?v=dQw4w9WgXcQ&t=42");
+        assert_eq!(url, "youglidetube://download?v=dQw4w9WgXcQ&t=42");
     }
 
     #[test]
     fn builds_music_and_music_download_urls() {
         assert_eq!(
             build_handoff_url("music", "v=dQw4w9WgXcQ").unwrap(),
-            "flow://music?v=dQw4w9WgXcQ"
+            "youglidetube://music?v=dQw4w9WgXcQ"
         );
         assert_eq!(
             build_handoff_url("music-download", "v=dQw4w9WgXcQ").unwrap(),
-            "flow://music-download?v=dQw4w9WgXcQ"
+            "youglidetube://music-download?v=dQw4w9WgXcQ"
         );
     }
 

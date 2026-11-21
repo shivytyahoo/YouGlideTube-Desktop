@@ -10,7 +10,6 @@ import { DataTab } from '../components/settings/tabs/DataTab';
 import { AboutTab } from '../components/settings/tabs/AboutTab';
 import { AppearanceTab } from '../components/settings/tabs/AppearanceTab';
 import { AccountTab } from '../components/settings/tabs/AccountTab';
-import { ProfilesTab } from '../components/settings/tabs/ProfilesTab';
 import { KeyboardTab } from '../components/settings/tabs/KeyboardTab';
 import { LyricsTab } from '../components/settings/tabs/LyricsTab';
 import { SubscriptionsTab } from '../components/settings/tabs/SubscriptionsTab';
@@ -21,7 +20,6 @@ import { LanguageTab } from '../components/settings/tabs/LanguageTab';
 const tabComponents: Record<SettingsCategory, React.FC> = {
   account: AccountTab,
   appearance: AppearanceTab,
-  profiles: ProfilesTab,
   player: PlayerTab,
   keyboard: KeyboardTab,
   music: MusicTab,

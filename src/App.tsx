@@ -26,9 +26,7 @@ import { WATCH_LATER_PLAYLIST_ID } from "./lib/playlistLibrary";
 import type { VideoSummary } from "./types/video";
 import { useProfileSwitchListener } from "./lib/profiles/useProfileSwitchListener";
 import { markSwitching } from "./store/useProfilesStore";
-import { ProfileSwitchOverlay } from "./components/profiles/ProfileSwitchOverlay";
 import { ProfileSwitchPanel } from "./components/profiles/ProfileSwitchPanel";
-import { WhosWatchingOverlay } from "./components/profiles/WhosWatchingOverlay";
 import { takeSwitchingTo } from "./lib/profiles/switchProfile";
 
 import { PageWrapper } from "./components/layout/PageWrapper";
@@ -372,9 +370,7 @@ function App() {
         <DownloadActivity />
       </LayoutGroup>
       <UpdateManager enabled={IS_MAIN_WINDOW && location.pathname !== "/onboarding"} />
-      {IS_MAIN_WINDOW && <WhosWatchingOverlay />}
       {IS_MAIN_WINDOW && location.pathname !== "/onboarding" && <CrashReportHost />}
-      <ProfileSwitchOverlay />
       <NoteEditorHost />
       <KeyboardHelpHost />
       <ConfirmHost />

@@ -13,7 +13,7 @@ const tokens = (values: Record<string, string>) => (name: string) => values[name
 const hexOnly = (value: string) => (/^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : null);
 
 describe("themeFileScheme", () => {
-  it("follows --flow-scheme when it names one", () => {
+  it("follows --youglidetube-scheme when it names one", () => {
     expect(themeFileScheme(" Light ", "#000000")).toBe("light");
     expect(themeFileScheme("dark", "#ffffff")).toBe("dark");
   });
@@ -37,10 +37,10 @@ describe("buildThemeFileTheme", () => {
 
   it("uses the file's colours and mixes the container shades from them", () => {
     const built = buildThemeFileTheme(tokens({
-      "--flow-primary": "#cba6f7",
-      "--flow-background": "#11111b",
-      "--flow-surface": "#1e1e2e",
-      "--flow-on-surface": "#cdd6f4",
+      "--youglidetube-primary": "#cba6f7",
+      "--youglidetube-background": "#11111b",
+      "--youglidetube-surface": "#1e1e2e",
+      "--youglidetube-on-surface": "#cdd6f4",
     }), hexOnly);
     const dark = built.theme.variants.dark;
     expect(dark.primary).toBe("#cba6f7");
@@ -50,26 +50,43 @@ describe("buildThemeFileTheme", () => {
   });
 
   it("keeps container shades the file sets itself", () => {
-    const built = buildThemeFileTheme(tokens({ "--flow-surface-container-high": "#242424" }), hexOnly);
+    const built = buildThemeFileTheme(tokens({ "--youglidetube-surface-container-high": "#242424" }), hexOnly);
     expect(built.theme.variants.dark.surfaceContainerHigh).toBe("#242424");
   });
 
   it("names values that are not colours and keeps the default for them", () => {
-    const built = buildThemeFileTheme(tokens({ "--flow-primary": "reddish", "--flow-error": "#ef5350" }), hexOnly);
-    expect(built.ignoredTokens).toEqual(["--flow-primary"]);
+    const built = buildThemeFileTheme(tokens({ "--youglidetube-primary": "reddish", "--youglidetube-error": "#ef5350" }), hexOnly);
+    expect(built.ignoredTokens).toEqual(["--youglidetube-primary"]);
     expect(built.theme.variants.dark.primary).toBe(DEFAULT_THEME.variants.dark.primary);
   });
 
-  it("gives a light file Flow's dark greys with its accent for the always-dark surfaces", () => {
+  it("gives a light file YouGlideTube's dark greys with its accent for the always-dark surfaces", () => {
     const built = buildThemeFileTheme(tokens({
-      "--flow-background": "#ffffff",
-      "--flow-primary": "#1e66f5",
+      "--youglidetube-background": "#ffffff",
+      "--youglidetube-primary": "#1e66f5",
     }), hexOnly);
     expect(built.scheme).toBe("light");
     expect(built.theme.variants.light.background).toBe("#ffffff");
     expect(built.theme.variants.dark.background).toBe(DEFAULT_THEME.variants.dark.background);
     expect(built.theme.variants.dark.primary).toBe("#1e66f5");
     expect(built.theme.variants.amoled.background).toBe("#000000");
+  });
+
+  it("still reads a file written with the old --flow-* names", () => {
+    const built = buildThemeFileTheme(tokens({
+      "--flow-primary": "#cba6f7",
+      "--flow-background": "#11111b",
+    }), hexOnly);
+    expect(built.theme.variants.dark.primary).toBe("#cba6f7");
+    expect(built.theme.variants.dark.background).toBe("#11111b");
+  });
+
+  it("prefers the --youglidetube-* name when a file sets both", () => {
+    const built = buildThemeFileTheme(tokens({
+      "--youglidetube-primary": "#cba6f7",
+      "--flow-primary": "#ff0000",
+    }), hexOnly);
+    expect(built.theme.variants.dark.primary).toBe("#cba6f7");
   });
 });
 
@@ -105,7 +122,7 @@ describe("stripRemoteResources", () => {
     const sheet = sheetOf(`
       @import url("https://evil.example/x.css");
       @font-face { font-family: X; src: url("https://fonts.example/x.woff2"); }
-      :root { --flow-primary: #ff0000; --art: url("https://tracker.example/a.png"); }
+      :root { --youglidetube-primary: #ff0000; --art: url("https://tracker.example/a.png"); }
       body { background: url("https://tracker.example/b.png"); color: red; }
       @media (min-width: 10px) { .x { background-image: url(https://tracker.example/c.png); } }
       .y { background-image: url("data:image/png;base64,AAAA"); }
@@ -115,7 +132,7 @@ describe("stripRemoteResources", () => {
     expect(text).not.toContain("tracker.example");
     expect(text).not.toContain("evil.example");
     expect(text).not.toContain("fonts.example");
-    expect(text).toContain("--flow-primary");
+    expect(text).toContain("--youglidetube-primary");
     expect(text).toContain("color: red");
     expect(text).toContain("data:image/png");
     expect(removed).toBeGreaterThanOrEqual(5);

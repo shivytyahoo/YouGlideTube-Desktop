@@ -2,7 +2,7 @@
 
 **A YouTube and YouTube Music desktop client with Google sign-in, native playback and local recommendations.**
 
-> **Fork notice:** YouGlideTube Desktop is a fork of [Flow Desktop](https://github.com/Flow-Tube/Flow-Desktop) (v0.1.0-beta4, by A-EDev, GPL-3.0-only), rebranded and rethemed for [YouGlideTube](https://github.com/shivytyahoo/YouGlideTube) (GPL-3.0). Upstream Flow code remains under its original authors; see [FORK.md](FORK.md). This fork adds Google sign-in (SAPISID cookie session, like the YouGlideTube Android app) on top of Flow's local-first client.
+> **Fork notice:** YouGlideTube Desktop is built on open-source foundations (see [FORK.md](FORK.md) for credits), rebranded and rethemed for [YouGlideTube](https://github.com/shivytyahoo/YouGlideTube) (GPL-3.0). This fork adds Google sign-in (SAPISID cookie session, like the YouGlideTube Android app) on top of the local-first client.
 
 > YouGlideTube Desktop is under active development. Features and storage formats may change before the first stable release.
 
@@ -16,13 +16,13 @@
 - Local subscriptions, playlists, Watch Later, likes, albums, video and music history, Continue Watching, and regional Explore feeds. (Server subscriptions, history and Watch Later from your Google account are still local-only — the follow-up is tracked in [PARITY.md](PARITY.md).)
 - Channel pages with videos, Shorts, playlists, community posts, comments, and live chat support.
 - SponsorBlock, DeArrow, Return YouTube Dislike, and Discord Rich Presence integrations.
-- Imports from Flow backups, Google Takeout, NewPipe, LibreTube, FreeTube, and OPML.
+- Imports from YouGlideTube backups, Google Takeout, NewPipe, LibreTube, FreeTube, and OPML.
 
-### FlowNeuro
+### Local recommendations
 
-FlowNeuro is Flow's native local recommendation engine. It learns from watches, skips, likes, dislikes, searches, topic preferences, and creator affinity, and ranks content on your device without sending a recommendation profile to a Flow server.
+The local recommendation engine learns from watches, skips, likes, dislikes, searches, topic preferences, and creator affinity, and ranks content on your device without sending a recommendation profile to any server.
 
-The Control Center lets you inspect topic weights, time-based patterns, channel memory, learning activity, and blocked content. You can export, import, reset, or temporarily pause learning with Deep Flow mode.
+The Control Center lets you inspect topic weights, time-based patterns, channel memory, learning activity, and blocked content. You can export, import, reset, or temporarily pause learning with Deep Glide mode.
 
 ## Google sign-in
 
@@ -34,7 +34,7 @@ If Google refuses sign-in in that window, the dialog's second option signs in wi
 
 ## YouGlideTube parity
 
-This fork aims to look, feel and behave like the [YouGlideTube Android app](https://github.com/shivytyahoo/YouGlideTube) — same settings, screens, features and naming. Flow contributes only the Tauri size/architecture, never its look, feel or feature set. [`PARITY.md`](PARITY.md) is the feature-by-feature audit against the Android app (19 features match, 10 partial, 7 missing): what matches today is the watch/search/Shorts/music/downloads surface plus Google sign-in with the real account name and a Settings → Google account page; the remaining gap is the server-account surface (subscriptions feed, server history, server Watch Later, multi-account, clip downloads).
+This fork aims to look, feel and behave like the [YouGlideTube Android app](https://github.com/shivytyahoo/YouGlideTube) — same settings, screens, features and naming. Only the Tauri size/architecture approach is borrowed, never the upstream look, feel or feature set. [`PARITY.md`](PARITY.md) is the feature-by-feature audit against the Android app (19 features match, 10 partial, 6 missing): what matches today is the watch/search/Shorts/music/downloads surface plus Google sign-in with the real account name and a Settings → Google account page; the remaining gap is the server-account surface (subscriptions feed, server history, server Watch Later, multi-account, clip downloads).
 
 ---
 
@@ -112,7 +112,7 @@ live in `packaging/aur/` and are published by `.github/workflows/aur.yml`.
 
 Expected sizes (measured on Linux in the sandbox: optimized
 **`.deb` 21.73 MiB, installed ~56 MB** — the nightly-profile build,
-essentially Flow's release `.deb` at 21.5 MB. The debug `.deb` is
+essentially the upstream release `.deb` at 21.5 MB. The debug `.deb` is
 193 MB / ~819 MB installed, because the binary is unoptimized with
 debuginfo; a full release-profile build OOMs in this sandbox, see
 [TAURI_PLAN.md](TAURI_PLAN.md) step 4. Windows/macOS sizes are
@@ -189,8 +189,8 @@ Without Terminal: try to open YouGlideTube once, then go to **System Settings > 
 
 ### Flatpak
 
-Flatpak packaging is not set up for this fork yet (upstream Flow's
-Flatpak id and registry still point at Flow). That is a follow-up —
+Flatpak packaging is not set up for this fork yet (the upstream
+Flatpak id and registry still point at the upstream app). That is a follow-up —
 see [TAURI_PLAN.md](TAURI_PLAN.md).
 
 ### Linux media codecs
@@ -245,6 +245,6 @@ Windows, Linux, and macOS packages are built natively by the GitHub Actions rele
 
 ## License
 
-YouGlideTube Desktop is free software licensed under the [GNU General Public License v3.0](LICENSE). It is a fork of Flow Desktop (GPL-3.0-only, copyright © 2025–2026 A-EDev); see [FORK.md](FORK.md).
+YouGlideTube Desktop is free software licensed under the [GNU General Public License v3.0](LICENSE). It is based on open-source code (GPL-3.0-only, copyright © 2025–2026 A-EDev); see [FORK.md](FORK.md).
 
-This license requires that any project using this source code, including the FlowNeuro engine, must also be released as open source under GPLv3. It may not be used in a proprietary or closed-source application.
+This license requires that any project using this source code, including the local recommendation engine, must also be released as open source under GPLv3. It may not be used in a proprietary or closed-source application.

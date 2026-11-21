@@ -70,7 +70,7 @@ describe("importFile", () => {
     setSettingValue.mockResolvedValue(true);
   });
 
-  it("restores every collection of a Flow backup, not only its subscriptions", async () => {
+  it("restores every collection of a YouGlideTube backup, not only its subscriptions", async () => {
     readBackupFile.mockResolvedValue({ type: "backup", data: { schemaVersion: 2, settings: {}, collections: COLLECTIONS } });
 
     const result = await importFile("backup.zip", IMPORT_EVERYTHING, () => {});
@@ -133,7 +133,7 @@ describe("importFile", () => {
   it("explains a file it can't read", async () => {
     readBackupFile.mockResolvedValue({ type: "unreadable", reason: "no_backup" });
 
-    await expect(importFile("other.zip", IMPORT_EVERYTHING, () => {})).rejects.toThrow("This archive doesn't hold a Flow backup.");
+    await expect(importFile("other.zip", IMPORT_EVERYTHING, () => {})).rejects.toThrow("This archive doesn't hold a YouGlideTube backup.");
   });
 
   it("stops without importing when an old master backup is declined", async () => {

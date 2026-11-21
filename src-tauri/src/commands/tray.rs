@@ -60,7 +60,7 @@ pub fn take_launch_page(request: State<'_, LaunchRequest>) -> Option<&'static st
     request.take_page()
 }
 
-/// The `flow://open` link for a URL on this launch's command line, once.
+/// The `youglidetube://open` link for a URL on this launch's command line, once.
 #[tauri::command]
 #[must_use]
 pub fn take_launch_link(request: State<'_, LaunchRequest>) -> Option<String> {

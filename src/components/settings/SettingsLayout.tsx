@@ -11,7 +11,6 @@ import {
   Palette,
   Music2,
   UserRound,
-  UsersRound,
   Keyboard,
   MicVocal,
   Bell,
@@ -44,7 +43,6 @@ const categories: CategoryDef[] = [
   // First, like Android's settings home (Google account sits right at the top).
   { id: 'account', icon: <UserRound size={18} /> },
   { id: 'appearance', icon: <Palette size={18} /> },
-  { id: 'profiles', icon: <UsersRound size={18} /> },
   { id: 'player', icon: <PlayCircle size={18} /> },
   { id: 'keyboard', icon: <Keyboard size={18} /> },
   { id: 'music', icon: <Music2 size={18} /> },

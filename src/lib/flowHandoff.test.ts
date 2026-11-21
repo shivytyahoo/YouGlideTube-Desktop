@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { handoffToOpen, parseFlowUrl } from "./flowHandoff";
+import { handoffToOpen, parseDeepLinkUrl } from "./flowHandoff";
 import { SETTINGS } from "./settings/schema";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
 
-const open = (link: string) => parseFlowUrl(`flow://open?url=${encodeURIComponent(link)}`);
+const open = (link: string) => parseDeepLinkUrl(`youglidetube://open?url=${encodeURIComponent(link)}`);
 const VIDEO = "dQw4w9WgXcQ";
 
-describe("flow://open", () => {
+describe("youglidetube://open", () => {
   it("opens a video", () => {
     expect(open(`https://www.youtube.com/watch?v=${VIDEO}`)).toEqual({ action: "watch", v: VIDEO, list: undefined });
     expect(open(`https://youtu.be/${VIDEO}`)).toEqual({ action: "watch", v: VIDEO, list: undefined });
@@ -114,26 +114,26 @@ describe("flow://open", () => {
     ]) {
       expect(open(link), link).toBeNull();
     }
-    expect(parseFlowUrl("flow://open")).toBeNull();
-    expect(parseFlowUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBeNull();
-    expect(parseFlowUrl("flow://settings?v=dQw4w9WgXcQ")).toBeNull();
-    expect(parseFlowUrl("not a url")).toBeNull();
+    expect(parseDeepLinkUrl("youglidetube://open")).toBeNull();
+    expect(parseDeepLinkUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBeNull();
+    expect(parseDeepLinkUrl("youglidetube://settings?v=dQw4w9WgXcQ")).toBeNull();
+    expect(parseDeepLinkUrl("not a url")).toBeNull();
   });
 });
 
 describe("the older verbs", () => {
   it("still read a video, a position and a list", () => {
-    expect(parseFlowUrl(`flow://watch?v=${VIDEO}&t=42&list=PLabcdefghij`)).toEqual({ action: "watch", v: VIDEO, t: 42, list: "PLabcdefghij" });
-    expect(parseFlowUrl(`flow:///watch?v=${VIDEO}`)).toMatchObject({ action: "watch", v: VIDEO });
-    expect(parseFlowUrl(`flow://music?v=${VIDEO}`)).toEqual({ action: "music", v: VIDEO });
-    expect(parseFlowUrl(`flow://download?v=${VIDEO}`)).toEqual({ action: "download", v: VIDEO });
-    expect(parseFlowUrl(`flow://music-download?v=${VIDEO}`)).toEqual({ action: "music-download", v: VIDEO });
+    expect(parseDeepLinkUrl(`youglidetube://watch?v=${VIDEO}&t=42&list=PLabcdefghij`)).toEqual({ action: "watch", v: VIDEO, t: 42, list: "PLabcdefghij" });
+    expect(parseDeepLinkUrl(`youglidetube:///watch?v=${VIDEO}`)).toMatchObject({ action: "watch", v: VIDEO });
+    expect(parseDeepLinkUrl(`youglidetube://music?v=${VIDEO}`)).toEqual({ action: "music", v: VIDEO });
+    expect(parseDeepLinkUrl(`youglidetube://download?v=${VIDEO}`)).toEqual({ action: "download", v: VIDEO });
+    expect(parseDeepLinkUrl(`youglidetube://music-download?v=${VIDEO}`)).toEqual({ action: "music-download", v: VIDEO });
   });
 
   it("keep a Mix and skip an unreadable list on a watch link", () => {
-    expect(parseFlowUrl(`flow://watch?v=${VIDEO}&list=RDdQw4w9WgXcQ`)).toMatchObject({ list: "RDdQw4w9WgXcQ" });
-    expect(parseFlowUrl(`flow://watch?v=${VIDEO}&list=bad!list`)).toMatchObject({ list: undefined });
-    expect(parseFlowUrl(`flow://watch?v=${VIDEO}&t=abc`)).toMatchObject({ t: undefined });
-    expect(parseFlowUrl("flow://watch?v=bad")).toBeNull();
+    expect(parseDeepLinkUrl(`youglidetube://watch?v=${VIDEO}&list=RDdQw4w9WgXcQ`)).toMatchObject({ list: "RDdQw4w9WgXcQ" });
+    expect(parseDeepLinkUrl(`youglidetube://watch?v=${VIDEO}&list=bad!list`)).toMatchObject({ list: undefined });
+    expect(parseDeepLinkUrl(`youglidetube://watch?v=${VIDEO}&t=abc`)).toMatchObject({ t: undefined });
+    expect(parseDeepLinkUrl("youglidetube://watch?v=bad")).toBeNull();
   });
 });
