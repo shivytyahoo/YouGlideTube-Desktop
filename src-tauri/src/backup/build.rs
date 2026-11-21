@@ -18,10 +18,10 @@ use crate::flow_neuro::scoring::UserBrain;
 use crate::music_brain::model::MusicBrain;
 use crate::recap::model::RecapBackup;
 use crate::services::profile_service::ProfileService;
-use crate::sync::apply::{MUSIC_BRAIN_KEY, NEURO_BRAIN_KEY};
-use crate::sync::brain_rekey::align_flow;
-use crate::sync::error::SyncError;
-use crate::sync::merge::MergedFlowNeuroBrain;
+use crate::data_model::apply::{MUSIC_BRAIN_KEY, NEURO_BRAIN_KEY};
+use crate::data_model::brain_rekey::align_flow;
+use crate::data_model::error::DataError;
+use crate::data_model::merge::MergedFlowNeuroBrain;
 
 #[must_use]
 pub fn now_ms() -> u64 {
@@ -34,7 +34,7 @@ fn iso_now(now: u64) -> String {
         .to_rfc3339()
 }
 
-async fn stored_brain(pool: &SqlitePool) -> Result<Option<UserBrain>, SyncError> {
+async fn stored_brain(pool: &SqlitePool) -> Result<Option<UserBrain>, DataError> {
     let Some(raw) = get_setting_value(pool, NEURO_BRAIN_KEY).await? else {
         return Ok(None);
     };
@@ -45,7 +45,7 @@ async fn stored_brain(pool: &SqlitePool) -> Result<Option<UserBrain>, SyncError>
     Ok(Some(brain))
 }
 
-async fn stored_music(pool: &SqlitePool) -> Result<Option<MusicBrain>, SyncError> {
+async fn stored_music(pool: &SqlitePool) -> Result<Option<MusicBrain>, DataError> {
     let Some(raw) = get_setting_value(pool, MUSIC_BRAIN_KEY).await? else {
         return Ok(None);
     };
@@ -83,7 +83,7 @@ pub async fn build_slice(
     setting_keys: &[String],
     with_device_keys: bool,
     now: u64,
-) -> Result<Slice, SyncError> {
+) -> Result<Slice, DataError> {
     let mut export = export_backup(pool, scope).await?;
     let recap = take_recap(&mut export.collections);
     let is_brain_only = scope == "BRAIN";
@@ -130,7 +130,7 @@ pub async fn brain_archive(
     pool: &SqlitePool,
     with_device_keys: bool,
     now: u64,
-) -> Result<Archive, SyncError> {
+) -> Result<Archive, DataError> {
     Ok(Archive {
         root: build_slice(pool, "BRAIN", &[], with_device_keys, now).await?,
         manifest: None,
@@ -145,8 +145,8 @@ pub async fn master_archive(
     profiles: &ProfileService,
     setting_keys: &[String],
     now: u64,
-) -> Result<Archive, SyncError> {
-    let protocol = |error: crate::errors::AppError| SyncError::Protocol(error.to_string());
+) -> Result<Archive, DataError> {
+    let protocol = |error: crate::errors::AppError| DataError::Protocol(error.to_string());
     let running = profiles.running_profile_id().map_err(protocol)?;
     let view = profiles.list().map_err(protocol)?;
     let mut root = None;
@@ -169,7 +169,7 @@ pub async fn master_archive(
             others.push((profile.id.clone(), slice));
         }
     }
-    let root = root.ok_or_else(|| SyncError::Protocol("no default profile to back up".into()))?;
+    let root = root.ok_or_else(|| DataError::Protocol("no default profile to back up".into()))?;
     let avatars = view
         .profiles
         .iter()
@@ -204,15 +204,15 @@ pub async fn write_backup(
     scope: &str,
     setting_keys: &[String],
     path: &Path,
-) -> Result<(), SyncError> {
+) -> Result<(), DataError> {
     let now = now_ms();
-    let protocol = |error: crate::errors::AppError| SyncError::Protocol(error.to_string());
+    let protocol = |error: crate::errors::AppError| DataError::Protocol(error.to_string());
     let is_default = {
         let view = profiles.list().map_err(protocol)?;
         profiles.running_profile_id().map_err(protocol)? == view.default_id
     };
     let target = path.to_path_buf();
-    let io_error = |error: std::io::Error| SyncError::Protocol(format!("backup write: {error}"));
+    let io_error = |error: std::io::Error| DataError::Protocol(format!("backup write: {error}"));
     match scope {
         "APP_DATA" => {
             let slice = build_slice(pool, scope, setting_keys, is_default, now).await?;
@@ -232,7 +232,7 @@ pub async fn write_backup(
                 .await
                 .map_err(io_error)
         }
-        other => Err(SyncError::Protocol(format!(
+        other => Err(DataError::Protocol(format!(
             "unknown backup scope: {other}"
         ))),
     }

@@ -5,7 +5,7 @@
 
 use sqlx::sqlite::SqlitePoolOptions;
 
-use flow_desktop_lib::sync::ledger;
+use flow_desktop_lib::data_model::ledger;
 
 /// A single-connection in-memory pool (`:memory:` is per-connection, so the pool must be size 1).
 async fn memory_pool() -> sqlx::SqlitePool {

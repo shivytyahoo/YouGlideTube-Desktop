@@ -34,8 +34,7 @@ mod scrobble;
 mod security;
 mod services;
 mod streaming;
-pub mod sync;
-pub mod sync2;
+pub mod data_model;
 mod update_support;
 #[cfg(any(target_os = "linux", test))]
 mod web_process;
@@ -58,7 +57,7 @@ use commands::db::{
     add_watch_record, add_watch_records_bulk, clear_watch_history, delete_short_watch_records,
     delete_watch_record, get_music_history, get_setting, get_watch_history,
     get_watch_history_years, get_watch_progress, get_watch_records, reset_app_data,
-    restore_watch_record, set_setting, watch_history_settled,
+    restore_watch_record, set_setting,
 };
 use commands::diagnostics::{
     clear_logs, crash_report_delete, crash_report_dismiss, crash_report_read, get_graphics_mode,
@@ -77,19 +76,6 @@ use commands::downloads::{
 };
 use commands::external::open_external;
 use commands::files::{save_recap_poster, write_backup_file, write_lyrics_file};
-use commands::linked::{
-    linked_accept_join, linked_add_device, linked_added_by, linked_answer,
-    linked_answer_recovery_notice, linked_ask_to_join, linked_cancel, linked_cancel_login_change,
-    linked_catch_up, linked_choose_profile, linked_contest, linked_create, linked_create_lan,
-    linked_create_webdav, linked_dashboard, linked_decline_join, linked_delete_profile,
-    linked_devices, linked_enter_code, linked_finish_login_change, linked_forget,
-    linked_join_requests, linked_keep_side, linked_leave, linked_left_out, linked_link_phase,
-    linked_preview_restore, linked_profiles, linked_recovery_saved, linked_remove, linked_rename,
-    linked_replace_recovery, linked_restore, linked_retry_keychain, linked_set_left_out,
-    linked_show_code, linked_start_login_change, linked_status, linked_stop_profile,
-    linked_sync_added_profile, linked_sync_now, linked_sync_profile, linked_update_login,
-};
-use commands::live::{live_consents, live_now, live_send, live_set_consent, live_status};
 use commands::lyrics::{
     clear_lyrics_cache, evict_cached_lyrics, get_cached_lyrics, lyrics_cache_size,
     put_cached_lyrics, save_download_lyrics,
@@ -159,10 +145,6 @@ use commands::shorts::{
 };
 use commands::subscription_posts::{forget_subscription_posts, get_subscription_posts};
 use commands::subtitle_file::read_subtitle_file;
-use commands::sync::{
-    sync_cancel, sync_device_info, sync_firewall_help, sync_host_receive, sync_respond_consent,
-    sync_scan_join, sync_start_host, sync_status,
-};
 use commands::tray::{
     music_tray_hide, music_tray_supported, music_tray_update, set_download_progress,
     set_shell_pages, take_launch_link, take_launch_page,
@@ -579,22 +561,6 @@ pub fn run() {
             })?;
             app.manage(music_brain_store);
 
-            app.manage(Arc::new(sync::session::SyncManager::new(
-                sync::session::SyncProfile {
-                    syncs_here: active_profile.is_default,
-                    default_name: active_profile.default_name.clone(),
-                },
-            )));
-            app.manage(sync2::service::BackgroundSync::default());
-            app.manage(sync2::link_task::LinkTask::default());
-            app.manage(sync2::lan_peers::LanPeers::default());
-            app.manage(sync2::live_hub::LiveHub::default());
-            app.manage(sync2::push::LocalPushes::default());
-            sync2::service::spawn(app.handle().clone());
-            sync2::push::spawn(app.handle().clone());
-            sync2::lan_runtime::spawn(app.handle().clone());
-            sync2::live::spawn(app.handle().clone());
-
             // Manage the Shorts feed service (prefetch buffer + session de-dup)
             app.manage(ShortsService::new());
             app.manage(services::blocked_channel_names::BlockedChannelNames::default());
@@ -736,7 +702,6 @@ pub fn run() {
             get_music_history,
             add_watch_record,
             add_watch_records_bulk,
-            watch_history_settled,
             restore_watch_record,
             delete_watch_record,
             delete_short_watch_records,
@@ -980,63 +945,6 @@ pub fn run() {
             clear_music_queue_state,
             save_music_resume_position,
             get_music_resume_position,
-            // --- Local sync (P2P LAN) ---
-            sync_device_info,
-            linked_status,
-            linked_devices,
-            linked_create,
-            linked_create_lan,
-            linked_create_webdav,
-            linked_update_login,
-            linked_start_login_change,
-            linked_finish_login_change,
-            linked_cancel_login_change,
-            linked_preview_restore,
-            linked_restore,
-            linked_replace_recovery,
-            linked_recovery_saved,
-            linked_retry_keychain,
-            linked_rename,
-            linked_remove,
-            linked_added_by,
-            linked_answer_recovery_notice,
-            linked_forget,
-            linked_contest,
-            linked_keep_side,
-            linked_leave,
-            live_consents,
-            live_now,
-            live_send,
-            live_set_consent,
-            live_status,
-            linked_sync_now,
-            linked_left_out,
-            linked_set_left_out,
-            linked_profiles,
-            linked_sync_profile,
-            linked_sync_added_profile,
-            linked_catch_up,
-            linked_stop_profile,
-            linked_delete_profile,
-            linked_choose_profile,
-            linked_dashboard,
-            linked_link_phase,
-            linked_add_device,
-            linked_show_code,
-            linked_ask_to_join,
-            linked_join_requests,
-            linked_accept_join,
-            linked_decline_join,
-            linked_enter_code,
-            linked_answer,
-            linked_cancel,
-            sync_status,
-            sync_start_host,
-            sync_host_receive,
-            sync_scan_join,
-            sync_respond_consent,
-            sync_cancel,
-            sync_firewall_help,
             list_notes,
             save_note,
             delete_notes,

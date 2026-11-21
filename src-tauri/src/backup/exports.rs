@@ -4,10 +4,10 @@
 use serde_json::{Value, json};
 use sqlx::SqlitePool;
 
-use crate::sync::canonical::{Collection, SubscribedChannel, WatchHistoryRecord};
-use crate::sync::error::SyncError;
-use crate::sync::export::export_collections;
-use crate::sync::ledger;
+use crate::data_model::canonical::{Collection, SubscribedChannel, WatchHistoryRecord};
+use crate::data_model::error::DataError;
+use crate::data_model::export::export_collections;
+use crate::data_model::ledger;
 
 const YOUTUBE_SERVICE_ID: u32 = 0;
 
@@ -50,7 +50,7 @@ fn channel_url(id: &str) -> Option<String> {
 async fn records<T: serde::de::DeserializeOwned>(
     pool: &SqlitePool,
     collection: Collection,
-) -> Result<Vec<T>, SyncError> {
+) -> Result<Vec<T>, DataError> {
     let device_id = ledger::get_or_create_device_id(pool).await?;
     let outgoing = export_collections(pool, &device_id, &[collection]).await?;
     Ok(outgoing
@@ -97,7 +97,7 @@ fn history_to_takeout(records: &[WatchHistoryRecord]) -> Value {
     Value::Array(items)
 }
 
-pub async fn watch_history(pool: &SqlitePool) -> Result<Value, SyncError> {
+pub async fn watch_history(pool: &SqlitePool) -> Result<Value, DataError> {
     let rows: Vec<WatchHistoryRecord> = records(pool, Collection::WatchHistory).await?;
     Ok(history_to_takeout(&rows))
 }
@@ -128,7 +128,7 @@ fn channels_to_newpipe(channels: &[SubscribedChannel]) -> (Value, usize) {
     )
 }
 
-pub async fn newpipe_subscriptions(pool: &SqlitePool) -> Result<(Value, usize), SyncError> {
+pub async fn newpipe_subscriptions(pool: &SqlitePool) -> Result<(Value, usize), DataError> {
     let channels: Vec<SubscribedChannel> = records(pool, Collection::SubscribedChannels).await?;
     Ok(channels_to_newpipe(&channels))
 }

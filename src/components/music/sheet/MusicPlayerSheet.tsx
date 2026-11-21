@@ -116,7 +116,7 @@ export function MusicPlayerSheet() {
           // coordinates, and only the card and the bar's popovers take the pointer.
           className={`pointer-events-none fixed inset-0 ${raised || full.shown ? "z-[60]" : "z-50"}`}
         >
-          {mini.visible && !mini.away && (
+          {mini.visible && (
             <div className={`absolute inset-x-0 bottom-6 mx-auto ${mini.widthClass}`}>
               <BarSwipeReveal rounded={mini.pill ? "rounded-full" : "rounded-2xl"} />
             </div>

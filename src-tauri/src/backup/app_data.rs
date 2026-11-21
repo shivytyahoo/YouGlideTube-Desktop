@@ -12,12 +12,12 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde_json::{Map, Value, json};
 
 use crate::commands::backup::SUBSCRIPTION_CHANNELS_KEY;
-use crate::sync::canonical::{
+use crate::data_model::canonical::{
     Hlc, Like, LikeKind, LikeState, Note, Playlist, PlaylistItem, PlaylistOrigin, SettingEntry,
     SubscribedChannel, SubscriptionGroup, WatchHistoryRecord,
 };
-use crate::sync::mapping::{WATCH_LATER_SYNC_ID, video_thumbnail};
-use crate::sync::settings_map;
+use crate::data_model::mapping::{WATCH_LATER_SYNC_ID, video_thumbnail};
+use crate::data_model::settings_map;
 
 /// Android's backup version the file follows.
 const BACKUP_VERSION: u32 = 2;

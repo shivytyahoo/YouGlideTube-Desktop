@@ -63,9 +63,6 @@ import { LayoutGroup } from "framer-motion";
 import { ToastHost } from "./components/layout/ToastHost";
 import { GlobalMusicAudio } from "./components/music/GlobalMusicAudio";
 import { MusicPlayerSheet } from "./components/music/sheet/MusicPlayerSheet";
-import { PlayingElsewhereBar } from "./components/playon/PlayingElsewhereBar";
-import { RemoteDock } from "./components/playon/RemoteDock";
-import { ConsentDialog } from "./components/playon/ConsentDialog";
 import { MusicOnly } from "./components/music/MusicOnly";
 import { EqualizerDialog } from "./components/music/eq/EqualizerDialog";
 import { ContinueWatchingMini } from "./components/player/ContinueWatchingMini";
@@ -99,8 +96,6 @@ import { useTabSession } from "./lib/tabs/useTabSession";
 import { useSingleTabWhenOff } from "./lib/tabs/useSingleTabWhenOff";
 import { useMediaCommands } from "./lib/useMediaCommands";
 import { useCrossWindowSync } from "./lib/useCrossWindowSync";
-import { useLiveNow } from "./lib/live/useLiveNow";
-import { usePlayOnEvents } from "./lib/live/usePlayOnEvents";
 import { IS_MAIN_WINDOW } from "./lib/appWindow";
 import { SelectionMenu } from "./components/common/SelectionMenu";
 
@@ -134,8 +129,6 @@ function App() {
   useSingleTabWhenOff();
   useCrossWindowSync();
   useMediaCommands();
-  useLiveNow();
-  usePlayOnEvents();
   useProfileSwitchListener(markSwitching);
 
   // Onboarding belongs to the main window; an extra window only exists once it is done.
@@ -328,9 +321,6 @@ function App() {
           <ContinueWatchingMini />
           <LayoutGroup>
             <MusicPlayerSheet />
-            <RemoteDock />
-            <PlayingElsewhereBar />
-            <ConsentDialog />
           </LayoutGroup>
           <DeepGlideController />
           <DeepLinkController />

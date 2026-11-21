@@ -24,7 +24,6 @@ export type MiniBarButton =
   | "forward_10"
   | "volume"
   | "equalizer"
-  | "play_on"
   | "close";
 
 export const MINI_BAR_BUTTONS: readonly MiniBarButton[] = [
@@ -42,7 +41,6 @@ export const MINI_BAR_BUTTONS: readonly MiniBarButton[] = [
   "forward_10",
   "volume",
   "equalizer",
-  "play_on",
   "close",
 ];
 

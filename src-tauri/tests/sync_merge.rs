@@ -8,12 +8,12 @@
 use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
 
-use flow_desktop_lib::sync::canonical::{
+use flow_desktop_lib::data_model::canonical::{
     AffinityWire, FlowNeuroBrainSnapshot, GCounter, GroupMember, Hlc, Like, LikeKind, LikeState,
     Lww, MusicBrainSnapshot, Playlist, PlaylistItem, PlaylistOrigin, SettingEntry,
     SubscribedChannel, SubscriptionGroup, WatchHistoryRecord,
 };
-use flow_desktop_lib::sync::merge;
+use flow_desktop_lib::data_model::merge;
 
 /// Assert commutativity, associativity, and idempotency for a Vec-returning merge.
 fn assert_laws<T, F>(sets: &[Vec<T>], merge_fn: F)

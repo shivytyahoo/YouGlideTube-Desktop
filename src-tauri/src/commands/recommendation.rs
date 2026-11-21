@@ -4,7 +4,6 @@ use std::time::Duration;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
 
-use crate::commands::linked::err as linked_err;
 use crate::errors::ErrorResponse;
 use crate::flow_neuro::bootstrap::ImportedVideo;
 use crate::flow_neuro::signals::InteractionType;
@@ -14,8 +13,6 @@ use crate::services::blocked_channel_names::{self, BlockedChannelNames};
 use crate::services::profile_interests::{PersonaDetails, ProfileInterests, stored_interests};
 use crate::services::profile_service::ProfileService;
 use crate::services::recommendation_service::RecommendationService;
-use crate::sync2::actions::leave_if_linked;
-use crate::sync2::profile_actions::syncs_link;
 
 #[tauri::command]
 pub async fn log_interaction(
@@ -452,12 +449,8 @@ pub async fn import_brain(
 /// reaches the other devices.
 #[tauri::command]
 pub async fn reset_brain(
-    app: AppHandle,
     recommendation_service: State<'_, RecommendationService>,
 ) -> Result<(), ErrorResponse> {
-    if syncs_link(&app).await {
-        leave_if_linked(&app).await.map_err(|e| linked_err(&e))?;
-    }
     recommendation_service
         .reset_brain()
         .await

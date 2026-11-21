@@ -9,8 +9,8 @@
 
 use std::str::FromStr;
 
-use flow_desktop_lib::sync::canonical::{Collection, GCounter, Hlc, Lww, OrSet};
-use flow_desktop_lib::sync::frames::{FrameType, SelectionFrame};
+use flow_desktop_lib::data_model::canonical::{Collection, GCounter, Hlc, Lww, OrSet};
+use flow_desktop_lib::data_model::frames::{FrameType, SelectionFrame};
 
 #[test]
 fn hlc_roundtrips_through_string() {

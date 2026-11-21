@@ -19,15 +19,6 @@ vi.mock("../../../store/useDownloadsLibraryStore", () => ({
     }),
 }));
 
-const mockRemoteActive = vi.fn<() => string | null>(() => null);
-const mockControlledDevice = vi.fn<() => unknown>(() => null);
-
-vi.mock("../../../lib/live/usePlayOn", () => ({
-  useRemoteActive: () => mockRemoteActive(),
-  useControlledDevice: () => mockControlledDevice(),
-  usePlayOnAvailable: () => false,
-}));
-
 import type { SongItem } from "../../../types/music";
 import { useMusicPlayerStore } from "../../../store/useMusicPlayerStore";
 import { useAppSettingsStore } from "../../../store/useAppSettingsStore";
@@ -58,8 +49,6 @@ describe("MusicPlayerSheet background click expansion", () => {
     host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
-    mockRemoteActive.mockReturnValue(null);
-    mockControlledDevice.mockReturnValue(null);
 
     useMusicPlayerStore.setState({
       currentTrack: sampleTrack,
@@ -228,39 +217,4 @@ describe("MusicPlayerSheet background click expansion", () => {
     expect(openOverlay).not.toHaveBeenCalled();
   });
 
-  it("does not expand full player and has no cursor-pointer when remote playback (away) is active", () => {
-    mockRemoteActive.mockReturnValue("remote-device-1");
-    mockControlledDevice.mockReturnValue({
-      did: "remote-device-1",
-      name: "Pixel 9",
-      kind: "phone",
-      now: {
-        video: "v1",
-        title: "Remote Song",
-        by: "Remote Artist",
-        state: "playing",
-        music: true,
-        dur: 200,
-        pos: 10,
-        posAt: Date.now(),
-      },
-    });
-
-    const openOverlay = vi.fn();
-    useMusicPlayerStore.setState({ openOverlay });
-
-    act(() => {
-      root.render(createElement(MusicPlayerSheet));
-    });
-
-    const pill = host.querySelector<HTMLDivElement>("[data-music-dock-bar]");
-    expect(pill).not.toBeNull();
-    expect(pill?.className).not.toContain("cursor-pointer");
-
-    act(() => {
-      pill?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-    });
-
-    expect(openOverlay).not.toHaveBeenCalled();
-  });
 });

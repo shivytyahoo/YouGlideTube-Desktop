@@ -12,21 +12,21 @@ use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{WebSocketStream, accept_async, connect_async};
 
-use flow_desktop_lib::sync::canonical::Collection::{self, Likes, WatchHistory};
-use flow_desktop_lib::sync::codec::{decode_message, encode_chunk, encode_message, sha256_hex};
-use flow_desktop_lib::sync::crypto::{
+use flow_desktop_lib::data_model::canonical::Collection::{self, Likes, WatchHistory};
+use flow_desktop_lib::data_model::codec::{decode_message, encode_chunk, encode_message, sha256_hex};
+use flow_desktop_lib::data_model::crypto::{
     Role, SessionCipher, generate_master_secret, generate_session_id,
 };
-use flow_desktop_lib::sync::error::SyncError;
-use flow_desktop_lib::sync::frames::{
+use flow_desktop_lib::data_model::error::SyncError;
+use flow_desktop_lib::data_model::frames::{
     ApplyResultEntry, ApplyResultFrame, CapabilitiesFrame, Capability, ChunkHeader, FrameType,
     HelloFrame, Platform,
 };
-use flow_desktop_lib::sync::protocol::{
+use flow_desktop_lib::data_model::protocol::{
     ApplyOutput, ClientOutcome, HostOutcome, OutgoingCollection, StagedCollection, run_receiver,
     run_sender,
 };
-use flow_desktop_lib::sync::transport;
+use flow_desktop_lib::data_model::transport;
 
 const WH_NDJSON: &str = "{\"videoId\":\"a\"}\n{\"videoId\":\"b\"}";
 const LIKES_NDJSON: &str = "{\"id\":\"a\",\"state\":\"liked\"}";

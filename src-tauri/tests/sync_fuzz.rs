@@ -3,13 +3,13 @@
 //! panic = a remote crash. These tests feed undersized, wrong-version, garbage, and randomized wire
 //! bytes, plus a gzip-bomb, and assert graceful failures.
 
-use flow_desktop_lib::sync::codec::{
+use flow_desktop_lib::data_model::codec::{
     decode_chunk, decode_message, encode_message, gunzip, gunzip_limited, gzip,
 };
-use flow_desktop_lib::sync::crypto::{
+use flow_desktop_lib::data_model::crypto::{
     Role, SessionCipher, generate_master_secret, generate_session_id,
 };
-use flow_desktop_lib::sync::frames::{ChunkHeader, FrameType};
+use flow_desktop_lib::data_model::frames::{ChunkHeader, FrameType};
 
 fn cipher_pair() -> (SessionCipher, SessionCipher) {
     let master = generate_master_secret();

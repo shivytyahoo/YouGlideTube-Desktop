@@ -3,8 +3,6 @@ import { fisherYates } from "../musicShuffle";
 import type { LocalMediaFile } from "../api/localMedia";
 import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
 import { usePlayerStore } from "../../store/usePlayerStore";
-import { remoteControl } from "../../store/useRemoteControlStore";
-import { useUiStore } from "../../store/useUiStore";
 import { localFileToSong, localFileToVideo } from "./items";
 
 /**
@@ -19,10 +17,6 @@ export function playLocalFiles(
   options?: { shuffle?: boolean },
 ): void {
   if (files.length === 0) return;
-  if (remoteControl()) {
-    useUiStore.getState().showToast({ variant: "error", message: getString("local_no_remote") });
-    return;
-  }
   const ordered = options?.shuffle ? fisherYates(files) : files;
   const first = options?.shuffle ? 0 : start;
   const opened = ordered[first];

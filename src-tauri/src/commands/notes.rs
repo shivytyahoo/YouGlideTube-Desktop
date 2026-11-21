@@ -1,18 +1,10 @@
 use sqlx::SqlitePool;
-use tauri::{AppHandle, State};
+use tauri::State;
 
 use crate::commands::backup::sync_err;
 use crate::db::notes::{self, NoteRow};
 use crate::errors::{AppError, ErrorResponse};
 use crate::services::notes_service::{self, NoteSubject};
-use crate::sync2::profile_actions::edits_sync;
-use crate::sync2::push::push_soon;
-
-async fn announce(app: &AppHandle) {
-    if edits_sync(app).await {
-        push_soon(app);
-    }
-}
 
 /// Every note this build can show, newest edit first.
 #[tauri::command]
@@ -28,7 +20,6 @@ pub async fn list_notes(pool: State<'_, SqlitePool>) -> Result<Vec<NoteRow>, Err
 
 #[tauri::command]
 pub async fn save_note(
-    app: AppHandle,
     kind: String,
     target_id: String,
     text: String,
@@ -41,26 +32,22 @@ pub async fn save_note(
     let saved = notes_service::save_note(&pool, &kind, &target_id, &text, subject)
         .await
         .map_err(sync_err)?;
-    announce(&app).await;
     Ok(saved)
 }
 
 #[tauri::command]
 pub async fn delete_notes(
-    app: AppHandle,
     ids: Vec<String>,
     pool: State<'_, SqlitePool>,
 ) -> Result<(), ErrorResponse> {
     notes_service::delete_notes(&pool, &ids)
         .await
         .map_err(sync_err)?;
-    announce(&app).await;
     Ok(())
 }
 
 #[tauri::command]
 pub async fn save_note_subject(
-    app: AppHandle,
     kind: String,
     target_id: String,
     subject: NoteSubject,
@@ -69,7 +56,6 @@ pub async fn save_note_subject(
     notes_service::fill_subject(&pool, &notes_service::note_id(&kind, &target_id), subject)
         .await
         .map_err(sync_err)?;
-    announce(&app).await;
     Ok(())
 }
 
@@ -86,13 +72,11 @@ pub async fn save_notes_order(
 
 #[tauri::command]
 pub async fn restore_notes(
-    app: AppHandle,
     notes: Vec<NoteRow>,
     pool: State<'_, SqlitePool>,
 ) -> Result<Vec<NoteRow>, ErrorResponse> {
     let restored = notes_service::restore_notes(&pool, notes)
         .await
         .map_err(sync_err)?;
-    announce(&app).await;
     Ok(restored)
 }

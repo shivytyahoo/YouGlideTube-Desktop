@@ -27,7 +27,6 @@ import { useAppSettingsStore } from "../../store/useAppSettingsStore";
 import { useLikesStore } from "../../store/useLikesStore";
 import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
 import { usePlayerStore } from "../../store/usePlayerStore";
-import { playing } from "../live/players";
 import { resumePositionFor } from "../musicResume";
 import { prefetchStreamInfo } from "../streamResolution";
 import { musicListens } from "../useMusicListenHistory";
@@ -74,14 +73,6 @@ describe("a library file stays on this computer", () => {
     listenTo(song("dQw4w9WgXcQ"));
     expect(mocks.recordSongHistory).toHaveBeenCalled();
     expect(mocks.notePlayback).not.toHaveBeenCalled();
-  });
-
-  it("isn't announced to linked devices", () => {
-    useMusicPlayerStore.setState({ currentTrack: song(LOCAL_ID), isPlaying: true });
-    expect(playing()).toBeNull();
-    useMusicPlayerStore.setState({ currentTrack: null, isPlaying: false });
-    usePlayerStore.setState({ currentVideo: { id: LOCAL_ID, title: "My file", channelName: "" }, isPlaying: true });
-    expect(playing()).toBeNull();
   });
 
   it("can't be liked, which would put it in a synced list", async () => {

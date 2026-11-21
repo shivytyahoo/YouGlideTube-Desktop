@@ -10,9 +10,9 @@
 
 use std::net::IpAddr;
 
-use flow_desktop_lib::sync::canonical::{FlowNeuroBrainSnapshot, GCounter, Hlc, Lww, OrSet};
-use flow_desktop_lib::sync::merge::merge_flow_neuro;
-use flow_desktop_lib::sync::transport::rank_lan_candidates;
+use flow_desktop_lib::data_model::canonical::{FlowNeuroBrainSnapshot, GCounter, Hlc, Lww, OrSet};
+use flow_desktop_lib::data_model::merge::merge_flow_neuro;
+use flow_desktop_lib::data_model::transport::rank_lan_candidates;
 
 const ANDROID_DEVICE: &str = "d68ec770-8084-4f42-9914-132eca886f13";
 const ANDROID_HLC: &str = "1784462799000:0:d68ec770";

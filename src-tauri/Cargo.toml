@@ -75,34 +75,20 @@ icu_segmenter = { version = "2", default-features = false, features = ["compiled
 
 # Local Sync (P2P) — payload cryptography (FLOW-SYNC/1).
 # AES-256-GCM payload encryption with HKDF-derived directional keys and an HMAC-SHA256 SAS.
-aes-gcm = "0.11"
 hkdf = "0.13"
 hmac = "0.13"
 # SAPISIDHASH for Google sign-in (SHA-1 of "<unix-seconds> <SAPISID> <origin>").
 sha1 = "0.10"
 sha2 = "0.11"
 rand = "0.10"
-zeroize = { version = "1", features = ["derive"] }
-ed25519-dalek = "3"
-x25519-dalek = { version = "3", features = ["static_secrets"] }
-hpke = { version = "0.15", default-features = false, features = ["alloc", "aes", "x25519", "getrandom"] }
-bip39 = "3"
-subtle = "2"
 hex = "0.4"
 # Scrobbling: Last.fm's api_sig is an MD5 digest, and session keys and tokens live in the OS
 # keychain (macOS Keychain, Windows Credential Manager, the Secret Service on Linux).
 md-5 = "0.11"
 keyring = "4"
 
-# Local Sync (P2P) — transport: plaintext WebSocket (payload is AES-GCM encrypted), gzip
-# compression (parity with Android java.util.zip), and LAN IP discovery for the QR.
-tokio-tungstenite = "0.30"
-flate2 = "1"
 # Master backups: the same zip layout the Android app reads and writes.
 zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
-local-ip-address = "0.6"
-# FLOW-SYNC/2 LAN groups find each other over mDNS (`_flow._tcp`).
-mdns-sd = "0.21.6"
 # FLOW-SYNC/2 WebDAV stores: reading PROPFIND answers.
 quick-xml = "0.42"
 # Reading the segment index of fragmented MP4 audio, to serve it as HLS.

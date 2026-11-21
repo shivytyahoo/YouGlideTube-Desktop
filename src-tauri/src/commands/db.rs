@@ -1,17 +1,11 @@
 use crate::api::innertube::core::{locale, remote_decoder};
 use crate::api::innertube::extractors::audio_preference;
 use crate::api::{app_proxy, ip_family};
-use crate::commands::linked::err as linked_err;
 use crate::db::settings;
 use crate::db::watch_history::{self, WatchHistoryRecord};
 use crate::errors::{AppError, ErrorResponse};
-use crate::sync::error::SyncError;
-use crate::sync::local_edits;
-use crate::sync2::actions::{leave_if_linked, reset_local_data};
-use crate::sync2::profile_actions::{edits_sync, syncs_link};
-use crate::sync2::push::push_soon;
 use sqlx::SqlitePool;
-use tauri::{AppHandle, State};
+use tauri::State;
 
 #[tauri::command]
 pub async fn get_watch_history(
@@ -48,37 +42,24 @@ fn refuse_local_files(records: &[WatchHistoryRecord]) -> Result<(), ErrorRespons
     Ok(())
 }
 
-/// `progress` marks the position a player saves every few seconds while it plays; that goes out
-/// once playback settles ([`watch_history_settled`]), not on every save.
+/// `progress` marks the position a player saves every few seconds while it plays.
 #[tauri::command]
 pub async fn add_watch_record(
-    app: AppHandle,
     record: WatchHistoryRecord,
     progress: Option<bool>,
     pool: State<'_, SqlitePool>,
 ) -> Result<(), ErrorResponse> {
+    let _ = progress;
     refuse_local_files(std::slice::from_ref(&record))?;
     watch_history::upsert_watch_record(&pool, &record)
         .await
         .map_err(ErrorResponse::from)?;
-    if progress != Some(true) && edits_sync(&app).await {
-        push_soon(&app);
-    }
     Ok(())
-}
-
-/// A player paused, stopped or moved on, so the history it saved while playing can go out.
-#[tauri::command]
-pub async fn watch_history_settled(app: AppHandle) {
-    if edits_sync(&app).await {
-        push_soon(&app);
-    }
 }
 
 /// Undo of a removal, which unlike a new watch must beat the deletion it takes back.
 #[tauri::command]
 pub async fn restore_watch_record(
-    app: AppHandle,
     record: WatchHistoryRecord,
     pool: State<'_, SqlitePool>,
 ) -> Result<(), ErrorResponse> {
@@ -86,16 +67,11 @@ pub async fn restore_watch_record(
     watch_history::upsert_watch_record(&pool, &record)
         .await
         .map_err(ErrorResponse::from)?;
-    note_sync_failure(local_edits::stamp_restored_watch(&pool, &record.video_id).await);
-    if edits_sync(&app).await {
-        push_soon(&app);
-    }
     Ok(())
 }
 
 #[tauri::command]
 pub async fn add_watch_records_bulk(
-    app: AppHandle,
     records: Vec<WatchHistoryRecord>,
     pool: State<'_, SqlitePool>,
 ) -> Result<(), ErrorResponse> {
@@ -103,22 +79,14 @@ pub async fn add_watch_records_bulk(
     watch_history::upsert_watch_records_bulk(&pool, &records)
         .await
         .map_err(ErrorResponse::from)?;
-    if edits_sync(&app).await {
-        push_soon(&app);
-    }
     Ok(())
 }
 
 #[tauri::command]
 pub async fn delete_watch_record(
-    app: AppHandle,
     video_id: String,
     pool: State<'_, SqlitePool>,
 ) -> Result<(), ErrorResponse> {
-    if edits_sync(&app).await {
-        note_sync_failure(local_edits::record_watch_deletion(&pool, Some(&video_id)).await);
-        push_soon(&app);
-    }
     watch_history::delete_watch_record(&pool, &video_id)
         .await
         .map_err(ErrorResponse::from)
@@ -155,16 +123,8 @@ pub async fn get_watch_history_years(
 
 #[tauri::command]
 pub async fn delete_short_watch_records(
-    app: AppHandle,
     pool: State<'_, SqlitePool>,
 ) -> Result<(), ErrorResponse> {
-    if edits_sync(&app).await {
-        let shorts = watch_history::short_video_ids(&pool)
-            .await
-            .map_err(ErrorResponse::from)?;
-        note_sync_failure(local_edits::record_watch_deletions(&pool, shorts).await);
-        push_soon(&app);
-    }
     watch_history::delete_short_watch_records(&pool)
         .await
         .map_err(ErrorResponse::from)
@@ -172,29 +132,28 @@ pub async fn delete_short_watch_records(
 
 #[tauri::command]
 pub async fn clear_watch_history(
-    app: AppHandle,
     pool: State<'_, SqlitePool>,
 ) -> Result<(), ErrorResponse> {
-    if edits_sync(&app).await {
-        note_sync_failure(local_edits::record_watch_deletion(&pool, None).await);
-        push_soon(&app);
-    }
     watch_history::clear_watch_history(&pool)
         .await
         .map_err(ErrorResponse::from)
 }
 
 #[tauri::command]
-pub async fn reset_app_data(
-    app: AppHandle,
-    pool: State<'_, SqlitePool>,
-) -> Result<(), ErrorResponse> {
-    if syncs_link(&app).await {
-        leave_if_linked(&app).await.map_err(|e| linked_err(&e))?;
-    }
-    reset_local_data(&pool, edits_sync(&app).await)
+pub async fn reset_app_data(pool: State<'_, SqlitePool>) -> Result<(), ErrorResponse> {
+    crate::recap::store::clear(&pool).await.map_err(ErrorResponse::from)?;
+    watch_history::clear_watch_history(&pool)
         .await
-        .map_err(|e| linked_err(&e))
+        .map_err(ErrorResponse::from)?;
+    crate::db::local_media::clear_plays(&pool)
+        .await
+        .map_err(ErrorResponse::from)?;
+    for key in ["subscriptions", "user_playlists"] {
+        settings::set_setting(&pool, key, "[]")
+            .await
+            .map_err(ErrorResponse::from)?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -209,17 +168,10 @@ pub async fn get_setting(
 
 #[tauri::command]
 pub async fn set_setting(
-    app: AppHandle,
     key: String,
     value: String,
     pool: State<'_, SqlitePool>,
 ) -> Result<(), ErrorResponse> {
-    if edits_sync(&app).await {
-        note_sync_failure(local_edits::record_blob_write(&pool, &key, &value).await);
-        if local_edits::is_collection_setting(&key) {
-            push_soon(&app);
-        }
-    }
     settings::set_setting(&pool, &key, &value)
         .await
         .map_err(ErrorResponse::from)?;
@@ -259,10 +211,3 @@ pub(crate) fn apply_backend_setting(key: &str, value: Option<&str>) {
     }
 }
 
-/// Only a profile that syncs records its edits for sync. Sync bookkeeping never blocks the user's own change; the worst case is that this one edit
-/// syncs the way it did before this was recorded (a deletion a peer may undo).
-fn note_sync_failure(result: Result<(), SyncError>) {
-    if let Err(e) = result {
-        tracing::warn!(target: "youglidetube::sync::changes", error = %e, "could not record a local edit for sync");
-    }
-}

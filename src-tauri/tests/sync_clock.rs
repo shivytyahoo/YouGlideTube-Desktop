@@ -5,11 +5,11 @@ use serde_json::json;
 use sqlx::SqlitePool;
 
 use flow_desktop_lib::profiles::{ActiveProfile, open_database};
-use flow_desktop_lib::sync::apply::apply_payload;
-use flow_desktop_lib::sync::canonical::Collection;
-use flow_desktop_lib::sync::clock;
-use flow_desktop_lib::sync::local_edits;
-use flow_desktop_lib::sync::protocol::StagedCollection;
+use flow_desktop_lib::data_model::apply::apply_payload;
+use flow_desktop_lib::data_model::canonical::Collection;
+use flow_desktop_lib::data_model::clock;
+use flow_desktop_lib::data_model::local_edits;
+use flow_desktop_lib::data_model::protocol::StagedCollection;
 
 const DAY_MS: u64 = 24 * 60 * 60 * 1000;
 

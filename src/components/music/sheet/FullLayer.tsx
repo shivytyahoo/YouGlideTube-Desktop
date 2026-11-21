@@ -24,7 +24,6 @@ import { useLyricsBackground, useLyricsCover } from "../../../lib/lyrics/useLyri
 import { EqPanel } from "../EqPanel";
 import { useEqActive } from "../../../lib/audio/eq/useEqualizer";
 import { VolumePopover } from "../VolumePopover";
-import { PlayOnButton } from "../../playon/PlayOnButton";
 import { LAYOUT_SPRING, NowPlayingColumn } from "../player/NowPlayingColumn";
 import { PlayerSidePane, type SidePaneTab } from "../player/PlayerSidePane";
 import { PlayerTransport } from "../player/PlayerTransport";
@@ -281,10 +280,6 @@ export function FullLayer({ offsetX, offsetY }: { offsetX: MotionValue<number>; 
                 )}
                 <VolumePopover open={volumeOpen} onClose={() => setVolumeOpen(false)} />
               </div>
-            </GroupItem>
-
-            <GroupItem id="play-on">
-              <PlayOnButton className={GROUP_BUTTON} iconSize={20} />
             </GroupItem>
 
             <GroupItem id="equalizer">

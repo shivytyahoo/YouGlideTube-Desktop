@@ -22,8 +22,8 @@ use crate::backup::archive::{
 use crate::backup::import::{ImportKind, open_zip};
 use crate::commands::backup::RECAP_STATS_ENTRY;
 use crate::flow_neuro::scoring::UserBrain;
-use crate::sync::brainmap::{musicbrain_to_snapshot, userbrain_to_snapshot};
-use crate::sync::canonical::Hlc;
+use crate::data_model::brainmap::{musicbrain_to_snapshot, userbrain_to_snapshot};
+use crate::data_model::canonical::Hlc;
 
 const MAX_ARCHIVE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 const MAX_TEXT_BYTES: u64 = 512 * 1024 * 1024;

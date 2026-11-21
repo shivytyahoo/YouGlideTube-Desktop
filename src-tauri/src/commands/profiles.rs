@@ -8,8 +8,6 @@ use crate::music_brain::store::MusicBrainStore;
 use crate::profiles::registry::{Profile, ProfileAvatar};
 use crate::services::profile_service::{NewProfile, ProfileService, ProfilesView};
 use crate::services::recommendation_service::RecommendationService;
-use crate::sync::session::SyncManager;
-use crate::sync2::profile_actions;
 
 #[tauri::command]
 pub fn profiles_list(service: State<'_, ProfileService>) -> Result<ProfilesView, ErrorResponse> {
@@ -38,19 +36,14 @@ pub async fn profiles_create(
 
 #[tauri::command]
 pub async fn profiles_rename(
-    app: AppHandle,
     id: String,
     name: String,
     service: State<'_, ProfileService>,
 ) -> Result<Profile, ErrorResponse> {
-    let profile = service
+    service
         .rename(&id, &name)
         .await
-        .map_err(ErrorResponse::from)?;
-    if let Err(error) = profile_actions::renamed(&app, &id, &profile.name).await {
-        tracing::warn!(target: "youglidetube::sync2", kind = error.kind(), "synced profile name not updated");
-    }
-    Ok(profile)
+        .map_err(ErrorResponse::from)
 }
 
 #[tauri::command]
@@ -68,7 +61,6 @@ pub async fn profiles_set_look(
 
 #[tauri::command]
 pub async fn profiles_delete(
-    app: AppHandle,
     id: String,
     pool: State<'_, SqlitePool>,
     service: State<'_, ProfileService>,
@@ -76,10 +68,7 @@ pub async fn profiles_delete(
     service
         .delete(&pool, &id)
         .await
-        .map_err(ErrorResponse::from)?;
-    profile_actions::deleted(&app, &id)
-        .await
-        .map_err(|e| crate::commands::linked::err(&e))
+        .map_err(ErrorResponse::from)
 }
 
 /// Whether this launch should ask who's watching; true once per process at most.
@@ -104,13 +93,10 @@ pub async fn profiles_set_ask_whos_watching(
 #[tauri::command]
 pub async fn profiles_prepare_switch(
     id: String,
-    app: AppHandle,
     service: State<'_, ProfileService>,
-    sync: State<'_, Arc<SyncManager>>,
 ) -> Result<(), ErrorResponse> {
-    let sync_busy = sync.is_busy().await || crate::sync2::service::is_syncing(&app);
     service
-        .prepare_switch(&id, sync_busy)
+        .prepare_switch(&id, false)
         .map_err(ErrorResponse::from)
 }
 

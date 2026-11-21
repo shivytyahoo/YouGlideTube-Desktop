@@ -1,5 +1,4 @@
 import { formatTime } from "../../../lib/musicFormat";
-import type { MiniBarButton } from "../../../lib/music/miniPlayerLook";
 import { useMusicPlayerStore } from "../../../store/useMusicPlayerStore";
 import { useSplitTransport } from "../player/PlayerTransport";
 import { BarProgress } from "./BarProgress";
@@ -8,9 +7,6 @@ import type { DockModel } from "./dockModel";
 import { MiniBarButtonView } from "./MiniBarButtonView";
 import { PillTransport } from "./PillTransport";
 import { pillSlots } from "./pillGroups";
-
-/** What a device this one controls can do from here: its transport and Play on. */
-const AWAY_BUTTONS = new Set<MiniBarButton>(["previous", "play_pause", "next", "play_on"]);
 
 function PillTime({ remaining }: { remaining: boolean }) {
   const progress = useMusicPlayerStore((s) => s.progress);
@@ -22,13 +18,12 @@ function PillTime({ remaining }: { remaining: boolean }) {
 /** The Pill: a round cover with its progress ring, the song, and the buttons the user chose, in order. */
 export function PillDockBody({ model }: { model: DockModel }) {
   const split = useSplitTransport();
-  const { look, away } = model;
-  const buttons = away ? model.buttons.filter((button) => AWAY_BUTTONS.has(button)) : model.buttons;
-  // Away, the device's own progress is not this player's, so the bar draws none.
-  const showTime = !away && look.time !== "off" && look.width !== "compact";
+  const { look } = model;
+  const buttons = model.buttons;
+  const showTime = look.time !== "off" && look.width !== "compact";
   return (
     <>
-      {!away && <BarProgress style={look.barProgress} />}
+      <BarProgress style={look.barProgress} />
       <div className="flex min-w-0 flex-1 items-center">
         <DockTrackInfo model={model} round />
       </div>

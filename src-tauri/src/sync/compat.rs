@@ -1,6 +1,6 @@
 //! Tolerant `Deserialize` impls for the canonical wire model.
 //!
-//! [`crate::sync::canonical`] defines what this build **emits** — the shapes fixed by `FLOW-SYNC/1`
+//! [`crate::data_model::canonical`] defines what this build **emits** — the shapes fixed by `FLOW-SYNC/1`
 //! (`notes/sync/sync_wire_format_addendum.md` §6.5). What we **accept** has to be wider, because
 //! the Android app through v2.2.0 ships the `FlowNeuro` brain in a flatter envelope and those builds
 //! are already on users' phones. Every impl here still accepts the canonical shape unchanged and
@@ -27,8 +27,8 @@ use serde::de::{DeserializeOwned, Error as DeError};
 use serde::{Deserialize, Deserializer};
 use serde_json::{Map, Value};
 
-use crate::sync::brainmap;
-use crate::sync::canonical::{
+use crate::data_model::brainmap;
+use crate::data_model::canonical::{
     BrainCounters, BrainFlags, BrainLwwMaps, BrainPerVideo, BrainSets, BrainVectors,
     ContentVectorWire, FlowNeuroBrainSnapshot, GCounter, Hlc, Lww, OrSet,
 };

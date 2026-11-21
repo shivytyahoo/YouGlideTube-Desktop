@@ -123,7 +123,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     { title: "settings_button_sponsorblock", summary: "settings_button_sponsorblock_desc", keywords: ["player bar", "hide"] },
     { title: "settings_button_quality", summary: "settings_button_quality_desc", keywords: ["player bar", "hide"] },
     { title: "settings_button_captions", summary: "settings_button_captions_desc", keywords: ["player bar", "hide"] },
-    { title: "settings_button_play_on", summary: "settings_button_play_on_desc", keywords: ["player bar", "hide"] },
     { title: "settings_button_theater", summary: "settings_button_theater_desc", keywords: ["player bar", "hide"] },
     { title: "settings_button_fullscreen", summary: "settings_button_fullscreen_desc", keywords: ["player bar", "hide"] },
   ]),

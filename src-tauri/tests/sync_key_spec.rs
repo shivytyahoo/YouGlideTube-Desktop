@@ -12,21 +12,21 @@ use sqlx::sqlite::SqlitePoolOptions;
 
 use common::bind_loopback;
 use flow_desktop_lib::flow_neuro::keyspec::{KeySpec, VERSION};
-use flow_desktop_lib::sync::apply::apply_payload;
-use flow_desktop_lib::sync::canonical::{
+use flow_desktop_lib::data_model::apply::apply_payload;
+use flow_desktop_lib::data_model::canonical::{
     Collection, FlowNeuroBrainSnapshot, GCounter, Hlc, Lww, RejectionSignalWire,
 };
-use flow_desktop_lib::sync::crypto::{
+use flow_desktop_lib::data_model::crypto::{
     Role, SessionCipher, generate_master_secret, generate_session_id,
 };
-use flow_desktop_lib::sync::frames::{
+use flow_desktop_lib::data_model::frames::{
     ApplyResultEntry, ApplyResultFrame, CapabilitiesFrame, Capability, HelloFrame, Platform,
 };
-use flow_desktop_lib::sync::protocol::{
+use flow_desktop_lib::data_model::protocol::{
     ApplyOutput, OutgoingCollection, StagedCollection, run_receiver, run_sender,
 };
-use flow_desktop_lib::sync::session::desktop_capabilities;
-use flow_desktop_lib::sync::transport;
+use flow_desktop_lib::data_model::session::desktop_capabilities;
+use flow_desktop_lib::data_model::transport;
 
 const OUR: &str = "dlocal";
 const PEER: &str = "dpeer";
@@ -130,7 +130,7 @@ async fn offered_to(their_caps: CapabilitiesFrame) -> Vec<String> {
     });
 
     let ch = transport::connect("127.0.0.1", port).await.unwrap();
-    let (tx, rx) = tokio::sync::oneshot::channel();
+    let (tx, rx) = tokio::data_model::oneshot::channel();
     run_receiver(
         ch,
         SessionCipher::new(&master, sid, Role::Client),
@@ -414,7 +414,7 @@ async fn traditional_keys_from_a_key_spec_2_peer_join_their_simplified_ones() {
 
 #[test]
 fn a_brain_held_back_says_why() {
-    use flow_desktop_lib::sync::protocol::{Withheld, WithheldReason, withheld};
+    use flow_desktop_lib::data_model::protocol::{Withheld, WithheldReason, withheld};
     let ours = desktop_capabilities("en");
     let brain = |reason| {
         vec![Withheld {
@@ -447,7 +447,7 @@ async fn send_to(
     their_caps: CapabilitiesFrame,
     outgoing: Vec<OutgoingCollection>,
 ) -> (
-    flow_desktop_lib::sync::protocol::HostOutcome,
+    flow_desktop_lib::data_model::protocol::HostOutcome,
     Vec<StagedCollection>,
 ) {
     let master = generate_master_secret();
@@ -484,16 +484,16 @@ async fn send_to(
     .await
     .unwrap();
     let staged = match received {
-        flow_desktop_lib::sync::protocol::ClientOutcome::Completed(payload) => payload.applied,
-        flow_desktop_lib::sync::protocol::ClientOutcome::Declined => Vec::new(),
+        flow_desktop_lib::data_model::protocol::ClientOutcome::Completed(payload) => payload.applied,
+        flow_desktop_lib::data_model::protocol::ClientOutcome::Declined => Vec::new(),
     };
     (host.await.unwrap(), staged)
 }
 
 #[tokio::test]
 async fn a_spec_2_desktop_brain_reaches_a_spec_3_phone_in_simplified_keys() {
-    use flow_desktop_lib::sync::export::export_collections;
-    use flow_desktop_lib::sync::protocol::{HostOutcome, WithheldReason};
+    use flow_desktop_lib::data_model::export::export_collections;
+    use flow_desktop_lib::data_model::protocol::{HostOutcome, WithheldReason};
 
     let pool = memory_pool().await;
     put(

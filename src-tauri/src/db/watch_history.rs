@@ -306,12 +306,6 @@ pub async fn watch_history_years(pool: &SqlitePool) -> AppResult<Vec<i64>> {
     .map_err(AppError::from)
 }
 
-pub async fn short_video_ids(pool: &SqlitePool) -> AppResult<Vec<String>> {
-    sqlx::query_scalar("SELECT video_id FROM watch_history WHERE is_short")
-        .fetch_all(pool)
-        .await
-        .map_err(AppError::from)
-}
 
 pub async fn delete_short_watch_records(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query("DELETE FROM watch_history WHERE is_short")
@@ -584,7 +578,6 @@ mod shorts_and_years_tests {
         upsert_watch_record(&pool, &record("video", "2026-01-01T10:00:00Z", false))
             .await
             .unwrap();
-        assert_eq!(short_video_ids(&pool).await.unwrap(), vec!["short"]);
         delete_short_watch_records(&pool).await.unwrap();
         let left = get_watch_history(&pool, 10, 0).await.unwrap();
         assert_eq!(left.len(), 1);

@@ -5,13 +5,13 @@ use serde_json::{Value, json};
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqlitePoolOptions;
 
-use flow_desktop_lib::sync::apply::apply_payload;
-use flow_desktop_lib::sync::canonical::{
+use flow_desktop_lib::data_model::apply::apply_payload;
+use flow_desktop_lib::data_model::canonical::{
     Collection, Hlc, Like, LikeKind, LikeState, Playlist, SubscriptionGroup, WatchHistoryRecord,
 };
-use flow_desktop_lib::sync::export::export_collections;
-use flow_desktop_lib::sync::local_edits;
-use flow_desktop_lib::sync::protocol::StagedCollection;
+use flow_desktop_lib::data_model::export::export_collections;
+use flow_desktop_lib::data_model::local_edits;
+use flow_desktop_lib::data_model::protocol::StagedCollection;
 
 const DESK: &str = "ddesk";
 const PEER: &str = "dpeer";

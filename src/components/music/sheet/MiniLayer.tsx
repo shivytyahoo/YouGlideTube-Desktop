@@ -17,10 +17,9 @@ import { useDockControlColors, useDockToggleColors } from "../../../lib/usePlaye
 import { useMusicWheelVolume } from "../../../lib/useMusicWheelVolume";
 import { useVolumeFeedback } from "../../../lib/useVolumeFeedback";
 import { VolumeFeedbackPill } from "../../ui/VolumeFeedbackPill";
-import { upgradeMusicImageUrl, youtubeThumbnailUrl } from "../../../lib/thumbnails";
+import { upgradeMusicImageUrl } from "../../../lib/thumbnails";
 import { useProxiedImageUrl } from "../../../lib/useProxiedImageUrl";
 import { useSheetDrag } from "../../../lib/useSheetDrag";
-import { useControlledDevice, useRemoteActive } from "../../../lib/live/usePlayOn";
 import { useMiniPlayerLook } from "../../../lib/music/miniPlayerLook";
 import { useMiniBarSurface } from "../../../lib/music/miniBarSurface";
 import { useLyricsCover } from "../../../lib/lyrics/useLyricsCover";
@@ -64,20 +63,12 @@ export function useMiniPlayer() {
   const surface = useMiniBarSurface(look.background, swatches);
   const cover = useLyricsCover(accentSrc, surface.coverColors);
 
-  // While this device controls another, the bar shows that device's music and its buttons drive
-  // it (the player's actions go there); a video there gets the remote dock instead.
-  const remote = useRemoteActive();
-  const controlled = useControlledDevice();
-  const away = remote && controlled?.did === remote && controlled.now.music ? controlled : null;
-  const shown = away
-    ? { thumbnail: youtubeThumbnailUrl(away.now.video), title: away.now.title, by: away.now.by }
-    : currentTrack && { thumbnail: currentTrack.thumbnail, title: currentTrack.title, by: artistsText(currentTrack.artists) };
+  const shown = currentTrack && { thumbnail: currentTrack.thumbnail, title: currentTrack.title, by: artistsText(currentTrack.artists) };
   const model: DockModel | null = shown && {
     shown,
     track: currentTrack,
-    away,
-    playing: away ? away.now.state === "playing" : isPlaying,
-    busy: !away && (isBuffering || loadingStreamId !== null),
+    playing: isPlaying,
+    busy: isBuffering || loadingStreamId !== null,
     muted: isMuted || volume === 0,
     eqActive: eqEnabled,
     popover,
@@ -92,10 +83,9 @@ export function useMiniPlayer() {
 
   return {
     model,
-    /** Whether the bar is on screen: a song here, or the music of a device this one controls. */
-    visible: !!model && (!!away || !remote),
+    /** Whether the bar is on screen: a song here. */
+    visible: !!model,
     docked: viewState === "dock",
-    away,
     pill,
     look,
     surface,
@@ -119,7 +109,7 @@ export type MiniPlayer = ReturnType<typeof useMiniPlayer>;
 export function MiniBar({ mini }: { mini: MiniPlayer }) {
   const openOverlay = useMusicPlayerStore((s) => s.openOverlay);
   const sheetDrag = useSheetDrag();
-  const { model, away, pill, surface, cover } = mini;
+  const { model, pill, surface, cover } = mini;
   if (!model) return null;
   return (
     <div
@@ -128,14 +118,13 @@ export function MiniBar({ mini }: { mini: MiniPlayer }) {
       onPointerEnter={() => mini.setHovered(true)}
       onPointerLeave={() => mini.setHovered(false)}
       onClick={(e) => {
-        if (away) return;
         const target = e.target instanceof Element ? e.target : null;
         if (target?.closest("button, [role='slider'], [data-sheet-drag-ignore], a, input, select, textarea")) return;
         openOverlay("full");
       }}
       className={`group relative isolate flex h-full touch-none select-none items-center ${
         pill ? "gap-3 ps-1.5 pe-3" : "ps-3 pe-4"
-      } ${away ? "" : "cursor-pointer"}`}
+      } cursor-pointer}`}
     >
       {surface.coverColors && (
         <>
@@ -158,11 +147,11 @@ export function MiniBar({ mini }: { mini: MiniPlayer }) {
 /** What floats around the resting bar outside the card's clip: Dismiss, a playback failure and the popovers. */
 export function MiniChrome({ mini }: { mini: MiniPlayer }) {
   const dismiss = useMusicPlayerStore((s) => s.dismiss);
-  const { away, pill, look, error, popover, setPopover, volumeFeedback, hovered } = mini;
+  const { pill, look, error, popover, setPopover, volumeFeedback, hovered } = mini;
   return (
     <>
       {/* Dismiss: appears on hover at the corner, unless the Pill already shows Close. */}
-      {!away && !(pill && look.buttons.includes("close")) && (
+      {!(pill && look.buttons.includes("close")) && (
         <HapticButton
           onClick={dismiss}
           onPointerEnter={() => mini.setHovered(true)}

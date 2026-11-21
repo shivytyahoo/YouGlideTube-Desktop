@@ -54,11 +54,6 @@ export async function addWatchRecord(
   announceWatchHistoryWrite(recordWrite(record));
 }
 
-/** The video player paused, stopped or moved on: the history it saved while playing can go to linked devices. */
-export async function watchHistorySettled(): Promise<void> {
-  if (await isTauriEnv()) await invokeBackend<void>("watch_history_settled");
-}
-
 /** Puts back a removed row, as newer than the removal that other devices may already hold. */
 export async function restoreWatchRecord(record: WatchHistoryRecord): Promise<void> {
   if (await isTauriEnv()) await invokeBackend<void>("restore_watch_record", { record });

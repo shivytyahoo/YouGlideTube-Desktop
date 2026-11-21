@@ -29,7 +29,6 @@ import { useAlbumLibraryStore } from "../../../store/useAlbumLibraryStore";
 import { useLikesStore } from "../../../store/useLikesStore";
 import { useMusicPlayerStore } from "../../../store/useMusicPlayerStore";
 import type { SongItem } from "../../../types/music";
-import { PlayOnButton } from "../../playon/PlayOnButton";
 import { HapticButton } from "../HapticButton";
 import { MusicSleepTimerButton } from "../MusicSleepTimerButton";
 import { GHOST, GHOST_IDLE } from "./dockStyles";
@@ -187,8 +186,6 @@ export function MiniBarButtonView({ button, ctx }: { button: MiniBarButton; ctx:
         </HapticButton>
       );
     }
-    case "play_on":
-      return <PlayOnButton className={GHOST_IDLE} />;
     case "close":
       return plain(<X className={ICON} />, () => store().dismiss(), getString("music_dismiss"));
   }

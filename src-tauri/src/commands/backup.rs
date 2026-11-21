@@ -1,6 +1,6 @@
 //! Backup/restore commands: full-fidelity export/import that reuses the local sync
-//! collection serialization ([`crate::sync::export`]) and the atomic CRDT apply pipeline
-//! ([`crate::sync::apply`]). A backup file therefore round-trips through the exact wire
+//! collection serialization ([`crate::data_model::export`]) and the atomic CRDT apply pipeline
+//! ([`crate::data_model::apply`]). A backup file therefore round-trips through the exact wire
 //! representation the sync test suite already covers, instead of a second ad hoc format.
 //!
 //! The desktop's flat `subscriptions` settings blob (the channel list the frontend store
@@ -19,16 +19,16 @@ use crate::recap;
 use crate::recap::model::RecapBackup;
 use crate::services::profile_service::{MasterManifest, ProfileService, RestoreTarget};
 use crate::services::recommendation_service::RecommendationService;
-use crate::sync::apply;
-use crate::sync::canonical::{
+use crate::data_model::apply;
+use crate::data_model::canonical::{
     Collection, FlowNeuroBrainSnapshot, Like, MusicBrainSnapshot, Note, Playlist, SettingEntry,
     SubscribedChannel, SubscriptionGroup, WatchHistoryRecord,
 };
-use crate::sync::codec;
-use crate::sync::error::SyncError;
-use crate::sync::export;
-use crate::sync::ledger;
-use crate::sync::protocol::StagedCollection;
+
+use crate::data_model::error::DataError;
+use crate::data_model::export;
+use crate::data_model::ledger;
+use crate::data_model::collection::{self, StagedCollection};
 
 /// Extra backup entry (not a sync collection): the frontend's flat subscribed-channel list.
 pub const SUBSCRIPTION_CHANNELS_KEY: &str = "subscription_channels";
@@ -63,11 +63,11 @@ pub struct ImportSummary {
     pub collections: Vec<CollectionImportSummary>,
 }
 
-fn recap_err(e: &AppError) -> SyncError {
-    SyncError::Protocol(format!("recap ledger: {e}"))
+fn recap_err(e: &AppError) -> DataError {
+    DataError::Protocol(format!("recap ledger: {e}"))
 }
 
-pub(crate) fn sync_err(e: SyncError) -> ErrorResponse {
+pub(crate) fn sync_err(e: DataError) -> ErrorResponse {
     ErrorResponse {
         message: e.to_string(),
         kind: "sync".to_string(),
@@ -96,11 +96,11 @@ fn scope_includes_channel_list(scope: &str) -> bool {
     matches!(scope, "APP_DATA" | "MASTER")
 }
 
-fn ndjson_to_values(ndjson: &[u8]) -> Result<Vec<Value>, SyncError> {
+fn ndjson_to_values(ndjson: &[u8]) -> Result<Vec<Value>, DataError> {
     ndjson
         .split(|&b| b == b'\n')
         .filter(|l| !l.is_empty())
-        .map(|line| serde_json::from_slice::<Value>(line).map_err(SyncError::from))
+        .map(|line| serde_json::from_slice::<Value>(line).map_err(DataError::from))
         .collect()
 }
 
@@ -141,7 +141,7 @@ fn filter_parseable(collection: Collection, values: &[Value]) -> (Vec<Value>, u6
 pub(crate) async fn get_setting_value(
     pool: &SqlitePool,
     key: &str,
-) -> Result<Option<String>, SyncError> {
+) -> Result<Option<String>, DataError> {
     Ok(
         sqlx::query_scalar::<_, String>("SELECT value FROM settings WHERE key = ?")
             .bind(key)
@@ -150,7 +150,7 @@ pub(crate) async fn get_setting_value(
     )
 }
 
-async fn set_setting_value(pool: &SqlitePool, key: &str, value: &str) -> Result<(), SyncError> {
+async fn set_setting_value(pool: &SqlitePool, key: &str, value: &str) -> Result<(), DataError> {
     sqlx::query(
         "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
@@ -165,9 +165,9 @@ async fn set_setting_value(pool: &SqlitePool, key: &str, value: &str) -> Result<
 
 /// Build the backup payload for `scope`. Callers must flush the resident brains first (the
 /// commands below do) so the freshest learning is exported.
-pub async fn export_backup(pool: &SqlitePool, scope: &str) -> Result<BackupExport, SyncError> {
+pub async fn export_backup(pool: &SqlitePool, scope: &str) -> Result<BackupExport, DataError> {
     let collections = scope_collections(scope)
-        .ok_or_else(|| SyncError::Protocol(format!("unknown backup scope: {scope}")))?;
+        .ok_or_else(|| DataError::Protocol(format!("unknown backup scope: {scope}")))?;
     let device_id = ledger::get_or_create_device_id(pool).await?;
     let outgoing = export::export_for_backup(pool, &device_id, &collections).await?;
 
@@ -208,7 +208,7 @@ pub async fn export_backup(pool: &SqlitePool, scope: &str) -> Result<BackupExpor
 async fn import_channel_list(
     pool: &SqlitePool,
     incoming: &[Value],
-) -> Result<CollectionImportSummary, SyncError> {
+) -> Result<CollectionImportSummary, DataError> {
     let mut summary = CollectionImportSummary {
         collection: SUBSCRIPTION_CHANNELS_KEY.to_string(),
         ..Default::default()
@@ -252,12 +252,12 @@ async fn import_channel_list(
 /// apply pipeline (atomic CRDT merge), then union-merge the flat channel list. Unknown keys
 /// are ignored and malformed records are skipped, so partial or hand-edited files degrade
 /// gracefully instead of failing the restore.
-pub async fn import_backup(pool: &SqlitePool, payload: &Value) -> Result<ImportSummary, SyncError> {
+pub async fn import_backup(pool: &SqlitePool, payload: &Value) -> Result<ImportSummary, DataError> {
     let collections = payload
         .get("collections")
         .and_then(Value::as_object)
         .or_else(|| payload.as_object())
-        .ok_or_else(|| SyncError::Protocol("backup payload is not a JSON object".into()))?;
+        .ok_or_else(|| DataError::Protocol("backup payload is not a JSON object".into()))?;
 
     let mut staged = Vec::new();
     let mut dropped_by_key: Vec<(String, u64)> = Vec::new();
@@ -273,7 +273,7 @@ pub async fn import_backup(pool: &SqlitePool, payload: &Value) -> Result<ImportS
             continue;
         }
         let ndjson = values_to_ndjson(&kept);
-        let hash = codec::sha256_hex(&ndjson);
+        let hash = collection::sha256_hex(&ndjson);
         staged.push(StagedCollection {
             collection,
             record_count: kept.len() as u64,
@@ -395,7 +395,7 @@ pub(crate) async fn raw_settings(
     pool: &SqlitePool,
     keys: &[String],
     with_device_keys: bool,
-) -> Result<std::collections::HashMap<String, String>, SyncError> {
+) -> Result<std::collections::HashMap<String, String>, DataError> {
     let mut settings = std::collections::HashMap::new();
     for key in keys {
         // Device settings travel once, in Default's part, where older builds read them.
@@ -451,7 +451,7 @@ pub async fn import_profile_backup(
                 set_setting_value(&closed, key, value).await?;
             }
         }
-        Ok::<_, SyncError>(summary)
+        Ok::<_, DataError>(summary)
     }
     .await;
     closed.close().await;

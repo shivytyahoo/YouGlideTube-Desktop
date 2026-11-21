@@ -25,13 +25,13 @@ use crate::errors::{AppError, ErrorResponse};
 use crate::services::profile_service::ProfileService;
 use crate::services::recommendation_service::RecommendationService;
 use crate::services::youtube_service::YoutubeService;
-use crate::sync::error::SyncError;
+use crate::data_model::error::DataError;
 
 fn internal(error: impl std::fmt::Display) -> ErrorResponse {
     AppError::Internal(error.to_string()).into()
 }
 
-fn sync_err(error: SyncError) -> ErrorResponse {
+fn sync_err(error: DataError) -> ErrorResponse {
     internal(error)
 }
 

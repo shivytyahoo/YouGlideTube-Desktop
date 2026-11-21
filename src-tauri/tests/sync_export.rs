@@ -6,15 +6,15 @@
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqlitePoolOptions;
 
-use flow_desktop_lib::sync::apply::apply_payload;
-use flow_desktop_lib::sync::brainmap;
-use flow_desktop_lib::sync::canonical::{
+use flow_desktop_lib::data_model::apply::apply_payload;
+use flow_desktop_lib::data_model::brainmap;
+use flow_desktop_lib::data_model::canonical::{
     BrainVectors, ContentVectorWire, FlowNeuroBrainSnapshot, GCounter, Hlc, MusicBrainSnapshot,
 };
-use flow_desktop_lib::sync::codec::sha256_hex;
-use flow_desktop_lib::sync::export::export_collections;
-use flow_desktop_lib::sync::merge::{merge_flow_neuro, merge_music};
-use flow_desktop_lib::sync::protocol::{OutgoingCollection, StagedCollection};
+use flow_desktop_lib::data_model::codec::sha256_hex;
+use flow_desktop_lib::data_model::export::export_collections;
+use flow_desktop_lib::data_model::merge::{merge_flow_neuro, merge_music};
+use flow_desktop_lib::data_model::protocol::{OutgoingCollection, StagedCollection};
 
 async fn memory_pool() -> SqlitePool {
     let pool = SqlitePoolOptions::new()
@@ -79,7 +79,7 @@ async fn insert_watch(pool: &SqlitePool, id: &str, watched: i64, total: i64) {
 
 #[tokio::test]
 async fn export_then_apply_round_trips_watch_likes_playlists_settings() {
-    use flow_desktop_lib::sync::canonical::Collection::*;
+    use flow_desktop_lib::data_model::canonical::Collection::*;
 
     let a = memory_pool().await;
     insert_watch(&a, "v1", 100, 200).await;
@@ -161,7 +161,7 @@ fn flow_snapshot(
             global_vector: global,
             ..BrainVectors::default()
         },
-        counters: flow_desktop_lib::sync::canonical::BrainCounters {
+        counters: flow_desktop_lib::data_model::canonical::BrainCounters {
             idf_total_documents: GCounter::single(device, docs),
             ..Default::default()
         },

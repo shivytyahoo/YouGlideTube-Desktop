@@ -13,12 +13,12 @@ use std::path::PathBuf;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use flow_desktop_lib::sync::canonical::{
+use flow_desktop_lib::data_model::canonical::{
     FlowNeuroBrainSnapshot, Like, LikeKind, LikeState, MusicBrainSnapshot, Playlist,
     PlaylistOrigin, SettingEntry, SubscribedChannel, SubscriptionGroup, WatchHistoryRecord,
     to_canonical_json,
 };
-use flow_desktop_lib::sync::frames::CapabilitiesFrame;
+use flow_desktop_lib::data_model::frames::CapabilitiesFrame;
 
 fn fixture_path(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

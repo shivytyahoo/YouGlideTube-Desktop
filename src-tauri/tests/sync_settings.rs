@@ -5,10 +5,10 @@ use serde_json::{Value, json};
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqlitePoolOptions;
 
-use flow_desktop_lib::sync::apply::apply_payload;
-use flow_desktop_lib::sync::canonical::{Collection, Hlc, SettingEntry};
-use flow_desktop_lib::sync::export::export_collections;
-use flow_desktop_lib::sync::protocol::StagedCollection;
+use flow_desktop_lib::data_model::apply::apply_payload;
+use flow_desktop_lib::data_model::canonical::{Collection, Hlc, SettingEntry};
+use flow_desktop_lib::data_model::export::export_collections;
+use flow_desktop_lib::data_model::protocol::StagedCollection;
 
 const OUR: &str = "dlocal";
 const PEER: &str = "dpeer";

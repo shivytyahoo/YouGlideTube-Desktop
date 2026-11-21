@@ -2,13 +2,13 @@
 //! QR handshake. These run in an integration test (the crate links Tauri's cdylib; in-crate unit
 //! tests can't launch on Windows — see the note in `src/sync/canonical.rs`).
 
-use flow_desktop_lib::sync::canonical::{Hlc, short_device_id};
-use flow_desktop_lib::sync::crypto::{
+use flow_desktop_lib::data_model::canonical::{Hlc, short_device_id};
+use flow_desktop_lib::data_model::crypto::{
     CryptoError, Role, SessionCipher, compute_sas, generate_master_secret, generate_session_id,
 };
-use flow_desktop_lib::sync::frames::FrameType;
-use flow_desktop_lib::sync::identity::{default_device_name, new_device_id};
-use flow_desktop_lib::sync::qr::{QrError, QrPayload};
+use flow_desktop_lib::data_model::frames::FrameType;
+use flow_desktop_lib::data_model::identity::{default_device_name, new_device_id};
+use flow_desktop_lib::data_model::qr::{QrError, QrPayload};
 
 // --------------------------------------------------------------------------------------------
 // Identity & HLC

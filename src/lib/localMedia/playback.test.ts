@@ -9,7 +9,6 @@ vi.mock("../api/localMedia", () => ({
 
 import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
 import { usePlayerStore } from "../../store/usePlayerStore";
-import { useRemoteControlStore } from "../../store/useRemoteControlStore";
 import { playLocalFiles, stopPlayingLocalFile } from "./playback";
 import { localFileToSong, localFileToVideo } from "./items";
 
@@ -39,7 +38,6 @@ const [A, B] = ["local_0000000000000001", "local_0000000000000002"];
 beforeEach(() => {
   usePlayerStore.getState().clearQueue();
   useMusicPlayerStore.setState({ queue: [], currentTrack: null, currentIndex: -1, isShuffle: false });
-  useRemoteControlStore.setState({ target: null });
 });
 
 describe("playLocalFiles", () => {
@@ -59,13 +57,6 @@ describe("playLocalFiles", () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it("starts nothing while this computer controls another device", () => {
-    useRemoteControlStore.setState({ target: "phone" });
-    const navigate = vi.fn();
-    playLocalFiles([file(A, "video")], 0, navigate);
-    expect(usePlayerStore.getState().currentVideo).toBeNull();
-    expect(navigate).not.toHaveBeenCalled();
-  });
 });
 
 describe("stopPlayingLocalFile", () => {

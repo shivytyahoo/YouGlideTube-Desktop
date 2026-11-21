@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqliteConnection, SqlitePool};
 
-use crate::sync::canonical::Note;
+use crate::data_model::canonical::Note;
 
 const SELECT: &str = "SELECT id, target_id, kind, text, updated_at, title, channel_name, channel_id, \
      thumbnail_url, duration_seconds, channel_avatar_url, channel_handle, subscriber_count_text, \

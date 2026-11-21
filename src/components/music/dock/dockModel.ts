@@ -1,6 +1,5 @@
 import type { CSSProperties, Ref } from "react";
 
-import type { ControlledDevice } from "../../../lib/live/usePlayOn";
 import type { MiniBarButton, MiniPlayerLook } from "../../../lib/music/miniPlayerLook";
 import type { SongItem } from "../../../types/music";
 import type { MusicMenuAction, useMusicContextMenu } from "../MusicCardMenu";
@@ -9,8 +8,6 @@ import type { MusicMenuAction, useMusicContextMenu } from "../MusicCardMenu";
 export interface DockModel {
   shown: { thumbnail: string | null | undefined; title: string; by: string };
   track: SongItem | null;
-  /** The device this one controls, when the dock shows its music. */
-  away: ControlledDevice | null;
   playing: boolean;
   busy: boolean;
   muted: boolean;

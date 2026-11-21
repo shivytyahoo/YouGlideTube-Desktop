@@ -11,7 +11,7 @@ use crate::flow_neuro::scoring::{
     ContentVector, FeedEntry, RejectionSignal, SCHEMA_VERSION, TimeBucket, TopicEvidence, UserBrain,
 };
 use crate::music_brain::model::{Affinity, MUSIC_SCHEMA_VERSION, MusicBrain, TrackMeta};
-use crate::sync::brainmap::canonical_bucket_key;
+use crate::data_model::brainmap::canonical_bucket_key;
 
 /// Android's brain schema that writes the desktop's current key spec (`NeuroMaintenance`).
 const ANDROID_KEY_SPEC_3_SCHEMA: i64 = 21;
@@ -46,7 +46,7 @@ fn keyed<T>(map: &HashMap<TimeBucket, T>, value: impl Fn(&T) -> Value) -> Map<St
         .collect()
 }
 
-/// `brain` must already hold the current key spec, as [`crate::sync::brain_rekey::align_flow`]
+/// `brain` must already hold the current key spec, as [`crate::data_model::brain_rekey::align_flow`]
 /// leaves it. The persona is left out: Android works it out again from the vectors.
 #[must_use]
 pub fn user_brain_to_android(brain: &UserBrain) -> Value {

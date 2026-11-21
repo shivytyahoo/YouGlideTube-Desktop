@@ -6,10 +6,10 @@ use serde::Deserialize;
 use sqlx::SqlitePool;
 
 use crate::db::notes::{self, NoteRow};
-use crate::sync::canonical::Note;
-use crate::sync::changes::{self, Change};
-use crate::sync::clock;
-use crate::sync::error::SyncError;
+use crate::data_model::canonical::Note;
+use crate::data_model::changes::{self, Change};
+use crate::data_model::clock;
+use crate::data_model::error::DataError;
 
 /// What a note is about, stored with it so the Notes page lists notes without a network call.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -38,7 +38,7 @@ pub async fn save_note(
     target_id: &str,
     text: &str,
     subject: Option<NoteSubject>,
-) -> Result<Option<NoteRow>, SyncError> {
+) -> Result<Option<NoteRow>, DataError> {
     let id = note_id(kind, target_id);
     let trimmed = text.trim();
     if trimmed.is_empty() {
@@ -110,7 +110,7 @@ pub async fn fill_subject(
     pool: &SqlitePool,
     id: &str,
     subject: NoteSubject,
-) -> Result<(), SyncError> {
+) -> Result<(), DataError> {
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     if let Some(row) = notes::get(&mut tx, id).await? {
         let note = with_subject(&row, subject);
@@ -120,7 +120,7 @@ pub async fn fill_subject(
     Ok(())
 }
 
-pub async fn save_order(pool: &SqlitePool, ids: &[String]) -> Result<(), SyncError> {
+pub async fn save_order(pool: &SqlitePool, ids: &[String]) -> Result<(), DataError> {
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     notes::set_positions(&mut tx, ids).await?;
     tx.commit().await?;
@@ -133,7 +133,7 @@ pub async fn save_order(pool: &SqlitePool, ids: &[String]) -> Result<(), SyncErr
 pub async fn restore_notes(
     pool: &SqlitePool,
     rows: Vec<NoteRow>,
-) -> Result<Vec<NoteRow>, SyncError> {
+) -> Result<Vec<NoteRow>, DataError> {
     let at = i64::try_from(clock::edit_ms(pool).await?).unwrap_or(i64::MAX);
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     let mut restored = Vec::with_capacity(rows.len());
@@ -150,7 +150,7 @@ pub async fn restore_notes(
     Ok(restored)
 }
 
-pub async fn delete_notes(pool: &SqlitePool, ids: &[String]) -> Result<(), SyncError> {
+pub async fn delete_notes(pool: &SqlitePool, ids: &[String]) -> Result<(), DataError> {
     let at = clock::edit_ms(pool).await?;
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     for id in ids {
@@ -170,8 +170,8 @@ mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
 
     use super::*;
-    use crate::sync::canonical::Collection;
-    use crate::sync::export::export_collections;
+    use crate::data_model::canonical::Collection;
+    use crate::data_model::export::export_collections;
 
     async fn pool() -> SqlitePool {
         let pool = SqlitePoolOptions::new()
@@ -336,7 +336,7 @@ mod tests {
         assert_eq!(restored.title.as_deref(), Some("T"));
 
         let peers_tombstone =
-            crate::sync::merge::merge_notes(vec![restored.to_canonical()], vec![deleted]);
+            crate::data_model::merge::merge_notes(vec![restored.to_canonical()], vec![deleted]);
         assert!(!peers_tombstone[0].deleted);
     }
 

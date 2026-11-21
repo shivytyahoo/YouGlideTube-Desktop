@@ -20,7 +20,6 @@ export type PlayerButtonId =
   | "autoplay"
   | "quality"
   | "captions"
-  | "playOn"
   | "theater"
   | "fullscreen";
 
@@ -36,7 +35,6 @@ export const PLAYER_BUTTON_ROWS: readonly PlayerButtonRow[] = [
   { id: "autoplay", setting: SETTINGS.PLAYER_BUTTON_AUTOPLAY, title: "settings_button_autoplay", summary: "settings_button_autoplay_desc" },
   { id: "quality", setting: SETTINGS.PLAYER_BUTTON_QUALITY, title: "settings_button_quality", summary: "settings_button_quality_desc" },
   { id: "captions", setting: SETTINGS.PLAYER_BUTTON_CAPTIONS, title: "settings_button_captions", summary: "settings_button_captions_desc" },
-  { id: "playOn", setting: SETTINGS.PLAYER_BUTTON_PLAY_ON, title: "settings_button_play_on", summary: "settings_button_play_on_desc" },
   { id: "theater", setting: SETTINGS.PLAYER_BUTTON_THEATER, title: "settings_button_theater", summary: "settings_button_theater_desc" },
   { id: "fullscreen", setting: SETTINGS.PLAYER_BUTTON_FULLSCREEN, title: "settings_button_fullscreen", summary: "settings_button_fullscreen_desc" },
 ];

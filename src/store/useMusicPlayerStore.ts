@@ -1,4 +1,3 @@
-import { queueWith, remoteControl } from "./useRemoteControlStore";
 import { create } from "zustand";
 import { profileStorage } from "../lib/storage/profileStorage";
 
@@ -383,8 +382,6 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   // --- intents ----------------------------------------------------------
 
   playTrack: async (track) => {
-    const remote = remoteControl();
-    if (remote) return remote.play([videoIdOf(track)], 0, true);
     resetRadioSession([videoIdOf(track)]);
     set({
       ...freshQueue([track], get().isShuffle ? [track] : null),
@@ -397,8 +394,6 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
 
   playQueue: async (tracks, startIndex = 0, source = null, start) => {
     if (tracks.length === 0) return;
-    const remote = remoteControl();
-    if (remote) return remote.play(tracks.map(videoIdOf), startIndex, true);
     resetRadioSession(tracks.map(videoIdOf));
     const first = Math.max(0, Math.min(startIndex, tracks.length - 1));
     const shuffled = get().isShuffle;
@@ -651,15 +646,11 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   },
 
   togglePlay: () => {
-    const remote = remoteControl();
-    if (remote) return remote.command(remote.playing ? "pause" : "play");
     if (get().isPlaying) get().pause();
     else get().play();
   },
 
   play: () => {
-    const remote = remoteControl();
-    if (remote) return remote.command("play");
     if (!get().currentTrack) return;
     if (awaitingFirstPlay) {
       void get()._loadIndex(get().currentIndex, { resumeAt: get().progress });
@@ -671,8 +662,6 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   },
 
   pause: () => {
-    const remote = remoteControl();
-    if (remote) return remote.command("pause");
     userPaused = true;
     stopStallWatch();
     musicAudioEngine.pause();
@@ -755,8 +744,6 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   clearStreamError: () => set({ streamError: null, streamErrorKind: null }),
 
   next: () => {
-    const remote = remoteControl();
-    if (remote) return remote.command("next");
     const { queue, currentIndex, repeatMode } = get();
     if (queue.length === 0) return;
 
@@ -788,8 +775,6 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   },
 
   previous: () => {
-    const remote = remoteControl();
-    if (remote) return remote.command("previous");
     const { queue, currentIndex, progress, repeatMode } = get();
     if (queue.length === 0) return;
     if (progress > 3) {
@@ -802,15 +787,11 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   },
 
   seek: (seconds) => {
-    const remote = remoteControl();
-    if (remote) return remote.command("seek", { pos: Math.round(seconds * 1000) });
     musicAudioEngine.seek(seconds);
     set({ progress: Math.max(0, seconds) });
   },
 
   setVolume: (volume) => {
-    const remote = remoteControl();
-    if (remote) return remote.command("volume", { vol: Math.round(clamp01(volume) * 100) });
     const vol = clamp01(volume);
     musicAudioEngine.setVolume(vol);
     const isMuted = vol === 0 ? get().isMuted : false;
@@ -874,16 +855,12 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
   // Each queued entry is its own copy, so a song played earlier can be queued
   // again and shuffle can still tell the two apart.
   addToQueue: (track) => {
-    const remote = remoteControl();
-    if (remote) return remote.command("queue", { queue: queueWith(remote, [videoIdOf(track)], false) });
     const lists = queueListsOf(get());
     if (isUpcoming(lists, track)) return;
     set(appendTracks(lists, [{ ...track }]));
   },
 
   playNextInQueue: (track) => {
-    const remote = remoteControl();
-    if (remote) return remote.command("queue", { queue: queueWith(remote, [videoIdOf(track)], true) });
     const { currentTrack } = get();
     if (!currentTrack) {
       get().addToQueue(track);

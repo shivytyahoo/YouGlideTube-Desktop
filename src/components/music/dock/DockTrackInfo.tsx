@@ -1,6 +1,5 @@
 import { getString } from "../../../lib/i18n/index";
 import { useMusicPlayerStore } from "../../../store/useMusicPlayerStore";
-import { DeviceKindIcon } from "../../playon/DeviceKindIcon";
 import { MusicArtwork } from "../MusicArtwork";
 import { MusicCardMenu } from "../MusicCardMenu";
 import { PlayingWave } from "../PlayingWave";
@@ -14,17 +13,16 @@ import type { DockModel } from "./dockModel";
  */
 export function DockTrackInfo({ model, round }: { model: DockModel; round: boolean }) {
   const openOverlay = useMusicPlayerStore((s) => s.openOverlay);
-  const { shown, away, playing, busy, menu, menuActions, look } = model;
+  const { shown, playing, busy, menu, menuActions, look } = model;
   const shape = round ? "rounded-full" : "rounded-xl";
   // The Pill's own options; Classic keeps its fixed look.
-  const ring = round && !away && look.coverRing;
-  const coverPlays = round && !away && look.coverTap === "play_pause";
-  const sung = round && !away && look.sungLine && model.track;
+  const ring = round && look.coverRing;
+  const coverPlays = round && look.coverTap === "play_pause";
+  const sung = round && look.sungLine && model.track;
   return (
     <>
       <button
         type="button"
-        disabled={!!away}
         onClick={() => openOverlay("full")}
         onContextMenu={menu.openMenuFromContext}
         aria-label={getString("music_expand")}
@@ -58,12 +56,7 @@ export function DockTrackInfo({ model, round }: { model: DockModel; round: boole
           <div dir="auto" className="line-clamp-1 text-[15px] font-semibold tracking-tight text-chrome-neutral-100">
             {shown.title}
           </div>
-          {away ? (
-            <div className="mt-0.5 flex items-center gap-1.5 text-[13px] font-medium text-[var(--color-primary)]">
-              <DeviceKindIcon kind={away.kind} className="h-3.5 w-3.5 shrink-0" />
-              <span className="line-clamp-1">{getString("play_on_on_device", away.name)}</span>
-            </div>
-          ) : sung ? (
+          {sung ? (
             <MiniLyricsLine track={sung} artist={shown.by} />
           ) : (
             <div className="mt-0.5 line-clamp-1 text-[13px] font-medium text-chrome-neutral-400">{shown.by}</div>

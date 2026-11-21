@@ -7,8 +7,8 @@
 
 use std::path::PathBuf;
 
-use flow_desktop_lib::sync::canonical::to_canonical_json;
-use flow_desktop_lib::sync::crypto::{
+use flow_desktop_lib::data_model::canonical::to_canonical_json;
+use flow_desktop_lib::data_model::crypto::{
     MasterSecret, SessionId, compute_sas, derive_key_material_hex, open_with_key, seal_with_nonce,
 };
 use serde_json::Value;
@@ -91,6 +91,6 @@ fn canonical_json_matches_the_golden_vector() {
 #[test]
 fn a_note_matches_android_s_canonical_bytes() {
     let line = r#"{"channelAvatarUrl":null,"channelHandle":null,"channelId":"UCx","channelName":"A channel","deleted":false,"durationSeconds":754,"id":"video:abc123def45","kind":"Video","subscriberCountText":null,"targetId":"abc123def45","text":"12:34 the good part","thumbnailUrl":null,"title":"A video","updatedAt":1700000000000}"#;
-    let note: flow_desktop_lib::sync::canonical::Note = serde_json::from_str(line).unwrap();
+    let note: flow_desktop_lib::data_model::canonical::Note = serde_json::from_str(line).unwrap();
     assert_eq!(String::from_utf8(to_canonical_json(&note)).unwrap(), line);
 }
