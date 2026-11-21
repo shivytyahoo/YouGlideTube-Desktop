@@ -4,7 +4,6 @@
 //! command reuses the shared streaming proxy exactly like `get_stream_info`.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use sqlx::SqlitePool;
 use tauri::State;
@@ -14,11 +13,10 @@ use crate::api::innertube::music::client::{
     MusicRequestDiagnostics, music_request_diagnostics, record_public_cache_hit,
 };
 use crate::api::innertube::music::clients::WEB_REMIX;
-use crate::commands::music_brain::graph_taste;
-use crate::db::{music_content, music_home};
+use crate::db::music_home;
 use crate::errors::{AppError, ErrorResponse};
 use crate::models::music::{
-    AlbumItem, ArtistItem, ArtistPage, ChartsPage, ExplorePage, MoodAndGenreGroup,
+    AlbumItem, ArtistPage, ChartsPage, ExplorePage, MoodAndGenreGroup,
     MoodAndGenreItem, SongItem,
 };
 use crate::models::music_pages::{
@@ -26,7 +24,6 @@ use crate::models::music_pages::{
     MusicSearchResponse, MusicSearchSuggestions, QueuePage, RelatedPage, SearchSummaryPage,
 };
 use crate::models::music_stream::{MusicAudioQuality, MusicStreamInfo};
-use crate::music_brain::store::MusicBrainStore;
 use crate::security::validation::{validate_search_query, validate_video_id};
 use crate::services::music_service::{Freshness, MusicService};
 use crate::streaming::hls;
@@ -316,30 +313,6 @@ pub async fn get_music_related_typed(
 ) -> CmdResult<RelatedPage> {
     validate_video_id(&video_id).map_err(ErrorResponse::from)?;
     music.related(&video_id).await.map_err(ErrorResponse::from)
-}
-
-#[tauri::command]
-pub async fn get_music_deep_cuts(
-    limit: Option<i64>,
-    pool: State<'_, SqlitePool>,
-    music_brain: State<'_, Arc<MusicBrainStore>>,
-) -> CmdResult<Vec<SongItem>> {
-    let taste = graph_taste(&*music_brain.read().await);
-    music_content::deep_cuts(&pool, &taste, limit.unwrap_or(20))
-        .await
-        .map_err(ErrorResponse::from)
-}
-
-#[tauri::command]
-pub async fn get_music_linked_artists(
-    limit: Option<i64>,
-    pool: State<'_, SqlitePool>,
-    music_brain: State<'_, Arc<MusicBrainStore>>,
-) -> CmdResult<Vec<ArtistItem>> {
-    let taste = graph_taste(&*music_brain.read().await);
-    music_content::linked_artists(&pool, &taste, limit.unwrap_or(20))
-        .await
-        .map_err(ErrorResponse::from)
 }
 
 #[tauri::command]

@@ -1,4 +1,3 @@
-import type { MusicTasteProfile } from "../../types/music";
 import type { VideoSummary } from "../../types/video";
 import { isDeepGlideCurrentlyActive } from "../deepGlide";
 import { isTauriEnv } from "./env";
@@ -191,11 +190,10 @@ export async function getFlowPersona(): Promise<PersonaDetails> {
   return invokeBackend<PersonaDetails>("get_flow_persona");
 }
 
-/** Another profile's brain, persona and music taste, read from its database on this device. */
+/** Another profile's brain and persona, read from its database on this device. */
 export interface ProfileInterests {
   brain: UserBrain;
   persona: PersonaDetails;
-  music: MusicTasteProfile;
 }
 
 export const getProfileInterests = (profile: string) =>

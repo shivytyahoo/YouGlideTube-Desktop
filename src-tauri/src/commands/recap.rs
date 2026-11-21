@@ -1,14 +1,11 @@
 //! The recap ledger's commands. Nothing here uses the network.
 
 use std::collections::HashMap;
-use std::sync::Arc;
-
 use serde::Serialize;
 use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::errors::{AppError, ErrorResponse};
-use crate::music_brain::store::MusicBrainStore;
 use crate::recap::model::{MusicMonth, RecapEntry, TOPICS_PER_VIEW, VideoMonth};
 use crate::recap::store;
 use crate::recap::summary::{RecapPeriod, RecapSource, RecapSummary, daily_time, summarize};
@@ -18,23 +15,12 @@ fn now_ms() -> i64 {
     chrono::Utc::now().timestamp_millis()
 }
 
-pub(crate) async fn seen_artists(music_brain: &MusicBrainStore) -> Vec<String> {
-    music_brain
-        .read()
-        .await
-        .seen_artists
-        .iter()
-        .cloned()
-        .collect()
-}
-
 /// Saves a batch from the frontend's recap queue.
 #[tauri::command]
 pub async fn recap_record_batch(
     entries: Vec<RecapEntry>,
     pool: State<'_, SqlitePool>,
     recommendation: State<'_, RecommendationService>,
-    music_brain: State<'_, Arc<MusicBrainStore>>,
 ) -> Result<(), ErrorResponse> {
     let mut topics = HashMap::new();
     for entry in &entries {
@@ -53,7 +39,7 @@ pub async fn recap_record_batch(
             topics.insert(event.video_id.clone(), read);
         }
     }
-    let seen = seen_artists(&music_brain).await;
+    let seen: &[String] = &[];
     store::apply_batch(&pool, &entries, &topics, &seen, now_ms())
         .await
         .map_err(ErrorResponse::from)
@@ -76,9 +62,8 @@ const HISTORY_CHANNELS: i64 = 10;
 #[tauri::command]
 pub async fn recap_index(
     pool: State<'_, SqlitePool>,
-    music_brain: State<'_, Arc<MusicBrainStore>>,
 ) -> Result<RecapIndex, ErrorResponse> {
-    let seen = seen_artists(&music_brain).await;
+    let seen: &[String] = &[];
     let started_at = store::ensure_started(&pool, &seen, now_ms()).await?;
     Ok(RecapIndex {
         started_at,
@@ -115,9 +100,8 @@ const WEEK_DAYS: u32 = 7;
 #[tauri::command]
 pub async fn recap_week(
     pool: State<'_, SqlitePool>,
-    music_brain: State<'_, Arc<MusicBrainStore>>,
 ) -> Result<RecapWeek, ErrorResponse> {
-    let seen = seen_artists(&music_brain).await;
+    let seen: &[String] = &[];
     let started_at = store::ensure_started(&pool, &seen, now_ms()).await?;
     let video = store::read_months::<VideoMonth>(&pool, true).await?;
     let music = store::read_months::<MusicMonth>(&pool, false).await?;

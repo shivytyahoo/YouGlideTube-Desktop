@@ -15,7 +15,6 @@ pub mod local_media;
 pub mod lyrics;
 pub mod media_keys;
 pub mod music;
-pub mod music_brain;
 pub mod music_queue;
 pub mod notes;
 pub mod notifications;

@@ -14,7 +14,6 @@ use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
 
 use crate::errors::{AppError, ErrorResponse};
-use crate::music_brain::store::MusicBrainStore;
 use crate::recap;
 use crate::recap::model::RecapBackup;
 use crate::services::profile_service::{MasterManifest, ProfileService, RestoreTarget};
@@ -358,22 +357,12 @@ pub(crate) async fn flush_brains(app: &AppHandle, hold: bool) {
             tracing::warn!(%e, "[backup] flush flow_neuro brain failed");
         }
     }
-    if let Some(store) = app.try_state::<std::sync::Arc<MusicBrainStore>>() {
-        if let Err(e) = store.flush().await {
-            tracing::warn!(%e, "[backup] flush music brain failed");
-        }
-    }
 }
 
 async fn reload_brains(app: &AppHandle) {
     if let Some(svc) = app.try_state::<RecommendationService>() {
         if let Err(e) = svc.reload_brain().await {
             tracing::warn!(%e, "[backup] reload flow_neuro brain failed");
-        }
-    }
-    if let Some(store) = app.try_state::<std::sync::Arc<MusicBrainStore>>() {
-        if let Err(e) = store.reload().await {
-            tracing::warn!(%e, "[backup] reload music brain failed");
         }
     }
 }

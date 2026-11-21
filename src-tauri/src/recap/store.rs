@@ -11,7 +11,7 @@ use tokio::sync::Mutex;
 
 use crate::db::watch_history::WatchHistoryRecord;
 use crate::errors::{AppError, AppResult};
-use crate::music_brain::model::artist_key;
+use crate::data_model::music_brain::artist_key;
 use crate::recap::backfill;
 use crate::recap::model::{
     DislikedVideo, LedgerMoment, MONTHS_MAX, MusicMonth, MusicSnapshot, RecapBackup, RecapEntry,

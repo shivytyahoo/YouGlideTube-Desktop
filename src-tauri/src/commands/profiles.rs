@@ -1,10 +1,7 @@
-use std::sync::Arc;
-
 use sqlx::SqlitePool;
 use tauri::{AppHandle, State};
 
 use crate::errors::ErrorResponse;
-use crate::music_brain::store::MusicBrainStore;
 use crate::profiles::registry::{Profile, ProfileAvatar};
 use crate::services::profile_service::{NewProfile, ProfileService, ProfilesView};
 use crate::services::recommendation_service::RecommendationService;
@@ -20,13 +17,11 @@ pub async fn profiles_create(
     pool: State<'_, SqlitePool>,
     service: State<'_, ProfileService>,
     recommendation: State<'_, RecommendationService>,
-    music_brain: State<'_, Arc<MusicBrainStore>>,
 ) -> Result<Profile, ErrorResponse> {
     async {
         // A copied engine is read from the database; the resident brains hold the newest state.
         if request.copy.recommendations {
             recommendation.flush_brain().await?;
-            music_brain.flush().await?;
         }
         service.create(&pool, request).await
     }
@@ -113,12 +108,10 @@ pub async fn profiles_switch(
     app: AppHandle,
     service: State<'_, ProfileService>,
     recommendation: State<'_, RecommendationService>,
-    music_brain: State<'_, Arc<MusicBrainStore>>,
 ) -> Result<(), ErrorResponse> {
     async {
         recommendation.settle_watch_session(None).await?;
         recommendation.flush_brain().await?;
-        music_brain.flush().await?;
         service.finish_switch(&id).await
     }
     .await

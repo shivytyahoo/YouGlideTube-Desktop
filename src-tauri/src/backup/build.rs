@@ -15,7 +15,7 @@ use crate::commands::backup::{
     BackupExport, RECAP_STATS_ENTRY, export_backup, get_setting_value, raw_settings,
 };
 use crate::flow_neuro::scoring::UserBrain;
-use crate::music_brain::model::MusicBrain;
+use crate::data_model::music_brain::MusicBrain;
 use crate::recap::model::RecapBackup;
 use crate::services::profile_service::ProfileService;
 use crate::data_model::apply::{MUSIC_BRAIN_KEY, NEURO_BRAIN_KEY};

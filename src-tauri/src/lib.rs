@@ -26,7 +26,6 @@ mod macos_dock;
 #[cfg(target_os = "macos")]
 mod macos_window;
 pub mod models;
-mod music_brain;
 pub mod profiles;
 mod recap;
 mod relaunch;
@@ -86,7 +85,7 @@ use commands::media_keys::{
 use commands::music::{
     get_cached_music_home_page, get_music_album_continuation, get_music_album_page,
     get_music_artist_items, get_music_artist_page, get_music_captions_lrc, get_music_charts_page,
-    get_music_deep_cuts, get_music_explore_page, get_music_home_page, get_music_linked_artists,
+    get_music_explore_page, get_music_home_page,
     get_music_lyrics_typed, get_music_mood_genre, get_music_mood_groups, get_music_moods,
     get_music_new_releases, get_music_playlist_continuation, get_music_playlist_page,
     get_music_queue, get_music_queue_continuation, get_music_related_typed,
@@ -94,12 +93,6 @@ use commands::music::{
     get_music_stream, get_music_trending_songs, get_music_watch_queue, image_proxy_base,
     lyrics_http_get, proxy_artwork_loop, proxy_image_url, romanize_lyrics,
     search_music_continuation, search_music_typed,
-};
-use commands::music_brain::{
-    block_music_artist, dislike_music_artist, favourite_music_artist, get_blocked_music_artists,
-    get_daily_mixes, get_heavy_rotation, get_music_artist_insights, get_music_brain_snapshot,
-    get_music_rediscover, get_music_taste_profile, get_music_time_rotation, rank_music_candidates,
-    record_music_interaction, reset_music_brain, set_favourite_music_artist, unblock_music_artist,
 };
 use commands::music_queue::{
     clear_music_queue_state, get_music_resume_position, load_music_queue_state,
@@ -550,17 +543,6 @@ pub fn run() {
             );
             app.manage(rec_service);
 
-            let music_brain_store = tauri::async_runtime::block_on(async {
-                music_brain::store::MusicBrainStore::load(pool.clone()).await
-            })
-            .map_err(|error| {
-                Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    error.to_string(),
-                ))
-            })?;
-            app.manage(music_brain_store);
-
             // Manage the Shorts feed service (prefetch buffer + session de-dup)
             app.manage(ShortsService::new());
             app.manage(services::blocked_channel_names::BlockedChannelNames::default());
@@ -912,8 +894,6 @@ pub fn run() {
             get_music_queue_continuation,
             get_music_queue,
             get_music_related_typed,
-            get_music_deep_cuts,
-            get_music_linked_artists,
             get_music_lyrics_typed,
             lyrics_http_get,
             get_music_stream,
@@ -922,23 +902,6 @@ pub fn run() {
             romanize_lyrics,
             get_music_captions_lrc,
             image_proxy_base,
-            // --- Dedicated music brain (separate from flow_neuro) ---
-            record_music_interaction,
-            dislike_music_artist,
-            set_favourite_music_artist,
-            favourite_music_artist,
-            get_music_artist_insights,
-            block_music_artist,
-            unblock_music_artist,
-            get_blocked_music_artists,
-            rank_music_candidates,
-            get_heavy_rotation,
-            get_music_rediscover,
-            get_music_time_rotation,
-            get_daily_mixes,
-            get_music_brain_snapshot,
-            get_music_taste_profile,
-            reset_music_brain,
             // --- Music queue restore and long-track resume ---
             save_music_queue_state,
             load_music_queue_state,
@@ -1005,11 +968,6 @@ pub fn run() {
                 if let Some(service) = app_handle.try_state::<RecommendationService>() {
                     let _ = tauri::async_runtime::block_on(service.settle_watch_session(None));
                     let _ = tauri::async_runtime::block_on(service.flush_brain());
-                }
-                if let Some(store) =
-                    app_handle.try_state::<std::sync::Arc<music_brain::store::MusicBrainStore>>()
-                {
-                    let _ = tauri::async_runtime::block_on(store.flush());
                 }
             }
         });

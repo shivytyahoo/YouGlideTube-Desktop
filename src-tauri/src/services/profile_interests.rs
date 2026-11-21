@@ -8,7 +8,6 @@ use sqlx::SqlitePool;
 use crate::errors::AppResult;
 use crate::flow_neuro::scoring::{FlowPersona, UserBrain, classify_persona};
 use crate::flow_neuro::signals::stored_brain;
-use crate::music_brain::profile::{MusicTasteProfile, taste_profile};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,16 +34,13 @@ impl From<FlowPersona> for PersonaDetails {
 pub struct ProfileInterests {
     pub brain: UserBrain,
     pub persona: PersonaDetails,
-    pub music: MusicTasteProfile,
 }
 
 /// The interests stored in a profile's database `pool`, read only.
-pub async fn stored_interests(pool: &SqlitePool, now_ms: u64) -> AppResult<ProfileInterests> {
+pub async fn stored_interests(pool: &SqlitePool, _now_ms: u64) -> AppResult<ProfileInterests> {
     let brain = stored_brain(pool).await?;
-    let music = crate::music_brain::store::stored_brain(pool).await?;
     Ok(ProfileInterests {
         persona: classify_persona(&brain).into(),
-        music: taste_profile(&music, now_ms),
         brain,
     })
 }

@@ -10,7 +10,7 @@ use crate::flow_neuro::keyspec::VERSION as KEY_SPEC_VERSION;
 use crate::flow_neuro::scoring::{
     ContentVector, FeedEntry, RejectionSignal, SCHEMA_VERSION, TimeBucket, TopicEvidence, UserBrain,
 };
-use crate::music_brain::model::{Affinity, MUSIC_SCHEMA_VERSION, MusicBrain, TrackMeta};
+use crate::data_model::music_brain::{Affinity, MUSIC_SCHEMA_VERSION, MusicBrain, TrackMeta};
 use crate::data_model::brainmap::canonical_bucket_key;
 
 /// Android's brain schema that writes the desktop's current key spec (`NeuroMaintenance`).
