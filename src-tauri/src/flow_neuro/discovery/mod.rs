@@ -1,4 +1,4 @@
-//! Discovery searches rooted in what the viewer has shown interest in, from Flow for Android's
+//! Discovery searches rooted in what the viewer has shown interest in, from the Android app's
 //! `NeuroDiscovery`: interests grouped into clusters and served in rotation, each served cluster
 //! contributing a query to every feed, load-more digging one branch deeper into each, and a few
 //! combination, time-of-day, channel, fresh, format and exploration searches beside them.

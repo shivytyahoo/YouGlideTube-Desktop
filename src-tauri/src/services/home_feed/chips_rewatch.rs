@@ -1,4 +1,4 @@
-//! The Mixes and Watched chips, from Flow for Android's `HomeChipPolicies`: what is worth seeing
+//! The Mixes and Watched chips, from the Android app's `HomeChipPolicies`: what is worth seeing
 //! again from what the viewer already watched and liked. Songs and Shorts never count: the history
 //! is shared with music, and a mix is a video queue.
 

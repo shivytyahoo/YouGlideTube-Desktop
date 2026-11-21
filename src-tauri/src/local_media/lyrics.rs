@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn reads_the_file_beside_the_song_and_refuses_a_large_one() {
-        let dir = std::env::temp_dir().join(format!("flow-lyrics-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("youglidetube-lyrics-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let dir = std::fs::canonicalize(dir).unwrap();
         let audio = dir.join("song.mp3");

@@ -1,5 +1,5 @@
 /**
- * Values of `default_nav_tab_index`, Flow for Android's tab ids (`FlowTab.id`), so the setting means
+ * Values of `default_nav_tab_index`, the Android app's tab ids (`FlowTab.id`), so the setting means
  * the same in both apps. Android's Search and Downloads tabs have no start page here.
  */
 export const START_PAGES = [
@@ -29,13 +29,13 @@ export function startPageChoices(visible: StartPageVisibility) {
   return START_PAGES.filter((page) => isVisible(page.path, visible));
 }
 
-/** Where Flow opens, falling back to Home for an unknown value or a page that is turned off. */
+/** Where the app opens, falling back to Home for an unknown value or a page that is turned off. */
 export function startPagePath(value: string | null | undefined, visible: StartPageVisibility): string {
   const page = START_PAGES.find((candidate) => candidate.value === value);
   return page && isVisible(page.path, visible) ? page.path : "/";
 }
 
-const APPLIED_KEY = "flow:start-page-applied";
+const APPLIED_KEY = "youglidetube:start-page-applied";
 
 /**
  * True once per launch. Session storage survives a reload of the window but not a new launch, so

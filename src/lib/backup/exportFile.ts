@@ -7,10 +7,10 @@ const FILE_NAMES: Record<BackupFileKind, (now: number) => string> = {
   BRAIN: (now) => `flow_brain_backup_${now}.zip`,
   MASTER: (now) => `flow_master_backup_${now}.zip`,
   NEWPIPE_SUBSCRIPTIONS: (now) => `newpipe_subscriptions_${now}.json`,
-  WATCH_HISTORY: () => "flow-watch-history.json",
+  WATCH_HISTORY: () => "youglidetube-watch-history.json",
 };
 
-/** The name a save dialog offers; the same stems Flow for Android uses. */
+/** The name a save dialog offers; the same stems the Android app uses. */
 export function backupFileName(kind: BackupFileKind, now = Date.now()): string {
   return FILE_NAMES[kind](now);
 }

@@ -1,5 +1,5 @@
 //! The word lists discovery reads queries by, and the cleanup every query gets before it is
-//! searched, from Flow for Android's `NeuroDiscovery`.
+//! searched, from the Android app's `NeuroDiscovery`.
 
 use std::collections::HashSet;
 use std::sync::LazyLock;

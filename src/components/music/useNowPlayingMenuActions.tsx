@@ -43,7 +43,7 @@ export function useNowPlayingMenuActions(
   const equalizerAction = onOpenEqualizer
     ? [{ id: 'equalizer', label: getString('music_equalizer'), icon: <SlidersHorizontal size={16} />, group: 'go' as const, onSelect: onOpenEqualizer }]
     : [];
-  // As on Android: off until Flow restarts, while the saved setting stays on.
+  // As on Android: off until the app restarts, while the saved setting stays on.
   const crossfadeAction = crossfadeOn
     ? [{
         id: 'crossfade-pause',

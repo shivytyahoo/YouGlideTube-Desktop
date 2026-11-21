@@ -8,7 +8,7 @@ import {
   blockChannel as apiBlockChannel,
   unblockChannel as apiUnblockChannel,
 } from "../lib/api/recommendation";
-import { shouldRecordWatchHistory } from "../lib/deepFlow";
+import { shouldRecordWatchHistory } from "../lib/deepGlide";
 import { recapAction } from "../lib/recap/recapQueue";
 import { isKnownShort } from "../lib/videoKind";
 import { isMusicVideo } from "../lib/utils";

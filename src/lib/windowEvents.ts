@@ -1,16 +1,16 @@
 import { emit } from "@tauri-apps/api/event";
 import { CURRENT_WINDOW_LABEL } from "./appWindow";
 
-export const DATA_CHANGED_EVENT = "flow:data-changed";
-export const PLAYBACK_CLAIMED_EVENT = "flow:playback-claimed";
-export const MUSIC_PLAY_EVENT = "flow:music-play";
-export const OPEN_ROUTE_EVENT = "flow:open-route";
+export const DATA_CHANGED_EVENT = "youglidetube:data-changed";
+export const PLAYBACK_CLAIMED_EVENT = "youglidetube:playback-claimed";
+export const MUSIC_PLAY_EVENT = "youglidetube:music-play";
+export const OPEN_ROUTE_EVENT = "youglidetube:open-route";
 /** A global media key or tray click, sent by the backend to the window that last started playing. */
-export const MEDIA_COMMAND_EVENT = "flow:media-command";
+export const MEDIA_COMMAND_EVENT = "youglidetube:media-command";
 /** Asks the top bar to put the cursor in its search box. */
-export const FOCUS_SEARCH_EVENT = "flow:focus-search";
+export const FOCUS_SEARCH_EVENT = "youglidetube:focus-search";
 /** Watch history changed: in this window as a DOM event, in the others through Tauri. */
-export const WATCH_HISTORY_WRITTEN_EVENT = "flow:watch-history-written";
+export const WATCH_HISTORY_WRITTEN_EVENT = "youglidetube:watch-history-written";
 
 export interface DataChangedPayload {
   source: string;

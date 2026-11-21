@@ -75,7 +75,7 @@ import { AddToAlbumModal } from "./components/music/AddToAlbumModal";
 import { SongDetailsDialog } from "./components/music/SongDetailsDialog";
 import { AddTracksToAlbumModal } from "./components/music/AddTracksToAlbumModal";
 import { AddToPlaylistModal } from "./components/playlist/AddToPlaylistModal";
-import { DeepFlowController } from "./components/deep-flow/DeepFlowController";
+import { DeepGlideController } from "./components/deep-glide/DeepGlideController";
 import { DeepLinkController } from "./components/handoff/DeepLinkController";
 import { DiscordPresenceController } from "./components/discord/DiscordPresenceController";
 import { MusicTrayController } from "./components/tray/MusicTrayController";
@@ -332,7 +332,7 @@ function App() {
             <PlayingElsewhereBar />
             <ConsentDialog />
           </LayoutGroup>
-          <DeepFlowController />
+          <DeepGlideController />
           <DeepLinkController />
           <GlobalMediaKeysController />
           <ShellPagesController />

@@ -6,7 +6,7 @@ pub(crate) mod channel_knowledge;
 pub(crate) mod clusters;
 pub(crate) mod co_watch;
 pub(crate) mod content_store;
-pub(crate) mod deep_flow;
+pub(crate) mod deep_glide;
 pub(crate) mod discovery;
 pub(crate) mod display_forms;
 pub(crate) mod diversity;

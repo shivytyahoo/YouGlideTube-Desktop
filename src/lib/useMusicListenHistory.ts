@@ -3,7 +3,7 @@ import { onBeforeProfileSwitch } from "./profiles/beforeSwitch";
 
 import { useLocalMediaStore } from "../store/useLocalMediaStore";
 import { useMusicPlayerStore } from "../store/useMusicPlayerStore";
-import { shouldRecordWatchHistory } from "./deepFlow";
+import { shouldRecordWatchHistory } from "./deepGlide";
 import { isLocalMediaId } from "./localMediaId";
 import { MusicListenTracker } from "./musicListenTracker";
 import { recordSongHistory } from "./musicHistory";

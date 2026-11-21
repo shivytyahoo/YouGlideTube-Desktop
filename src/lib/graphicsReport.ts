@@ -42,7 +42,7 @@ export function formatGraphics(report: GraphicsReport): string {
 
 let cached: Promise<GraphicsReport | null> | null = null;
 
-/** Null off Linux and outside Flow. The decoder probe can still be running on a first call. */
+/** Null off Linux and outside the app. The decoder probe can still be running on a first call. */
 export function getGraphicsReport(): Promise<GraphicsReport | null> {
   cached ??= isTauriEnv()
     .then((tauri) => (tauri ? invoke<GraphicsReport | null>("graphics_report") : null))

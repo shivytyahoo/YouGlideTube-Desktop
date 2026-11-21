@@ -2,7 +2,7 @@ import { getString } from "../i18n/index";
 import { SETTINGS } from "../settings/schema";
 import { usePreference } from "../usePreference";
 
-/** The music mini player's shape: a compact pill, or the wide bar Flow Desktop always had. */
+/** The music mini player's shape: a compact pill, or the wide bar the desktop app always had. */
 export type MiniPlayerStyle = "pill" | "classic";
 
 /** The mini player's paint: the cover's tone on a quiet container, or one of the other looks. */

@@ -1,4 +1,4 @@
-//! The viewer's interests grouped into communities and served in rotation, from Flow for Android's
+//! The viewer's interests grouped into communities and served in rotation, from the Android app's
 //! `NeuroClusters`: label propagation over the brain's own evidence (topic links, channel profiles,
 //! channels watched together, and catalog categories linking topics the viewer already has), then a
 //! scheduler where staleness lets every group reach discovery and a square root keeps the largest

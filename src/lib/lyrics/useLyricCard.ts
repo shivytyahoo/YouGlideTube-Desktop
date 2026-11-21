@@ -94,7 +94,7 @@ export function useLyricCardImage(data: LyricCardData | null, look: Omit<LyricCa
       showToast({ variant: "error", message: getString("lyrics_share_save_failed") });
       return;
     }
-    const name = safeFileName([data.artist, data.title].filter(Boolean).join(" - "), "flow-lyrics");
+    const name = safeFileName([data.artist, data.title].filter(Boolean).join(" - "), "youglidetube-lyrics");
     try {
       if (await savePngImage(await blobToBase64(blob), `${name}.png`, getString("lyrics_share_save_image"))) {
         showToast({ variant: "success", message: getString("lyrics_share_saved") });

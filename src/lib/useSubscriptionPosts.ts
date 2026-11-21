@@ -70,7 +70,7 @@ export function recentUploaderIds(feed: VideoSummary[]): string[] {
 
 /**
  * Recent community posts of the followed channels, eight channels a page, the most active first,
- * as Flow for Android's Subscriptions Posts view reads them. The channel order is fixed when a
+ * as the Android app's Subscriptions Posts view reads them. The channel order is fixed when a
  * read from the top starts, so a feed refresh mid-scroll never reshuffles the pages.
  */
 export function useSubscriptionPosts({ channels, feed, enabled }: Options): SubscriptionPostsState {

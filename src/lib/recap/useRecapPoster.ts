@@ -47,7 +47,7 @@ export function useRecapPoster(summary: RecapSummary, period: string, periodLabe
     const image = await blob.current;
     if (!image) return;
     try {
-      const saved = await savePngImage(await blobToBase64(image), `flow-recap-${period}.png`, getString("recap_story_save"));
+      const saved = await savePngImage(await blobToBase64(image), `youglidetube-recap-${period}.png`, getString("recap_story_save"));
       if (saved) showToast({ variant: "success", message: getString("recap_story_saved") });
     } catch (error) {
       console.warn("Failed to save the recap poster", error);

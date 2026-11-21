@@ -94,7 +94,7 @@ pub async fn enrich_outgoing_albums(app: &AppHandle, outgoing: &mut [OutgoingCol
                 }
             }
             Err(error) => {
-                tracing::warn!(target: "flow::sync::session", album = %id, %error, "album track fetch failed; album sent without tracks");
+                tracing::warn!(target: "youglidetube::sync::session", album = %id, %error, "album track fetch failed; album sent without tracks");
             }
         }
     }

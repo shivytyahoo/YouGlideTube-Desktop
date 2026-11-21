@@ -1,4 +1,4 @@
-//! What one interaction teaches the brain, ported from Flow for Android's
+//! What one interaction teaches the brain, ported from the Android app's
 //! `FlowNeuroEngine.onVideoInteraction`. Pure mutation of the resident brain, no I/O: the caller
 //! persists it and logs the event.
 

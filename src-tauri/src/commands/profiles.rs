@@ -48,7 +48,7 @@ pub async fn profiles_rename(
         .await
         .map_err(ErrorResponse::from)?;
     if let Err(error) = profile_actions::renamed(&app, &id, &profile.name).await {
-        tracing::warn!(target: "flow::sync2", kind = error.kind(), "synced profile name not updated");
+        tracing::warn!(target: "youglidetube::sync2", kind = error.kind(), "synced profile name not updated");
     }
     Ok(profile)
 }

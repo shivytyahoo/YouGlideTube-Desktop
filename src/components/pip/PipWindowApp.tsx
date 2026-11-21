@@ -12,7 +12,7 @@ import { useMediaCommands } from "../../lib/useMediaCommands";
 import { useMusicTray } from "../../lib/useMusicTray";
 import { usePlayerStore } from "../../store/usePlayerStore";
 import { WindowResizeEdges } from "../ui/WindowResizeEdges";
-import { FlowPlayerCore } from "../watch/FlowPlayerCore";
+import { PlayerCore } from "../watch/PlayerCore";
 import { useCanPinWindows } from "../../lib/graphicsReport";
 
 const chromeButton =
@@ -47,7 +47,7 @@ export function PipWindowApp() {
         // Widest 16:9 box that still fits the window, so the transport controls
         // stay inside the frame even mid-resize.
         <div className="w-full max-w-[calc(100vh*16/9)]">
-          <FlowPlayerCore videoId={currentVideo.id} videoDetails={null} />
+          <PlayerCore videoId={currentVideo.id} videoDetails={null} />
         </div>
       ) : (
         <div

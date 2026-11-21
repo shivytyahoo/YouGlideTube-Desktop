@@ -24,7 +24,7 @@ describe("refreshForSettingKeys", () => {
     useSettingsStore.setState({ loadSettings: playerSettings });
     useFeedActionsStore.setState({ load: feedActions, loaded: true });
     const libraryEvent = vi.fn();
-    window.addEventListener("flow:likes-library-updated", libraryEvent);
+    window.addEventListener("youglidetube:likes-library-updated", libraryEvent);
 
     await refreshForSettingKeys(["liked_items", "subscriptions", "feed_actions_state_v1"]);
     expect(likes).toHaveBeenCalledTimes(1);
@@ -37,7 +37,7 @@ describe("refreshForSettingKeys", () => {
     await refreshForSettingKeys(["theme_id", "auto_pip_enabled", "not_a_known_key"]);
     expect(appSettings).toHaveBeenCalledTimes(1);
     expect(playerSettings).toHaveBeenCalledTimes(1);
-    window.removeEventListener("flow:likes-library-updated", libraryEvent);
+    window.removeEventListener("youglidetube:likes-library-updated", libraryEvent);
   });
 });
 

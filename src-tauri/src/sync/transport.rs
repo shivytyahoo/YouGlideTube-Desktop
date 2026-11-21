@@ -146,9 +146,9 @@ pub const WS_PATH: &str = "/flow-sync";
 /// path is not enforced (any path the peer dials is accepted), but we serve `/flow-sync`.
 pub async fn accept(listener: &TcpListener) -> Result<WsChannel<TcpStream>, SyncError> {
     let (stream, addr) = listener.accept().await?;
-    tracing::info!(target: "flow::sync::transport", peer = %addr, "accepted TCP connection; upgrading to WebSocket");
+    tracing::info!(target: "youglidetube::sync::transport", peer = %addr, "accepted TCP connection; upgrading to WebSocket");
     let ws = accept_async(stream).await.map_err(|e| {
-        tracing::warn!(target: "flow::sync::transport", peer = %addr, "WebSocket upgrade failed: {e}");
+        tracing::warn!(target: "youglidetube::sync::transport", peer = %addr, "WebSocket upgrade failed: {e}");
         SyncError::from(e)
     })?;
     Ok(WsChannel::new(ws))
@@ -167,9 +167,9 @@ pub fn ws_url(ip: &str, port: u16, path: &str) -> String {
 /// `/flow-sync` path so a host that enforces the path accepts us.
 pub async fn connect(ip: &str, port: u16) -> Result<WsChannel<ClientStream>, SyncError> {
     let url = ws_url(ip, port, WS_PATH);
-    tracing::info!(target: "flow::sync::transport", %url, "dialing host");
+    tracing::info!(target: "youglidetube::sync::transport", %url, "dialing host");
     let (ws, _resp) = connect_async(&url).await.map_err(|e| {
-        tracing::warn!(target: "flow::sync::transport", %url, "WebSocket connect failed: {e}");
+        tracing::warn!(target: "youglidetube::sync::transport", %url, "WebSocket connect failed: {e}");
         dial_error(e)
     })?;
     Ok(WsChannel::new(ws))

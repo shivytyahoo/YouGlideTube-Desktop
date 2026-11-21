@@ -14,7 +14,7 @@ import {
 } from "./api/pip";
 
 /** Main window → pop-out: hand playback back to the full player. */
-export const PIP_RETURN_REQUEST_EVENT = "flow:pip-return-requested";
+export const PIP_RETURN_REQUEST_EVENT = "youglidetube:pip-return-requested";
 
 /**
  * How long this window keeps playing while the pop-out warms up. Long enough to

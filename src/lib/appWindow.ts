@@ -1,7 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 /**
- * This window's label: "main", "flow-N" for extra windows, or "pip" for the
+ * This window's label: "main", "youglidetube-N" for extra windows, or "pip" for the
  * pop-out player. Every window runs the same bundle in its own JS context.
  */
 export const CURRENT_WINDOW_LABEL = (() => {

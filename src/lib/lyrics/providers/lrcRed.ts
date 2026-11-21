@@ -2,7 +2,7 @@ import type { LyricsEntry, LyricsProvider } from "../types";
 import { lyricsHttpGet, enc } from "../http";
 import { parseTTMLToLyricsEntries } from "../ttmlParser";
 import { best, cleanArtist, type MatchSong } from "../matching";
-import { flowUserAgent } from "./common";
+import { youglidetubeUserAgent } from "./common";
 
 const SEARCH_URL = "https://lrc.red/api/v1";
 
@@ -38,7 +38,7 @@ export function pickLrcRedHit(hits: LrcRedHit[], request: MatchSong): LrcRedHit 
 }
 
 async function get(url: string): Promise<string | null> {
-  const res = await lyricsHttpGet(url, { "User-Agent": await flowUserAgent() });
+  const res = await lyricsHttpGet(url, { "User-Agent": await youglidetubeUserAgent() });
   if (res.status === 404) return null;
   if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}`);
   return res.body.trim() ? res.body : null;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getWatchHistory } from "./api/db";
 import { getHiddenContinueWatchingIds, hideContinueWatchingVideo } from "./continueWatching";
-import { isDeepFlowCurrentlyActive } from "./deepFlow";
+import { isDeepGlideCurrentlyActive } from "./deepGlide";
 import { SETTINGS } from "./settings/schema";
 import { buildContinueWatching } from "./useContinueWatching";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
@@ -35,7 +35,7 @@ export function useContinueWatchingOnLaunch() {
   useEffect(() => {
     if (!settingsLoaded || checkedRef.current) return;
     checkedRef.current = true;
-    if (!enabled || isDeepFlowCurrentlyActive()) return;
+    if (!enabled || isDeepGlideCurrentlyActive()) return;
     getWatchHistory(HISTORY_SCAN, 0)
       .then((history) => {
         if (!spentRef.current) setVideo(buildContinueWatching(history, getHiddenContinueWatchingIds())[0] ?? null);

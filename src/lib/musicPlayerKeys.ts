@@ -1,8 +1,8 @@
 import { DIGIT_KEYS, type KeyBinding } from "./keyMap";
 
 /**
- * The full player's keyboard map. Flow Android's `MediaKeyboardShortcuts` was
- * written from this set ("the keys Flow Desktop and YouTube use"), so both apps
+ * The full player's keyboard map. the Android app's `MediaKeyboardShortcuts` was
+ * written from this set ("the keys the desktop app and YouTube use"), so both apps
  * answer the same keys.
  */
 export type MusicPlayerKeyAction =

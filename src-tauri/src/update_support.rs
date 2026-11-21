@@ -36,7 +36,7 @@ pub struct UpdateSupport {
 }
 
 impl UpdateSupport {
-    /// Whether Flow writes its own user-level `flow://` handler at startup. Only an `AppImage`
+    /// Whether the app writes its own user-level `youglidetube://` handler at startup. Only an `AppImage`
     /// and an unbundled binary need one: Flatpak, `.deb`, `.rpm` and the AUR packages install a
     /// desktop entry that already takes the link (`%u`), and a runtime handler would shadow it
     /// with an absolute path that breaks when an upgrade renames the binary.
@@ -205,10 +205,10 @@ mod tests {
     #[test]
     fn finds_the_app_bundle_around_the_executable() {
         assert_eq!(
-            app_bundle(Path::new("/Volumes/Flow/Flow.app/Contents/MacOS/flow")),
-            Some(Path::new("/Volumes/Flow/Flow.app"))
+            app_bundle(Path::new("/Volumes/YouGlideTube/YouGlideTube.app/Contents/MacOS/youglidetube")),
+            Some(Path::new("/Volumes/YouGlideTube/YouGlideTube.app"))
         );
-        assert_eq!(app_bundle(Path::new("/usr/bin/flow")), None);
+        assert_eq!(app_bundle(Path::new("/usr/bin/youglidetube")), None);
     }
 
     #[cfg(target_os = "macos")]
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn marker_is_read_from_the_resource_dir() {
-        let dir = std::env::temp_dir().join(format!("flow-update-support-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("youglidetube-update-support-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let before = has_marker(Some(&dir));
         std::fs::write(dir.join(DISTRO_MANAGED_MARKER), b"").unwrap();

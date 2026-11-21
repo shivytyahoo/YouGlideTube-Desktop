@@ -1,4 +1,4 @@
-//! What decides whether a candidate is ranked at all, ported from Flow for Android's
+//! What decides whether a candidate is ranked at all, ported from the Android app's
 //! `NeuroScoring`: token-precise topic blocks, the seen gate, the relevance floor of a lane, and
 //! how much jitter a pass gets.
 

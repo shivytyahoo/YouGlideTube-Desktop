@@ -9,7 +9,7 @@ import {
   type RecapListenEvent,
   type RecapViewEvent,
 } from "../api/recap";
-import { isDeepFlowCurrentlyActive } from "../deepFlow";
+import { isDeepGlideCurrentlyActive } from "../deepGlide";
 import { onBeforeProfileSwitch } from "../profiles/beforeSwitch";
 import { isMusicVideo } from "../utils";
 
@@ -24,11 +24,11 @@ let flushing: Promise<void> | null = null;
 let installed = false;
 
 /**
- * As on Android, Deep Flow stops everything entering the ledger, even with "Save to watch history"
+ * As on Android, Deep Glide stops everything entering the ledger, even with "Save to watch history"
  * on: that switch is about history. Taking back something stored is always allowed.
  */
 function recording(): boolean {
-  return !isDeepFlowCurrentlyActive();
+  return !isDeepGlideCurrentlyActive();
 }
 
 function install() {
@@ -119,7 +119,7 @@ export function recapSponsorSkip(
   if (recording() && !isMusicVideo(video)) enqueue({ kind: "sponsorSkip", atMs: Date.now(), category, skippedMs: Math.round(skippedMs) });
 }
 
-/** As on Android, saying no to an artist is noted even in Deep Flow. */
+/** As on Android, saying no to an artist is noted even in Deep Glide. */
 export function recapArtistSaidNo(artistId: string | null, artistName: string, blocked: boolean) {
   enqueue({ kind: "artistSaidNo", atMs: Date.now(), artistId, artistName, blocked });
 }

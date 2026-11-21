@@ -12,7 +12,7 @@ import { getMusicQueue, getMusicWatchQueue } from "./api/music";
 import { handoffToOpen, parseDeepLinkUrl, type Handoff } from "./flowHandoff";
 import { playLinkedPlaylist } from "./linkedPlaylist";
 import { addWatchRecord } from "./api/db";
-import { shouldRecordWatchHistory } from "./deepFlow";
+import { shouldRecordWatchHistory } from "./deepGlide";
 import { seekWhenVideoReady } from "./playerSeek";
 import { prefetchStreamInfo } from "./streamResolution";
 import { channelRoute } from "./youtubeUrl";

@@ -1,4 +1,4 @@
-//! A video's text read into its topic vector the way Flow for Android reads it
+//! A video's text read into its topic vector the way the Android app reads it
 //! (`NeuroTokenizer.extractFeatures`), checked against its `features_golden.json`: the channel
 //! name's topic words, known phrases and words of the title, polysemous words tagged by the words
 //! around them ("metal:music"), the description's content lines and hashtags, and a channel's known

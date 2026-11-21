@@ -1,4 +1,4 @@
-//! Video categories as a soft signal, ported from Flow for Android's `NeuroCategories`
+//! Video categories as a soft signal, ported from the Android app's `NeuroCategories`
 //! and `NeuroCategoryStore` (#907): a stable id per category, which categories each channel posts
 //! in (learned from watched videos, since feed results carry none), how the viewer's watching splits
 //! across them, and a small penalty for a candidate whose category is foreign to that mix.

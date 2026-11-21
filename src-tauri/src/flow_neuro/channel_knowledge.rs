@@ -1,4 +1,4 @@
-//! What channels tell the brain beyond watches, ported from Flow for Android's
+//! What channels tell the brain beyond watches, ported from the Android app's
 //! `NeuroChannelKnowledge` and its subscription handling: following a channel, and the recent
 //! upload titles the subscriptions feed already downloaded, which say what each channel is about
 //! without waiting for a click.

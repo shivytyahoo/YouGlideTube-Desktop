@@ -1,4 +1,4 @@
-//! One ranking pass over feed candidates, in Flow for Android's order (`FlowNeuroEngine.rank`):
+//! One ranking pass over feed candidates, in the Android app's order (`FlowNeuroEngine.rank`):
 //! hard filters, the seen gate, topic blocks on the candidate's leading topics, a lane's relevance
 //! floor, scoring with jitter relative to the median score, then diversity.
 

@@ -1,7 +1,6 @@
 //! The visitor identity every request carries.
 //!
-//! One identity is minted, kept on disk and reused for a week, as Flow for
-//! Android does. A new identity per launch, or a new one on every bot wall, is
+//! One identity is minted, kept on disk and reused for a week, as the Android app does. A new identity per launch, or a new one on every bot wall, is
 //! the pattern that gets a visitor flagged. Re-rolls after a wall are capped at
 //! two in six hours; past that a wall is the network's, not the identity's.
 //! The value is never logged and never synced.
@@ -271,7 +270,7 @@ mod tests {
 
     #[test]
     fn saved_identity_is_restored_and_forgotten() {
-        let dir = std::env::temp_dir().join(format!("flow-visitor-{}", now_ms()));
+        let dir = std::env::temp_dir().join(format!("youglidetube-visitor-{}", now_ms()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("visitor_identity.json");
 

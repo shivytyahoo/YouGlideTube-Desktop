@@ -1,4 +1,4 @@
-//! Feature extraction against Flow for Android's `features_golden.json` (written by its
+//! Feature extraction against the Android app's `features_golden.json` (written by its
 //! `NeuroFeaturesGoldenTest`): real titles with channel names and descriptions, with and without
 //! document counts.
 

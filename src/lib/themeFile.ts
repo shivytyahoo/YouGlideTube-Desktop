@@ -28,28 +28,7 @@ export const THEME_FILE_TOKENS: Record<keyof ThemeColors, string> = {
   error: "--youglidetube-error",
 };
 
-/**
- * The old `--flow-*` names, still read as a fallback so a custom.css written
- * for an earlier build keeps working. New files should use `--youglidetube-*`.
- */
-const LEGACY_THEME_FILE_TOKENS: Record<keyof ThemeColors, string> = {
-  primary: "--flow-primary",
-  onPrimary: "--flow-on-primary",
-  secondary: "--flow-secondary",
-  background: "--flow-background",
-  surface: "--flow-surface",
-  surfaceContainerLow: "--flow-surface-container-low",
-  surfaceContainer: "--flow-surface-container",
-  surfaceContainerHigh: "--flow-surface-container-high",
-  surfaceContainerHighest: "--flow-surface-container-highest",
-  outline: "--flow-outline",
-  onSurface: "--flow-on-surface",
-  onSurfaceVariant: "--flow-on-surface-variant",
-  error: "--flow-error",
-};
-
 const SCHEME_TOKEN = "--youglidetube-scheme";
-const LEGACY_SCHEME_TOKEN = "--flow-scheme";
 
 const SEED_KEYS: (keyof ThemeSeed)[] = [
   "primary", "onPrimary", "secondary", "background", "surface",
@@ -95,7 +74,6 @@ function seedOf(colors: ThemeColors): ThemeSeed {
  * raw value ("" when unset); `resolveColor` returns it as hex, or null when it is
  * not a colour. Unset or invalid colours keep YouGlideTube Default's, and the always-dark
  * surfaces of a light file keep YouGlideTube's dark greys with the file's accent.
- * A `--flow-*` token is read only when its `--youglidetube-*` name is unset.
  */
 export function buildThemeFileTheme(
   readToken: (name: string) => string,
@@ -105,16 +83,14 @@ export function buildThemeFileTheme(
   const resolved: Partial<ThemeColors> = {};
   for (const [key, name] of Object.entries(THEME_FILE_TOKENS) as [keyof ThemeColors, string][]) {
     const raw = readToken(name).trim();
-    const legacyName = LEGACY_THEME_FILE_TOKENS[key];
-    const value = raw || readToken(legacyName).trim();
-    if (!value) continue;
-    const color = resolveColor(value);
+    if (!raw) continue;
+    const color = resolveColor(raw);
     if (color) resolved[key] = color;
-    else ignoredTokens.push(raw ? name : legacyName);
+    else ignoredTokens.push(name);
   }
 
   const scheme = themeFileScheme(
-    readToken(SCHEME_TOKEN) || readToken(LEGACY_SCHEME_TOKEN),
+    readToken(SCHEME_TOKEN),
     resolved.background ?? null,
   );
   const other: ThemeFileScheme = scheme === "light" ? "dark" : "light";

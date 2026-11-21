@@ -2,7 +2,7 @@
 //!
 //! [`crate::sync::canonical`] defines what this build **emits** — the shapes fixed by `FLOW-SYNC/1`
 //! (`notes/sync/sync_wire_format_addendum.md` §6.5). What we **accept** has to be wider, because
-//! Flow for Android through v2.2.0 ships the `FlowNeuro` brain in a flatter envelope and those builds
+//! the Android app through v2.2.0 ships the `FlowNeuro` brain in a flatter envelope and those builds
 //! are already on users' phones. Every impl here still accepts the canonical shape unchanged and
 //! additionally understands the Android one. Serialization is untouched, so nothing in this module
 //! can change the bytes we put on the wire or the payload hashes computed over them.

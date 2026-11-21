@@ -213,7 +213,7 @@ export default function MusicHome() {
         return <p className="py-20 text-center text-sm text-chrome-neutral-400">{getString('music_chip_empty')}</p>;
       }
       return (
-        <div className="flow-grid gap-y-6" style={gridStyle}>
+        <div className="video-grid gap-y-6" style={gridStyle}>
           {chipFilter.loading && items.length === 0
             ? Array.from({ length: 18 }).map((_, i) => <SquareSkeleton key={i} fill />)
             : items.map((item, i) => <div key={i}>{renderCard(item, songContext, activeChip.title, true)}</div>)}

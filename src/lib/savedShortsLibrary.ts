@@ -6,7 +6,7 @@ import type { ShortVideoSummary } from "../types/video";
 const SAVED_SHORTS_SETTING_KEY = "saved_shorts_library";
 const TITLE_REPAIR_LIMIT = 24;
 
-export const SAVED_SHORTS_LIBRARY_UPDATED_EVENT = "flow:saved-shorts-library-updated";
+export const SAVED_SHORTS_LIBRARY_UPDATED_EVENT = "youglidetube:saved-shorts-library-updated";
 
 export function shortItemToSummary(short: ShortItem): ShortVideoSummary {
   return {

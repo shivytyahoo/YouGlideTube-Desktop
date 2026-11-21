@@ -5,7 +5,7 @@ import { useLikesStore } from "../store/useLikesStore";
 import { getSettingValue } from "../store/useAppSettingsStore";
 import { isTauriEnv } from "./api/env";
 import { reportListened, reportLove, reportNowPlaying, reportOnline, scrobbleTrack } from "./api/scrobble";
-import { isDeepFlowCurrentlyActive } from "./deepFlow";
+import { isDeepGlideCurrentlyActive } from "./deepGlide";
 import { isLocalMediaId } from "./localMediaId";
 import { likeChange } from "./scrobble/likeChange";
 import { ListenTracker, type ListenEvent } from "./scrobble/listenTracker";
@@ -13,9 +13,9 @@ import { SETTINGS, type SettingKey } from "./settings/schema";
 
 const enabled = (key: SettingKey) => getSettingValue(key) === "true";
 
-/** As on Android, Deep Flow keeps listens private unless the listener allowed them. */
+/** As on Android, Deep Glide keeps listens private unless the listener allowed them. */
 function scrobblingAllowed(): boolean {
-  return !isDeepFlowCurrentlyActive() || enabled(SETTINGS.DEEP_FLOW_SCROBBLE);
+  return !isDeepGlideCurrentlyActive() || enabled(SETTINGS.DEEP_GLIDE_SCROBBLE);
 }
 
 function send(event: ListenEvent): void {

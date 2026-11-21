@@ -29,7 +29,7 @@ fn logs_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, ErrorResponse>
 fn is_log_file(path: &std::path::Path) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| name.starts_with("flow") && name.contains("log"))
+        .is_some_and(|name| name.starts_with("youglidetube") && name.contains("log"))
 }
 
 /// The report the last backend crash left, if any.
@@ -56,20 +56,20 @@ pub fn crash_report_delete(reports: State<'_, CrashReports>) -> Result<(), Error
 }
 
 /// Records a frontend diagnostic event in the backend log under the
-/// `flow::frontend` target. `level` is one of `error` | `warn` | `info`
+/// `youglidetube::frontend` target. `level` is one of `error` | `warn` | `info`
 /// (anything else is treated as `info`); `context` is an optional JSON blob.
 #[tauri::command]
 pub fn log_frontend_event(level: String, message: String, context: Option<String>) {
     let context = context.unwrap_or_default();
     match level.as_str() {
         "error" => {
-            tracing::error!(target: "flow::frontend", context = %context, message = %message, "frontend_event")
+            tracing::error!(target: "youglidetube::frontend", context = %context, message = %message, "frontend_event")
         }
         "warn" => {
-            tracing::warn!(target: "flow::frontend", context = %context, message = %message, "frontend_event")
+            tracing::warn!(target: "youglidetube::frontend", context = %context, message = %message, "frontend_event")
         }
         _ => {
-            tracing::info!(target: "flow::frontend", context = %context, message = %message, "frontend_event")
+            tracing::info!(target: "youglidetube::frontend", context = %context, message = %message, "frontend_event")
         }
     }
 }
@@ -143,7 +143,7 @@ pub fn logs_dir_path(app: tauri::AppHandle) -> Result<String, ErrorResponse> {
 
 /// Opens the rolling log directory in the OS file manager. A reliable fallback
 /// on Linux/WebKitGTK, where `navigator.clipboard` copy can silently fail — the
-/// user can always grab the `flow*.log` files directly and attach them.
+/// user can always grab the `youglidetube*.log` files directly and attach them.
 #[tauri::command]
 pub async fn reveal_logs_folder(app: tauri::AppHandle) -> Result<(), ErrorResponse> {
     let dir = logs_dir(&app)?;
@@ -152,7 +152,7 @@ pub async fn reveal_logs_folder(app: tauri::AppHandle) -> Result<(), ErrorRespon
     Ok(())
 }
 
-/// Forgets the anonymous visitor identity Flow sends with every request, so the next
+/// Forgets the anonymous visitor identity the app sends with every request, so the next
 /// request starts under a new one.
 #[tauri::command]
 pub fn reset_visitor_identity(

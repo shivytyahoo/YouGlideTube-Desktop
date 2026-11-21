@@ -1,15 +1,15 @@
 [package]
-name = "flow"
+name = "youglidetube"
 version = "0.1.0-beta4"
-description = "Privacy-first YouTube and YouTube Music desktop companion to Flow for Android, powered by the native local FlowNeuro recommendation engine"
+description = "Privacy-first YouTube and YouTube Music desktop client"
 authors = ["shivyt"]
 edition = "2024"
-default-run = "flow"
+default-run = "youglidetube"
 license = "GPL-3.0-only"
 repository = "https://github.com/shivytyahoo/YouGlideTube-Desktop"
 
 [lib]
-name = "flow_desktop_lib"
+name = "youglidetube_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -98,7 +98,7 @@ keyring = "4"
 # compression (parity with Android java.util.zip), and LAN IP discovery for the QR.
 tokio-tungstenite = "0.30"
 flate2 = "1"
-# Master backups: the same zip layout Flow for Android reads and writes.
+# Master backups: the same zip layout the Android app reads and writes.
 zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
 local-ip-address = "0.6"
 # FLOW-SYNC/2 LAN groups find each other over mDNS (`_flow._tcp`).

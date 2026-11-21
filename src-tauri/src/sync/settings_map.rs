@@ -1,6 +1,6 @@
 //! Desktop settings ⇄ the canonical setting keys on the wire (`FLOW-SYNC/1` §6.4).
 //!
-//! Flow for Android only understands its own canonical names (`autoplay`, `return_youtube_dislikes`,
+//! the Android app only understands its own canonical names (`autoplay`, `return_youtube_dislikes`,
 //! …) with typed values, so a shared setting is renamed and typed on the way out and mapped back
 //! on the way in. Settings only the desktop has travel under a `desktop.` prefix, which Android
 //! ignores and another desktop maps back. Older desktop builds sent raw desktop keys, which are
@@ -164,8 +164,8 @@ const DESKTOP_ONLY: &[&str] = &[
     "notif_shorts_enabled",
     "hide_unplayable_subscriptions",
     "show_region_picker_in_explore",
-    "deep_flow_expire_hours",
-    "deep_flow_save_history",
+    "deep_glide_expire_hours",
+    "deep_glide_save_history",
     "sponsorblock_server",
     "sponsorblock_colors",
 ];

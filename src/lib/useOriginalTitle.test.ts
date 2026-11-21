@@ -123,7 +123,7 @@ describe("useOriginalTitle", () => {
 
   it("watches a grid card by its wrapper, which keeps its layout when skipped", async () => {
     const wrapper = document.createElement("div");
-    wrapper.className = "flow-grid-card";
+    wrapper.className = "video-grid-card";
     host.append(wrapper);
     const wrappedRoot = createRoot(wrapper);
     await act(async () => wrappedRoot.render(createElement(Card, { id: freshId(), gated: true })));

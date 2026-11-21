@@ -51,7 +51,7 @@ export interface SettingsBackup {
 
 /** Android's master-backup manifest (`MasterBackupZip.kt`), as a top-level key. */
 export interface MasterManifest {
-  format: "flow-master";
+  format: "youglidetube-master";
   version: 1;
   defaultId: string;
   profiles: Profile[];

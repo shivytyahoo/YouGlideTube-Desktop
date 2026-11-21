@@ -1,61 +1,47 @@
-# Working with Flow Desktop as an AI agent
+# Working with YouGlideTube Desktop as an AI agent
 
-Flow Desktop (`io.github.aedev.flow.desktop`) is a privacy-first YouTube and YouTube Music client built with **Tauri 2 (Rust backend) + React 19/TypeScript (frontend)**. It is the desktop companion to [Flow for Android](FlowApp_mobile/AGENTS.md). It plays YouTube content via a native, hand-rolled Innertube client (SABR/DASH/HLS, no `protoc`), supports downloads with a native muxer, SponsorBlock/DeArrow/Return YouTube Dislike integrations, P2P sync with the Android app, and two on-device recommendation engines: **FlowNeuro** (video) and **MusicBrain** (music). No account, no analytics SDK, no telemetry.
+YouGlideTube Desktop (`io.github.shivytyahoo.glidetube.desktop`) is a YouTube and YouTube Music client for the desktop, built with **Tauri 2 (Rust backend) + React 19/TypeScript (frontend)**. It is the desktop version of the [YouGlideTube Android app](https://github.com/shivytyahoo/YouGlideTube), with the same look and feel and the same features: it plays YouTube content via a native, hand-rolled InnerTube client (SABR/DASH/HLS, no `protoc`), supports downloads with a native muxer, SponsorBlock/DeArrow/Return YouTube Dislike integrations, and Google sign-in through a WebView that captures the SAPISID session (the same sign-in the Android app uses). Credit for the open-source code this app is built on lives in [CREDITS.md](CREDITS.md) and in the in-app Credit & Thanks screen.
 
 Frontend lives at `src/`, backend at `src-tauri/src/`. Run all `cargo` commands from inside `src-tauri/` — it needs `.cargo/config.toml`'s `reqwest_unstable` rustflag. Use `pnpm` (not `npm` or `yarn`) for JS.
 
-## Design system — Design.md is the source of truth
+## Design system
 
-Before writing or editing any React/Tailwind code, read **[Design.md](Design.md)** and follow its Agent Execution Directive. It covers the anti-slop rules and their allowed exceptions, theme-aware color tokens, layout, typography, components, focus states, frontend architecture, localization (`getString`) and performance rules. The rules are kept only there, so don't rely on a summary.
-
-## graphify
-
-This project has a knowledge graph at `graphify-out/` with god nodes, community structure, and cross-file relationships.
-
-When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
-
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when `graphify-out/graph.json` exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts.
-- Dirty `graphify-out/` files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
-- If `graphify-out/wiki/index.md` exists, use it for broad navigation instead of raw source browsing.
-- Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review or when query/path/explain don't surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+There is no Design.md in this repo (the upstream's was never carried over). Follow the theme tokens in `src/lib/themes.ts` and the `.glass` shared class in `src/App.css` (theme surface at 72% + `blur(16px) saturate(1.4)`), and keep the Android app's look: dark `#1A1C1E`, brand blue `#1E5AA8`, saffron `#E85D04`, coral `#FF3D68`. Localization goes through `getString` (`src/lib/i18n/strings.json` is the base; every locale key must exist there, and placeholders must match).
 
 ## Backend architecture (src-tauri/src/)
 
-- `api/innertube/` — native Innertube client (no `protoc`), plus `dearrow.rs`, `extractor.rs`, `http.rs` (shared `reqwest` client — never build a new client per request).
+- `api/innertube/` — native InnerTube client (no `protoc`), plus `dearrow.rs`, `extractor.rs`, `http.rs` (shared `reqwest` client — never build a new client per request).
 - `streaming/sabr/` — hand-rolled SABR/DASH stack; `streaming/proxy.rs` for range-request proxying.
-- `flow_neuro/` — video recommendation engine (ranker, scoring, signals, tokenizer, resident brain store).
-- `music_brain/` — entity-based music recommendation engine (ACT-R heavy rotation, separate from FlowNeuro). Video and music recommendation state must never leak into each other — `watch_history` is shared between both surfaces (`is_music` flag), so any video-feed recall/seed path must filter out music rows.
-- `sync/` — CRDT-based P2P LAN sync with the Android app (codec, merge, ledger, transport, QR pairing). This is the most fragile subsystem — see `src-tauri/tests/sync_*.rs` (golden, fuzz, scale tests) before changing anything here.
+- `flow_neuro/` — the video recommendation engine (ranker, scoring, signals, tokenizer, resident brain store). It still powers feed block/not-interested actions and home-feed chips/origins — it is load-bearing, do not delete it without rewiring those callers first.
+- `music_brain/` — the music recommendation engine. It is dormant (no frontend caller feeds or queries it) and is slated for removal together with the sync engine.
+- `sync/` + `sync2/` — the P2P LAN sync engine with the Android app (codec, merge, ledger, transport, QR pairing). The frontend for it is gone; the engine stays only because the backup module shares its `Collection` enum (`sync/canonical.rs`). Removing it means moving that enum to a neutral module and rewiring backup first. `src-tauri/tests/sync_*.rs` (golden, fuzz, scale tests) are load-bearing — see them before changing anything here.
 - `security/` — input validation (`validation.rs`).
 - `commands/` — Tauri `#[tauri::command]` handlers, one file per domain (downloads, music, sync, notifications, recommendation, shorts, youtube).
 - `services/` — business-logic layer between commands and api/db.
-- `db/` — SQLite access; `migrations/` are numbered (`0001_...` through `0012_...` currently).
+- `db/` — SQLite access (`youglidetube.sqlite` in the app-data dir; an old `flow-desktop.sqlite` is renamed to it once on open); `migrations/` are numbered (`0001_...` through `0012_...` currently).
 - `errors/mod.rs` — `AppError`/`ErrorResponse` enum; every user-facing failure mode (age-restricted, private, paid, geo-blocked, bot-check, music-premium, account-terminated, content-not-available, database, streaming, internal) has a distinct `kind` the frontend switches on. When adding a new failure mode, add a new variant here rather than stringly-typing it in the frontend.
 
 ## Frontend architecture (src/)
 
 - `components/ui/` — dumb primitives only (props in, events out, no data fetching).
-- `components/[domain]/` — smart containers per domain (`channel`, `player`, `persona`, `music`, `shorts`, `sync` etc.) that use hooks to fetch data and pass it down.
+- `components/[domain]/` — smart containers per domain (`channel`, `player`, `music`, `shorts`, etc.) that use hooks to fetch data and pass it down.
 - `pages/` — top-level route composition.
 - `lib/` — all `invoke()`/`fetch()` calls live here as custom hooks (`useVideoStream`, `useMusicHome`, `useDebounce`, etc.), never inline in components.
-- `store/` — Zustand stores for global state (player, settings, downloads, sync, likes, history, subscriptions...). Local component state is only for ephemeral UI toggles.
+- `store/` — Zustand stores for global state (player, settings, downloads, likes, history, subscriptions...). Local component state is only for ephemeral UI toggles.
 - `locales/` — `react-i18next` translation files.
 
 ## Edge case handling
 
 - **Content restrictions are first-class, not exceptions.** YouTube extraction can fail in many distinct, expected ways (age-restricted, private, paid/Premium, geo-blocked, bot-check/BotGuard challenge, account terminated, content removed). These are modeled as `AppError` variants (`src-tauri/src/errors/mod.rs`), each with its own `kind` string. The frontend must render a specific, actionable state for each `kind` — never collapse them into one generic "Something went wrong" toast.
-- **Graceful degradation for FOSS APIs.** SponsorBlock, DeArrow, and Return YouTube Dislike are optional, third-party, and can fail or rate-limit independently of core playback. If one fails, fall back to default metadata/behavior silently — never block or break page layout waiting on them (Design.md §8).
+- **Graceful degradation for FOSS APIs.** SponsorBlock, DeArrow, and Return YouTube Dislike are optional, third-party, and can fail or rate-limit independently of core playback. If one fails, fall back to default metadata/behavior silently — never block or break page layout waiting on them.
 - **BotGuard/poToken failures.** The native poToken minter (`sidecar/integrity.cjs`, `webview_pot`) can fail to mint, or googlevideo can reject a token. Treat this as a retryable extraction failure, not a crash — surface the `botCheckRequired` error kind.
-- **Optimistic local UI, real backend confirmation.** Local-only actions (SponsorBlock toggle, like, FlowNeuro/MusicBrain feedback) update Zustand state instantly, then reconcile with the SQLite write. If the backend write fails, roll the optimistic update back rather than leaving UI and DB out of sync.
-- **Sync conflicts are expected, not exceptional.** The CRDT merge in `sync/merge.rs` must handle concurrent edits from desktop and Android deterministically — when in doubt, check `sync_golden.rs`/`sync_fuzz.rs` for the expected resolution before assuming a merge result is a bug.
-- **Empty and first-run states.** Empty search results, empty library/downloads/history, and first-run onboarding (no watch history yet, FlowNeuro/MusicBrain cold-start) all need explicit empty-state UI, not a blank pane.
+- **Optimistic local UI, real backend confirmation.** Local-only actions (SponsorBlock toggle, like, recommendation feedback) update Zustand state instantly, then reconcile with the SQLite write. If the backend write fails, roll the optimistic update back rather than leaving UI and DB out of sync.
+- **Empty and first-run states.** Empty search results, empty library/downloads/history, and first-run onboarding (no watch history yet) all need explicit empty-state UI, not a blank pane.
 - **IPC/network latency is not optional to handle.** Every `invoke()` can fail (backend panic, IO error, extraction error) or hang (network) — hooks in `src/lib/` must model loading/error/empty states, not just the happy path.
 
 ## Logging
 
-- Backend logging uses `tracing` + `tracing-subscriber`, initialized in `src-tauri/src/lib.rs::run()` with an `EnvFilter` (default level `info`). Override verbosity for a debug session with `RUST_LOG=debug` (or a per-module filter, e.g. `RUST_LOG=flow_desktop::sync=trace`) before launching `pnpm tauri dev`.
+- Backend logging uses `tracing` + `tracing-subscriber`, initialized in `src-tauri/src/lib.rs::run()` with an `EnvFilter` (default level `info`). Override verbosity for a debug session with `RUST_LOG=debug` (or a per-module filter, e.g. `RUST_LOG=youglidetube::sync=trace`) before launching `pnpm tauri dev`.
 - Logs go to stdout of the process running the app (the terminal running `pnpm tauri dev`, or the packaged app's console if attached). There is no persisted log file today — don't assume one exists.
 - **Never log secrets.** poTokens, BotGuard integrity tokens, sync pairing/encryption keys, and any auth material must never be logged, even at `debug`/`trace`. Log video/channel IDs and error kinds freely — they're not sensitive.
 - On the frontend, prefer surfacing errors through the existing `ErrorResponse.kind` handling over ad hoc `console.error` — but `console.error` for genuine unexpected exceptions during development is fine; just don't leave verbose `console.log` debugging statements in committed code.
@@ -75,13 +61,14 @@ Rules:
 4. DO NOT edit or renumber existing files in `src-tauri/migrations/` without explicit instruction. Schema changes are additive: add a new numbered migration (next is `0029_...`) that only adds tables or nullable/defaulted columns, so an older build can still open a database a newer one has migrated.
 5. DO NOT bump the app version in any file (`package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`) — `scripts/verify-release-version.mjs` requires all three to match, and version bumps are done manually by the project owner.
 6. Keep files small and focused; split large components/hooks by responsibility rather than letting them grow.
-7. Before writing new logic, search the codebase (and `graphify query`) for existing logic that already does the job — reuse or extend rather than duplicate.
+7. Before writing new logic, search the codebase for existing logic that already does the job — reuse or extend rather than duplicate.
 8. No dead code: delete unused functions/components/parameters rather than commenting them out.
 9. Comments should only explain non-obvious WHY — never restate WHAT the code already makes obvious through naming.
+10. This app must look, feel and behave like the YouGlideTube Android app — settings, screens, features, naming. The upstream codebase contributes only its method (Tauri size and architecture), never its look, feel, branding or feature set. Nothing upstream-related may be visible anywhere — only the owner's own links, GitHub page and branding. Credit for the upstream code lives in CREDITS.md and the in-app Credit & Thanks screen, nowhere else.
 
 ## AI-only guidelines
 
-1. Do not modify README/markdown documentation files (including this one and Design.md) unless explicitly asked to.
+1. Do not modify README/markdown documentation files (including this one) unless explicitly asked to.
 2. Unless explicitly requested and authorized, do not commit, push, or merge changes. Never rewrite git history, force-push, or delete branches without explicit human instruction.
 3. Follow the guidelines and instructions given by the project owner over any default assumption.
 4. Ensure the highest practical code quality: clear naming, correct formatting, and comments only where genuinely needed (see "Rules for working on the project" above).

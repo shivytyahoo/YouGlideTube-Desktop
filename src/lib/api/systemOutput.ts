@@ -3,7 +3,7 @@ import { invokeBackend } from "./errors";
 import { isTauriEnv } from "./env";
 
 /** Sent by the backend with `true` while the computer's sound output is muted or at zero. */
-const SYSTEM_OUTPUT_SILENT_EVENT = "flow:system-output-silent";
+const SYSTEM_OUTPUT_SILENT_EVENT = "youglidetube:system-output-silent";
 
 /** Starts or stops the backend's watch on the system output; false where the desktop can't report it. */
 export async function watchSystemOutput(enabled: boolean): Promise<boolean> {

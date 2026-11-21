@@ -15,7 +15,7 @@ use crate::models::video::VideoSummary;
 use crate::services::recommendation_service::{DiscoverySurface, RecommendationService};
 use crate::services::youtube_service::YoutubeService;
 
-const FLOW_DISCOVERY_CONTINUATION: &str = "flow:shorts:discovery";
+const YOUGLIDETUBE_DISCOVERY_CONTINUATION: &str = "youglidetube:shorts:discovery";
 
 /// Shorts handed back per page.
 const PAGE_SIZE: usize = 10;
@@ -117,11 +117,11 @@ impl GatherSpec {
     fn continuation(token: Option<String>) -> Self {
         let flow_discovery = token
             .as_deref()
-            .is_some_and(|value| value.starts_with(FLOW_DISCOVERY_CONTINUATION));
+            .is_some_and(|value| value.starts_with(YOUGLIDETUBE_DISCOVERY_CONTINUATION));
         Self {
             include_reel: !flow_discovery,
             reel_sequence_params: token
-                .filter(|value| !value.starts_with(FLOW_DISCOVERY_CONTINUATION)),
+                .filter(|value| !value.starts_with(YOUGLIDETUBE_DISCOVERY_CONTINUATION)),
             include_discovery: true,
             include_subs: flow_discovery,
         }
@@ -442,7 +442,7 @@ impl ShortsService {
 
         let continuation = continuation.or_else(|| {
             if spec.include_discovery || spec.include_subs {
-                Some(FLOW_DISCOVERY_CONTINUATION.to_string())
+                Some(YOUGLIDETUBE_DISCOVERY_CONTINUATION.to_string())
             } else {
                 None
             }
@@ -796,10 +796,10 @@ mod tests {
         assert_eq!(reel.reel_sequence_params.as_deref(), Some("reelToken"));
         assert!(!reel.include_subs);
 
-        let flow = GatherSpec::continuation(Some(FLOW_DISCOVERY_CONTINUATION.to_string()));
-        assert!(!flow.include_reel);
-        assert!(flow.reel_sequence_params.is_none());
-        assert!(flow.include_subs);
-        assert!(flow.include_discovery);
+        let spec = GatherSpec::continuation(Some(YOUGLIDETUBE_DISCOVERY_CONTINUATION.to_string()));
+        assert!(!spec.include_reel);
+        assert!(spec.reel_sequence_params.is_none());
+        assert!(spec.include_subs);
+        assert!(spec.include_discovery);
     }
 }

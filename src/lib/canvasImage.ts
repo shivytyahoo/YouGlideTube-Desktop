@@ -2,7 +2,7 @@ import { proxyImageUrl } from "./api/images";
 import { proxiedImage } from "./imageProxy";
 import { useImageProxyStore } from "../store/useImageProxyStore";
 
-/** Shared by the images Flow draws and exports: the Recap poster and the lyric card. */
+/** Shared by the images the app draws and exports: the Recap poster and the lyric card. */
 
 const LOAD_TIMEOUT_MS = 5_000;
 const LOOPBACK = /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?\//i;

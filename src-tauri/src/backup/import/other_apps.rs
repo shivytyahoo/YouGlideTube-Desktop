@@ -150,7 +150,7 @@ pub fn read_libretube_playlists(path: &Path, now: u64) -> Result<Found, ImportEr
     })
 }
 
-/// Everything in a LibreTube backup that Flow keeps.
+/// Everything in a LibreTube backup that the app keeps.
 pub fn read_libretube_backup(path: &Path, now: u64) -> Result<Found, ImportError> {
     let channels =
         read_libretube_subscriptions(path).map_or_else(|_| Vec::new(), |found| found.channels);

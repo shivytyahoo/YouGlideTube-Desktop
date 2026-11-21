@@ -350,7 +350,7 @@ pub(crate) mod test_support {
 
     impl TempDir {
         pub fn new() -> Self {
-            let dir = std::env::temp_dir().join(format!("flow-import-{}", uuid::Uuid::new_v4()));
+            let dir = std::env::temp_dir().join(format!("youglidetube-import-{}", uuid::Uuid::new_v4()));
             std::fs::create_dir_all(&dir).unwrap();
             Self(dir)
         }

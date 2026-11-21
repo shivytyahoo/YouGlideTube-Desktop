@@ -2,7 +2,7 @@ import { getString, type StringKey } from "./i18n/index";
 import { getPlaylistTimestamp, type StoredPlaylist } from "./playlistLibrary";
 import { profileStorage } from "./storage/profileStorage";
 
-// Mirrors Flow-Android's PlaylistListOrder.
+// Mirrors the Android app's PlaylistListOrder.
 
 const ORDER_STORAGE_KEY = "flow_playlist_list_order";
 const CUSTOM_ORDER_STORAGE_KEY = "flow_playlist_custom_order";

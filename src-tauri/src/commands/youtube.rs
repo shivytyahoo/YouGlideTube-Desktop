@@ -208,7 +208,7 @@ pub fn build_synthetic_dash_manifest(stream_info: &StreamInfo) -> Option<String>
         "<MPD xmlns=\"urn:mpeg:dash:schema:mpd:2011\" type=\"static\" profiles=\"urn:mpeg:dash:profile:isoff-on-demand:2011\" minBufferTime=\"PT1.5S\" mediaPresentationDuration=\"{}\">\n",
         format_duration_xml(duration_ms)
     ));
-    manifest.push_str("  <Period id=\"flow-period-0\" start=\"PT0S\">\n");
+    manifest.push_str("  <Period id=\"youglidetube-period-0\" start=\"PT0S\">\n");
     for audio_track in audio_tracks.iter() {
         let audio_mime_type =
             extract_base_mime_type(audio_track.mime_type.as_deref()).unwrap_or("audio/mp4");

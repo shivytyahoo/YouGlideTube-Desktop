@@ -1,4 +1,4 @@
-//! Backup files both Flow apps can read. A backup keeps Flow for Android's layout (`app_data.json`,
+//! Backup files both YouGlideTube apps can read. A backup keeps the Android app's layout (`app_data.json`,
 //! `engine_brain.json`, `music_brain.json`, a manifest for profiles) and carries the desktop's own
 //! full-fidelity export under an extra `desktop` key Android's parser skips.
 

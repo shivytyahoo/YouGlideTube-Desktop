@@ -40,7 +40,7 @@ fn metadata_parts(header: &Value) -> Vec<MetadataPart> {
 
 /// The subscriber and video counts as written. The parts carry no field names
 /// and their words follow the content language, so they are told apart by
-/// shape, as Flow for Android does: only the subscriber count has an
+/// shape, as the Android app does: only the subscriber count has an
 /// accessibility label (seen in en, es, ja and ar). Without one, two parts are
 /// subscribers then videos, and a lone part is the video count of a channel
 /// that hides its subscribers.

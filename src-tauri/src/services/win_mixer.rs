@@ -1,9 +1,9 @@
-//! Names Flow's audio in the Windows volume mixer.
+//! Names the app's audio in the Windows volume mixer.
 //!
 //! The webview plays sound from its own `msedgewebview2.exe` child process, so the mixer
 //! shows it under Edge's name and icon (`MicrosoftEdge/WebView2Feedback#2236`). This
 //! watches the audio sessions on every output device and renames the ones whose process
-//! is a WebView2 process descended from Flow's.
+//! is a WebView2 process descended from the app's.
 //!
 //! Ported from Drapondur/ChangeVolumeMixerForWebView (MIT License, Copyright (c) 2023 Drapondur).
 #![cfg(windows)]
@@ -40,7 +40,7 @@ enum DeviceChange {
     Gone(String),
 }
 
-/// Starts a background thread that labels Flow's audio sessions for the life of the app.
+/// Starts a background thread that labels the app's audio sessions for the life of the app.
 pub fn start(app: &AppHandle) {
     let Ok(exe) = std::env::current_exe() else {
         return;
@@ -50,7 +50,7 @@ pub fn start(app: &AppHandle) {
             .config()
             .product_name
             .as_deref()
-            .unwrap_or("Flow")
+            .unwrap_or("YouGlideTube")
             .into(),
         // tauri-build embeds the app icon under resource ID 32512. Naming it by ID rather than
         // by index lets EarTrumpet load it, as well as the Windows mixer.
@@ -60,7 +60,7 @@ pub fn start(app: &AppHandle) {
         .name("win-mixer".into())
         .spawn(move || {
             if let Err(error) = watch_devices(&label) {
-                tracing::warn!(%error, "Failed to label Flow in the volume mixer");
+                tracing::warn!(%error, "Failed to label YouGlideTube in the volume mixer");
             }
         });
     if let Err(error) = spawned {
@@ -158,12 +158,12 @@ fn label_if_ours(session: &IAudioSessionControl, label: &Label) -> Result<()> {
 
 fn descends_from_flow(pid: u32) -> bool {
     let parents = webview_parent_pids();
-    let flow = std::process::id();
+    let pid = std::process::id();
     let mut current = pid;
     // Bounded in case a reused process id makes a loop.
     for _ in 0..16 {
         match parents.get(&current) {
-            Some(&parent) if parent == flow => return true,
+            Some(&parent) if parent == pid => return true,
             Some(&parent) if parent != 0 => current = parent,
             _ => return false,
         }
@@ -171,7 +171,7 @@ fn descends_from_flow(pid: u32) -> bool {
     false
 }
 
-/// Only WebView2's processes, because a browser Flow starts to open a link is its child too.
+/// Only WebView2's processes, because a browser the app starts to open a link is its child too.
 fn webview_parent_pids() -> HashMap<u32, u32> {
     let mut parents = HashMap::new();
     let Ok(snapshot) = (unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }) else {

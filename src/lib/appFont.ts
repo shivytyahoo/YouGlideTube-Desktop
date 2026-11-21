@@ -5,11 +5,11 @@ import { getString } from "./i18n/index";
 import { SETTINGS } from "./settings/schema";
 import { setSettingValue, useAppSettingsStore } from "../store/useAppSettingsStore";
 
-/** The font Flow draws its text in. Inter is Desktop's own default; the rest match Android's choices. */
+/** The font the app draws its text in. Inter is Desktop's own default; the rest match Android's choices. */
 export type AppFont = "inter" | "system" | "condensed" | "serif" | "custom";
 
 const FONTS: readonly AppFont[] = ["inter", "system", "condensed", "serif", "custom"];
-export const CUSTOM_FONT_FAMILY = "FlowCustomFont";
+export const CUSTOM_FONT_FAMILY = "YouGlideTubeCustomFont";
 export const MAX_FONT_MB = 10;
 
 export const isAppFont = (value: string): value is AppFont => FONTS.includes(value as AppFont);
@@ -43,7 +43,7 @@ export function hasWeightAxis(bytes: Uint8Array): boolean {
 
 let registered: FontFace | null = null;
 
-/** Registers the font file under Flow's custom family; false when the browser can't read it as a font. */
+/** Registers the font file under the app's custom family; false when the browser can't read it as a font. */
 async function registerCustomFont(bytes: Uint8Array): Promise<boolean> {
   const face = new FontFace(CUSTOM_FONT_FAMILY, bytes.slice().buffer, hasWeightAxis(bytes) ? { weight: "1 1000" } : {});
   try {

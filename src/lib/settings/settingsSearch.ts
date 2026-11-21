@@ -32,7 +32,7 @@ function wordScore(word: string, { title, summary, keywords, page }: Searchable)
 }
 
 /**
- * Ranks settings against a query, as Flow for Android does. Every word has to match somewhere; a
+ * Ranks settings against a query, as the Android app does. Every word has to match somewhere; a
  * match in the title outranks a keyword, which outranks the summary, which outranks the page name.
  */
 export function searchSettings(query: string, entries: SettingEntry[]): SettingEntry[] {

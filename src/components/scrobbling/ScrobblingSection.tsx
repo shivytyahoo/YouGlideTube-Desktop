@@ -34,7 +34,7 @@ export function ScrobblingSection() {
   const showToast = useUiStore((state) => state.showToast);
   const [nowPlaying, setNowPlaying] = useBoolPref(SETTINGS.SCROBBLE_NOW_PLAYING);
   const [loveLikes, setLoveLikes] = useBoolPref(SETTINGS.SCROBBLE_LOVE_LIKES);
-  const [deepFlow, setDeepFlow] = useBoolPref(SETTINGS.DEEP_FLOW_SCROBBLE);
+  const [deepGlide, setDeepGlide] = useBoolPref(SETTINGS.DEEP_GLIDE_SCROBBLE);
   const [signingIn, setSigningIn] = useState<ScrobbleService | null>(null);
   const [editingKey, setEditingKey] = useState(false);
   const [sending, setSending] = useState(false);
@@ -151,8 +151,8 @@ export function ScrobblingSection() {
         <SettingItem title={getString("scrobbling_send_likes")} description={getString("scrobbling_send_likes_summary")}>
           <ToggleSwitch checked={loveLikes} onChange={setLoveLikes} />
         </SettingItem>
-        <SettingItem title={getString("scrobbling_deep_flow")} description={getString("scrobbling_deep_flow_summary")}>
-          <ToggleSwitch checked={deepFlow} onChange={setDeepFlow} />
+        <SettingItem title={getString("scrobbling_deep_glide")} description={getString("scrobbling_deep_glide_summary")}>
+          <ToggleSwitch checked={deepGlide} onChange={setDeepGlide} />
         </SettingItem>
         {waiting > 0 && (
           <SettingItem title={getString("scrobbling_send_now")} description={getString("scrobbling_waiting", waiting)}>

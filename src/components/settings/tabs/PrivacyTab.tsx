@@ -7,62 +7,62 @@ import { getString } from '../../../lib/i18n/index';
 import { SETTINGS } from '../../../lib/settings/schema';
 import { isSettingDisabledUntilWired } from '../../../lib/settings/values';
 import {
-  DEEP_FLOW_DURATION_OPTIONS,
-  DEEP_FLOW_NEVER_EXPIRES_HOURS,
-  getDeepFlowDurationLabel,
-  setDeepFlowEnabled,
-} from '../../../lib/deepFlow';
+  DEEP_GLIDE_DURATION_OPTIONS,
+  DEEP_GLIDE_NEVER_EXPIRES_HOURS,
+  getDeepGlideDurationLabel,
+  setDeepGlideEnabled,
+} from '../../../lib/deepGlide';
 import { useAppSettingsStore } from '../../../store/useAppSettingsStore';
 import { SearchHistoryGroup } from '../SearchHistoryGroup';
 
 export function PrivacyTab() {
-  const deepFlowActive = useAppSettingsStore((state) => state.values[SETTINGS.DEEP_FLOW_ACTIVE] === 'true');
-  const [deepFlowExpireHours, setDeepFlowExpireHours] = usePreference(SETTINGS.DEEP_FLOW_EXPIRE_HOURS, '4');
-  const [deepFlowSaveHistory, setDeepFlowSaveHistory] = useBoolPref(SETTINGS.DEEP_FLOW_SAVE_HISTORY, false);
-  const [deepFlowShowOnSearch, setDeepFlowShowOnSearch] = useBoolPref(SETTINGS.DEEP_FLOW_SHOW_ON_SEARCH, false);
+  const deepGlideActive = useAppSettingsStore((state) => state.values[SETTINGS.DEEP_GLIDE_ACTIVE] === 'true');
+  const [deepGlideExpireHours, setDeepGlideExpireHours] = usePreference(SETTINGS.DEEP_GLIDE_EXPIRE_HOURS, '4');
+  const [deepGlideSaveHistory, setDeepGlideSaveHistory] = useBoolPref(SETTINGS.DEEP_GLIDE_SAVE_HISTORY, false);
+  const [deepGlideShowOnSearch, setDeepGlideShowOnSearch] = useBoolPref(SETTINGS.DEEP_GLIDE_SHOW_ON_SEARCH, false);
 
-  const deepFlowHours = Number(deepFlowExpireHours);
-  const deepFlowDurationLabel = getDeepFlowDurationLabel(deepFlowHours);
-  const deepFlowDescription = deepFlowActive
-    ? deepFlowHours === DEEP_FLOW_NEVER_EXPIRES_HOURS
-      ? getString('deep_flow_active_until_disabled')
-      : getString('deep_flow_learning_paused')
-    : getString('deep_flow_mode_subtitle');
+  const deepGlideHours = Number(deepGlideExpireHours);
+  const deepGlideDurationLabel = getDeepGlideDurationLabel(deepGlideHours);
+  const deepGlideDescription = deepGlideActive
+    ? deepGlideHours === DEEP_GLIDE_NEVER_EXPIRES_HOURS
+      ? getString('deep_glide_active_until_disabled')
+      : getString('deep_glide_learning_paused')
+    : getString('deep_glide_mode_subtitle');
 
   return (
     <div className="space-y-6 pb-8">
       <SearchHistoryGroup />
 
-      <SettingsGroup title={getString('deep_flow_mode_title')}>
-        <SettingItem title={getString('deep_flow_mode_title')} description={deepFlowDescription} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_ACTIVE)}>
+      <SettingsGroup title={getString('deep_glide_mode_title')}>
+        <SettingItem title={getString('deep_glide_mode_title')} description={deepGlideDescription} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_GLIDE_ACTIVE)}>
           <ToggleSwitch
-            checked={deepFlowActive}
+            checked={deepGlideActive}
             onChange={(enabled) => {
-              void setDeepFlowEnabled(enabled);
+              void setDeepGlideEnabled(enabled);
             }}
-            disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_ACTIVE)}
+            disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_GLIDE_ACTIVE)}
           />
         </SettingItem>
         <SettingItem
-          title={getString('deep_flow_expire_duration_title')}
-          description={getString('deep_flow_expire_duration_subtitle', deepFlowDurationLabel)}
-          disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_EXPIRE_HOURS)}
+          title={getString('deep_glide_expire_duration_title')}
+          description={getString('deep_glide_expire_duration_subtitle', deepGlideDurationLabel)}
+          disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_GLIDE_EXPIRE_HOURS)}
         >
           <Select
-            value={deepFlowExpireHours}
-            onChange={setDeepFlowExpireHours}
-            disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_EXPIRE_HOURS)}
-            options={DEEP_FLOW_DURATION_OPTIONS.map((hours) => ({
+            value={deepGlideExpireHours}
+            onChange={setDeepGlideExpireHours}
+            disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_GLIDE_EXPIRE_HOURS)}
+            options={DEEP_GLIDE_DURATION_OPTIONS.map((hours) => ({
               value: String(hours),
-              label: getDeepFlowDurationLabel(hours),
+              label: getDeepGlideDurationLabel(hours),
             }))}
           />
         </SettingItem>
-        <SettingItem title={getString('deep_flow_save_history_title')} description={getString('deep_flow_save_history_subtitle')} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_SAVE_HISTORY)}>
-          <ToggleSwitch checked={deepFlowSaveHistory} onChange={setDeepFlowSaveHistory} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_SAVE_HISTORY)} />
+        <SettingItem title={getString('deep_glide_save_history_title')} description={getString('deep_glide_save_history_subtitle')} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_GLIDE_SAVE_HISTORY)}>
+          <ToggleSwitch checked={deepGlideSaveHistory} onChange={setDeepGlideSaveHistory} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_GLIDE_SAVE_HISTORY)} />
         </SettingItem>
-        <SettingItem title={getString('deep_flow_show_on_search_title')} description={getString('deep_flow_show_on_search_subtitle')} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_SHOW_ON_SEARCH)}>
-          <ToggleSwitch checked={deepFlowShowOnSearch} onChange={setDeepFlowShowOnSearch} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_SHOW_ON_SEARCH)} />
+        <SettingItem title={getString('deep_glide_show_on_search_title')} description={getString('deep_glide_show_on_search_subtitle')} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_GLIDE_SHOW_ON_SEARCH)}>
+          <ToggleSwitch checked={deepGlideShowOnSearch} onChange={setDeepGlideShowOnSearch} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_GLIDE_SHOW_ON_SEARCH)} />
         </SettingItem>
       </SettingsGroup>
     </div>

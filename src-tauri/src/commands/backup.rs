@@ -1,4 +1,4 @@
-//! Backup/restore commands: full-fidelity export/import that reuses the Flow Local Sync
+//! Backup/restore commands: full-fidelity export/import that reuses the local sync
 //! collection serialization ([`crate::sync::export`]) and the atomic CRDT apply pipeline
 //! ([`crate::sync::apply`]). A backup file therefore round-trips through the exact wire
 //! representation the sync test suite already covers, instead of a second ad hoc format.

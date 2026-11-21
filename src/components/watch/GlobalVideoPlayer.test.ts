@@ -11,8 +11,8 @@ vi.mock("react-router-dom", async (importOriginal) => {
   };
 });
 
-vi.mock("./FlowPlayerCore", () => ({
-  FlowPlayerCore: () => createElement("div", { "data-testid": "flow-player-core" }),
+vi.mock("./PlayerCore", () => ({
+  PlayerCore: () => createElement("div", { "data-testid": "player-core" }),
 }));
 
 vi.mock("./FullscreenPanelHost", () => ({
@@ -94,7 +94,7 @@ describe("GlobalVideoPlayer beside the top bar", () => {
     page = document.createElement("main");
     page.getBoundingClientRect = () => rect(56, 800);
     const slot = document.createElement("div");
-    slot.dataset.flowWatchPlayerSlot = "true";
+    slot.dataset.youglidetubeWatchPlayerSlot = "true";
     slot.getBoundingClientRect = () => rect(slotTop, 450);
     page.append(slot);
     host = document.createElement("div");

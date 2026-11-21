@@ -6,7 +6,7 @@ import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
 export type MutePauseAction = "pause" | "resume" | "none";
 
 /**
- * Pause music when Flow is muted and resume it when sound comes back, but only music this pause
+ * Pause music when the app is muted and resume it when sound comes back, but only music this pause
  * stopped: a song the listener paused by hand stays paused when they turn the volume up.
  */
 export function mutePauseAction(silent: boolean, enabled: boolean, isPlaying: boolean, pausedForMute: boolean): MutePauseAction {
@@ -16,8 +16,8 @@ export function mutePauseAction(silent: boolean, enabled: boolean, isPlaying: bo
 }
 
 /**
- * Follows "Pause music when muted". Flow for Android listens to the phone's media volume, so
- * besides Flow's own mute and slider this follows the computer's sound output, which the backend
+ * Follows "Pause music when muted". the Android app listens to the phone's media volume, so
+ * besides the app's own mute and slider this follows the computer's sound output, which the backend
  * watches only while the setting is on.
  */
 export function bindMutePause(): void {

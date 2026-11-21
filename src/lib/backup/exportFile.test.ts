@@ -18,7 +18,7 @@ describe("backup files", () => {
     expect(backupFileName("BRAIN", 5)).toBe("flow_brain_backup_5.zip");
     expect(backupFileName("APP_DATA", 5)).toBe("flow_backup_5.json");
     expect(backupFileName("NEWPIPE_SUBSCRIPTIONS", 5)).toBe("newpipe_subscriptions_5.json");
-    expect(backupFileName("WATCH_HISTORY", 5)).toBe("flow-watch-history.json");
+    expect(backupFileName("WATCH_HISTORY", 5)).toBe("youglidetube-watch-history.json");
   });
 
   it("writes nothing when the save dialog is cancelled", async () => {

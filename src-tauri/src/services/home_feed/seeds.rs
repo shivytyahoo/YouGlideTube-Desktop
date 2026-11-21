@@ -1,4 +1,4 @@
-//! Which videos open Home's related lane, from Flow for Android's `GraphSeedSelector` and
+//! Which videos open Home's related lane, from the Android app's `GraphSeedSelector` and
 //! `HomeFeedGraphCandidates`: real watches, likes and saved videos, scored by engagement, source and
 //! age, spread one per interest community, with the last seed kept for a lasting interest the
 //! recent ones miss.

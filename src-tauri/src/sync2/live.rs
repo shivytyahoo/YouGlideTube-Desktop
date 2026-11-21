@@ -88,7 +88,7 @@ pub fn spawn(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
             if let Err(error) = listen(&app).await {
-                tracing::debug!(target: "flow::sync2", kind = error.kind(), "live channel closed");
+                tracing::debug!(target: "youglidetube::sync2", kind = error.kind(), "live channel closed");
             }
             tokio::time::sleep(RECONNECT_AFTER).await;
         }

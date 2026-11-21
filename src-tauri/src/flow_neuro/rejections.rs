@@ -1,5 +1,5 @@
 //! What the viewer rejected, remembered as patterns whose weight halves every month, ported from
-//! Flow for Android's `NeuroScoring` rejection memory (#907). One rejected video says little about
+//! the Android app's `NeuroScoring` rejection memory (#907). One rejected video says little about
 //! any single topic, so the pair of its two strongest topics counts at once, and its specific words
 //! (as "~" patterns) count once a second rejection repeats them.
 

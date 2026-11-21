@@ -1,4 +1,4 @@
-//! The two engine brains in the JSON Flow for Android imports: `NeuroStorage.SerializableBrain`
+//! The two engine brains in the JSON the Android app imports: `NeuroStorage.SerializableBrain`
 //! (`engine_brain.json`) and `MusicBrainStorage.SerializableMusicBrain` (`music_brain.json`).
 
 use std::collections::{HashMap, HashSet};

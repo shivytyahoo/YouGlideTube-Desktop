@@ -8,7 +8,7 @@ vi.mock("./api/db", async (original) => ({
   ...(await original<object>()),
   getWatchHistory: (...args: unknown[]) => getWatchHistory(...args),
 }));
-vi.mock("./deepFlow", async (original) => ({ ...(await original<object>()), isDeepFlowCurrentlyActive: () => false }));
+vi.mock("./deepGlide", async (original) => ({ ...(await original<object>()), isDeepGlideCurrentlyActive: () => false }));
 
 const { useContinueWatchingOnLaunch } = await import("./useContinueWatchingOnLaunch");
 const { useAppSettingsStore } = await import("../store/useAppSettingsStore");

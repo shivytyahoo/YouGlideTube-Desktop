@@ -42,7 +42,7 @@ export function useTheme() {
     darkStyle,
   });
   const fileTheme = useThemeFileStore((state) => (themeId === THEME_FILE_ID ? state.applied : null));
-  // The theme file sets its own light or dark, so a shell switching schemes switches Flow too.
+  // The theme file sets its own light or dark, so a shell switching schemes switches the app too.
   const variant: ThemeVariant = fileTheme?.scheme ?? choiceVariant;
   const customThemes = useMemo(
     () => parseCustomThemes(serializedCustomThemes),

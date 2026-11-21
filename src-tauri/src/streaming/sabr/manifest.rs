@@ -84,7 +84,7 @@ profiles=\"urn:mpeg:dash:profile:isoff-live:2011\" minBufferTime=\"PT2S\" \
 mediaPresentationDuration=\"{}\">\n",
         duration_iso8601(timing.duration_ms)
     ));
-    m.push_str("  <Period id=\"flow-sabr-0\" start=\"PT0S\">\n");
+    m.push_str("  <Period id=\"youglidetube-sabr-0\" start=\"PT0S\">\n");
 
     for track in audio_tracks {
         let audio_mime = base_mime(&track.format.mime_type, "audio/mp4");

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 interface CrossfadePauseState {
-  /** Crossfade is off from the player's menu until Flow restarts; the saved settings stay as they are. */
+  /** Crossfade is off from the player's menu until the app restarts; the saved settings stay as they are. */
   paused: boolean;
   toggle: () => void;
 }

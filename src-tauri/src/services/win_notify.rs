@@ -7,7 +7,7 @@
 //!
 //! This module talks to `tauri-winrt-notification` directly so we can:
 //!   * register a stable `AppUserModelID` (with a display name + logo) that makes
-//!     Windows attribute every toast to **Flow** — in dev *and* installed builds;
+//!     Windows attribute every toast to **YouGlideTube** — in dev *and* installed builds;
 //!   * attach the app logo as the toast icon and the video thumbnail as a hero
 //!     image for a clean, professional card.
 #![cfg(windows)]
@@ -17,14 +17,14 @@ use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 use tauri_winrt_notification::{Duration, IconCrop, Sound, Toast};
 
-/// Stable `AppUserModelID` for Flow's toasts. Matches the app identifier so the
+/// Stable `AppUserModelID` for the app's toasts. Matches the app identifier so the
 /// registry entry we write here and the Start-menu shortcut an installer creates
 /// resolve to the same identity.
-const AUMID: &str = "io.github.aedev.flow.desktop";
-const DISPLAY_NAME: &str = "Flow";
+const AUMID: &str = "io.github.shivytyahoo.glidetube.desktop";
+const DISPLAY_NAME: &str = "YouGlideTube";
 /// Embedded so it is always available regardless of how the app was launched.
 const LOGO_BYTES: &[u8] = include_bytes!("../../icons/icon.png");
-const LOGO_FILE: &str = "flow-notify-logo.png";
+const LOGO_FILE: &str = "youglidetube-notify-logo.png";
 
 /// Absolute path to the on-disk logo used for the toast icon and registry `IconUri`.
 fn logo_path(app: &AppHandle) -> Option<PathBuf> {
@@ -35,10 +35,10 @@ fn logo_path(app: &AppHandle) -> Option<PathBuf> {
 }
 
 /// Writes the embedded logo to disk (once) and registers the `AppUserModelID` so
-/// Windows attributes toasts to "Flow" with our icon instead of PowerShell.
+/// Windows attributes toasts to "YouGlideTube" with our icon instead of PowerShell.
 /// Idempotent and cheap; safe to call on every startup.
 pub fn ensure_setup(app: &AppHandle) {
-    // Bind the running process to our AUMID so Action Center groups Flow's toasts
+    // Bind the running process to our AUMID so Action Center groups the app's toasts
     // under one identity instead of the launching shell.
     let wide: Vec<u16> = AUMID.encode_utf16().chain(std::iter::once(0)).collect();
     unsafe {
@@ -65,7 +65,7 @@ pub fn ensure_setup(app: &AppHandle) {
 }
 
 /// Registers `HKCU\Software\Classes\AppUserModelId\{AUMID}` with a friendly name
-/// and icon so the toast header reads "Flow" and shows our logo.
+/// and icon so the toast header reads "YouGlideTube" and shows our logo.
 fn register_aumid(logo: &Path) -> windows_registry::Result<()> {
     let key = windows_registry::CURRENT_USER
         .create(format!("Software\\Classes\\AppUserModelId\\{AUMID}"))?;
@@ -85,7 +85,7 @@ pub struct ToastCard<'a> {
     pub thumbnail: Option<&'a Path>,
 }
 
-/// Shows a native toast attributed to Flow. Each new video gets its own toast
+/// Shows a native toast attributed to YouGlideTube. Each new video gets its own toast
 /// (its own pane), with the app logo, the video thumbnail as a hero banner, and
 /// a click handler that plays the video in the app. Fails silently.
 pub fn show(app: &AppHandle, card: &ToastCard<'_>) {

@@ -332,8 +332,8 @@ fn info_element(duration_ms: i64, title: Option<String>) -> MatroskaSpec {
     if let Some(title) = title.filter(|title| !title.is_empty()) {
         children.push(MatroskaSpec::Title(title));
     }
-    children.push(MatroskaSpec::MuxingApp("Flow".to_string()));
-    children.push(MatroskaSpec::WritingApp("Flow".to_string()));
+    children.push(MatroskaSpec::MuxingApp("YouGlideTube".to_string()));
+    children.push(MatroskaSpec::WritingApp("YouGlideTube".to_string()));
     MatroskaSpec::Info(Master::Full(children))
 }
 
@@ -402,7 +402,7 @@ fn chapters_element(metadata: &EmbeddedMetadata, duration_ms: i64) -> MatroskaSp
 }
 
 /// The same fields as the MP4 `ilst`, with the names ffmpeg, VLC and mpv read, plus
-/// the Flow IDs as `FLOW_*` tags.
+/// the YouGlideTube IDs as `YOUGLIDETUBE_*` tags.
 fn tags_element(metadata: &EmbeddedMetadata) -> MatroskaSpec {
     let tags = &metadata.tags;
     let mut pairs: Vec<(String, String)> = Vec::new();
@@ -423,9 +423,9 @@ fn tags_element(metadata: &EmbeddedMetadata) -> MatroskaSpec {
     push("COMMENT", tags.source_url());
     push("URL", tags.source_url());
     push("LYRICS", tags.lyrics.clone());
-    push("ENCODER", Some("Flow".to_string()));
+    push("ENCODER", Some("YouGlideTube".to_string()));
     for (name, value) in tags.flow_fields() {
-        push(&format!("FLOW_{}", name.to_ascii_uppercase()), Some(value));
+        push(&format!("YOUGLIDETUBE_{}", name.to_ascii_uppercase()), Some(value));
     }
     let mut children = vec![MatroskaSpec::Targets(Master::Full(vec![
         MatroskaSpec::TargetTypeValue(50),
@@ -450,7 +450,7 @@ const TAG_STRING_ID: [u8; 2] = [0x44, 0x87];
 /// Tags are written after the clusters and before a cover of at most 1 MB.
 const TAIL_BYTES: u64 = 4 * 1024 * 1024;
 
-/// The `FLOW_*` tags of a Matroska file, by lowercased name without the prefix. Only the end
+/// The `YOUGLIDETUBE_*` tags of a Matroska file, by lowercased name without the prefix. Only the end
 /// of the file is read, since the clusters before it can be gigabytes.
 pub fn read_flow_tags(path: &Path) -> Result<HashMap<String, String>, String> {
     let io = |error: std::io::Error| format!("Could not read the file: {error}");
@@ -515,7 +515,7 @@ fn collect_flow_tags(mut bytes: &[u8], fields: &mut HashMap<String, String>) {
         bytes = rest;
     }
     if let (Some(name), Some(value)) = (name, value)
-        && let Some(key) = name.strip_prefix("FLOW_")
+        && let Some(key) = name.strip_prefix("YOUGLIDETUBE_").or_else(|| name.strip_prefix("FLOW_"))
     {
         fields.insert(key.to_ascii_lowercase(), value);
     }

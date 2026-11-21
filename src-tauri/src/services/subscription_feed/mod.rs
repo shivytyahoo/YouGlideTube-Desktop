@@ -1,6 +1,5 @@
 //! The subscription feed: every followed channel's uploads, newest first, with
-//! Shorts, premieres and members-only uploads told apart. Ported from Flow for
-//! Android's `RssSubscriptionService`.
+//! Shorts, premieres and members-only uploads told apart. Ported from the Android app's `RssSubscriptionService`.
 
 pub mod collabs;
 pub mod posts;

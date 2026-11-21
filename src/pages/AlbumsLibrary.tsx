@@ -150,7 +150,7 @@ export const AlbumsLibrary: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="flow-grid gap-y-6" style={gridStyle}>
+          <div className="video-grid gap-y-6" style={gridStyle}>
             {visibleAlbums.map((album) => (
               <MusicItemCard
                 key={album.id}

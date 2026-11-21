@@ -24,7 +24,7 @@ interface SwitchReadyPayload {
 }
 
 // Hidden BotGuard and n-sig webviews have other labels and hold nothing to save.
-const APP_WINDOW = /^(main|flow-\d+)$/;
+const APP_WINDOW = /^(main|youglidetube-\d+)$/;
 const WINDOW_WAIT_MS = 3000;
 const PIP_HANDBACK_MS = 400;
 
@@ -59,7 +59,7 @@ async function saveEveryWindow(target: Profile): Promise<void> {
 }
 
 /**
- * Switches profile by restarting Flow. Refusals (sync running, another switch) throw before
+ * Switches profile by restarting the app. Refusals (sync running, another switch) throw before
  * anything changes; a failure after that cancels the switch and throws.
  */
 export async function switchProfile(target: Profile): Promise<void> {

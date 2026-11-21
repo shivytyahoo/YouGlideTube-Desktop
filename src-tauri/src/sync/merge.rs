@@ -260,7 +260,7 @@ fn title_key(p: &Playlist) -> String {
     format!("{kind}:{}", normalize_title(&p.title))
 }
 
-/// First-contact matching, as Flow for Android does it: an incoming owned playlist this device
+/// First-contact matching, as the Android app does it: an incoming owned playlist this device
 /// doesn't know by id, with the same title as a local one the sender doesn't know either, is the
 /// same playlist. The local copy takes the sender's sync id, so the two devices share one id from
 /// then on and later renames on either side keep matching. Returns `(old, new)` sync id pairs.

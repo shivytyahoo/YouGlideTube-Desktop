@@ -1,6 +1,6 @@
 import type { MusicTasteProfile } from "../../types/music";
 import type { VideoSummary } from "../../types/video";
-import { isDeepFlowCurrentlyActive } from "../deepFlow";
+import { isDeepGlideCurrentlyActive } from "../deepGlide";
 import { isTauriEnv } from "./env";
 import { invokeBackend } from "./errors";
 import { profileStorage } from "../storage/profileStorage";
@@ -51,7 +51,7 @@ export async function logInteraction(
   interactionType: string,
   percentWatched: number,
 ): Promise<void> {
-  if (isDeepFlowCurrentlyActive()) return;
+  if (isDeepGlideCurrentlyActive()) return;
 
   if (!(await isTauriEnv())) {
     console.log(`[FlowNeuro Mock Log] ${interactionType} - ${title} (${percentWatched * 100}%)`);
@@ -88,13 +88,13 @@ export interface WatchReport {
 
 /** Feeds the backend watch session. It turns a whole viewing into one click and one watch or skip. */
 export async function reportWatchProgress(report: WatchReport): Promise<void> {
-  if (isDeepFlowCurrentlyActive() || !(await isTauriEnv())) return;
+  if (isDeepGlideCurrentlyActive() || !(await isTauriEnv())) return;
   return invokeBackend<void>("report_watch_progress", { report });
 }
 
 /** `natural` is a video that played to its end; any other end waits briefly for the video to resume. */
 export async function endWatchSession(report: WatchReport, natural: boolean): Promise<void> {
-  if (isDeepFlowCurrentlyActive() || !(await isTauriEnv())) return;
+  if (isDeepGlideCurrentlyActive() || !(await isTauriEnv())) return;
   return invokeBackend<void>("end_watch_session", { report, natural });
 }
 
@@ -108,7 +108,7 @@ export async function markNotInterested(
   isLive: boolean,
   isShort: boolean,
 ): Promise<void> {
-  if (isDeepFlowCurrentlyActive()) return;
+  if (isDeepGlideCurrentlyActive()) return;
 
   if (!(await isTauriEnv())) {
     console.log(`[FlowNeuro Mock] Not interested - ${title}`);
@@ -128,7 +128,7 @@ export async function markNotInterested(
 
 /** Cards seen beside a video, kept only for "Hide videos you've already seen". */
 export async function recordSeenVideos(ids: string[]): Promise<void> {
-  if (isDeepFlowCurrentlyActive() || !(await isTauriEnv())) return;
+  if (isDeepGlideCurrentlyActive() || !(await isTauriEnv())) return;
   return invokeBackend<void>("record_seen_videos", { ids });
 }
 
@@ -141,7 +141,7 @@ export async function seenVideoIdsAmong(ids: string[]): Promise<string[]> {
 export async function recordFeedImpressions(
   videos: VideoSummary[],
 ): Promise<void> {
-  if (isDeepFlowCurrentlyActive()) return;
+  if (isDeepGlideCurrentlyActive()) return;
 
   if (!(await isTauriEnv())) {
     return;
@@ -332,7 +332,7 @@ export async function getBrainSnapshot(forceRefresh?: boolean): Promise<UserBrai
 
 /** A typed search is the most explicit interest statement there is; it teaches the engine once. */
 export async function learnFromSearch(query: string): Promise<void> {
-  if (!query.trim() || isDeepFlowCurrentlyActive() || !(await isTauriEnv())) return;
+  if (!query.trim() || isDeepGlideCurrentlyActive() || !(await isTauriEnv())) return;
   await invokeBackend<boolean>("learn_from_search", { query });
   brainCache = null;
 }
@@ -343,13 +343,13 @@ export async function noteSubscription(
   channelName: string,
   subscribed: boolean,
 ): Promise<void> {
-  if (isDeepFlowCurrentlyActive() || !(await isTauriEnv())) return;
+  if (isDeepGlideCurrentlyActive() || !(await isTauriEnv())) return;
   await invokeBackend<void>("note_subscription", { channelId, channelName, subscribed });
 }
 
 /** Upload titles a feed already fetched say what each channel is about. */
 export async function observeChannelUploads(uploads: VideoSummary[]): Promise<void> {
-  if (uploads.length === 0 || isDeepFlowCurrentlyActive() || !(await isTauriEnv())) return;
+  if (uploads.length === 0 || isDeepGlideCurrentlyActive() || !(await isTauriEnv())) return;
   await invokeBackend<void>("observe_channel_uploads", { uploads });
 }
 

@@ -7,7 +7,7 @@ const addVideoToWatchLater = vi.fn();
 const removeVideoFromWatchLater = vi.fn();
 
 vi.mock("../lib/playlistLibrary", () => ({
-  PLAYLIST_LIBRARY_UPDATED_EVENT: "flow:playlist-library-updated",
+  PLAYLIST_LIBRARY_UPDATED_EVENT: "youglidetube:playlist-library-updated",
   WATCH_LATER_PLAYLIST_ID: "watch-later",
   loadStoredPlaylists: (...args: unknown[]) => loadStoredPlaylists(...args),
   addVideoToWatchLater: (...args: unknown[]) => addVideoToWatchLater(...args),
@@ -101,14 +101,14 @@ describe("useWatchLaterStore", () => {
     await useWatchLaterStore.getState().load();
     loadStoredPlaylists.mockResolvedValue(libraryWith(["a", "b", "synced"]));
 
-    window.dispatchEvent(new Event("flow:playlist-library-updated"));
+    window.dispatchEvent(new Event("youglidetube:playlist-library-updated"));
     await vi.waitFor(() => {
       expect(useWatchLaterStore.getState().ids.has("synced")).toBe(true);
     });
   });
 
   it("ignores the event before the first load, so nothing reads eagerly", () => {
-    window.dispatchEvent(new Event("flow:playlist-library-updated"));
+    window.dispatchEvent(new Event("youglidetube:playlist-library-updated"));
 
     expect(loadStoredPlaylists).not.toHaveBeenCalled();
   });

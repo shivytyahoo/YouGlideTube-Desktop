@@ -1,18 +1,22 @@
 import { Check } from "lucide-react";
 import { getPlural, getString } from "../../lib/i18n/index";
-import { useFavouriteArtistsStore } from "../../store/useFavouriteArtistsStore";
+import { useGoogleAccount } from "../../lib/useGoogleAccount";
 import { useSubscriptionStore } from "../../store/useSubscriptionStore";
-import { joinIsolated } from "../../lib/direction";
 
-/** All set, with what was chosen on the way. */
-export function ReadyStep({ interestCount }: { interestCount: number }) {
+/**
+ * All set, as on Android: the account and channel counts as tappable chips,
+ * each jumping back to the step that set it.
+ */
+export function ReadyStep({
+  onJumpToSignIn,
+  onJumpToChannels,
+}: {
+  onJumpToSignIn: () => void;
+  onJumpToChannels: () => void;
+}) {
+  const { status } = useGoogleAccount();
   const channelCount = useSubscriptionStore((state) => state.subscriptions.length);
-  const artistCount = useFavouriteArtistsStore((state) => state.picked.length);
-  const facts = [
-    interestCount > 0 && getPlural("onboarding_ready_interests", interestCount),
-    channelCount > 0 && getPlural("onboarding_ready_channels", channelCount),
-    artistCount > 0 && getPlural("onboarding_ready_artists", artistCount),
-  ].filter((fact): fact is string => Boolean(fact));
+  const signedIn = status === "signed-in";
 
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -23,7 +27,22 @@ export function ReadyStep({ interestCount }: { interestCount: number }) {
         {getString("onboarding_ready_title")}
       </h1>
       <p className="text-lg text-chrome-neutral-400">{getString("onboarding_ready_subtitle")}</p>
-      {facts.length > 0 && <p className="mt-4 text-sm tabular-nums text-chrome-neutral-400">{joinIsolated(facts, " · ")}</p>}
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <button
+          className="rounded-full bg-surface-container-high px-4 py-2 text-sm font-medium text-chrome-neutral-200 transition-colors hover:bg-surface-container-highest cursor-pointer"
+          onClick={onJumpToSignIn}
+        >
+          {signedIn ? getString("onboarding_ready_signed_in") : getString("onboarding_ready_guest")}
+        </button>
+        <button
+          className="rounded-full bg-surface-container-high px-4 py-2 text-sm font-medium tabular-nums text-chrome-neutral-200 transition-colors hover:bg-surface-container-highest cursor-pointer"
+          onClick={onJumpToChannels}
+        >
+          {getPlural("onboarding_ready_channels", channelCount)}
+        </button>
+      </div>
     </div>
   );
 }
+
+export default ReadyStep;

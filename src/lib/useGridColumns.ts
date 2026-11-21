@@ -21,12 +21,12 @@ const CARD_MIN_REM: Record<GridDensity, number> = {
 
 interface GridStyleOptions {
   density?: GridDensity;
-  /** Column gap in rem. `.flow-grid` owns column-gap, so pair this with a `gap-y-*` class only. */
+  /** Column gap in rem. `.video-grid` owns column-gap, so pair this with a `gap-y-*` class only. */
   gapRem?: number;
 }
 
 /**
- * CSS variables for `.flow-grid` / `.flow-grid-card`, derived from the user's
+ * CSS variables for `.video-grid` / `.video-grid-card`, derived from the user's
  * column preference. The count is a ceiling — the class steps down on narrow
  * windows rather than shrinking cards past `CARD_MIN_REM`.
  */
@@ -36,9 +36,9 @@ export function useGridStyle({ density = 'video', gapRem = 1 }: GridStyleOptions
   return useMemo(() => {
     const target = density === 'dense' ? columns + DENSE_COLUMN_OFFSET : columns;
     return {
-      '--flow-grid-columns': String(target),
-      '--flow-grid-card-min': `${CARD_MIN_REM[density]}rem`,
-      '--flow-grid-gap': `${gapRem}rem`,
+      '--video-grid-columns': String(target),
+      '--video-grid-card-min': `${CARD_MIN_REM[density]}rem`,
+      '--video-grid-gap': `${gapRem}rem`,
     } as CSSProperties;
   }, [columns, density, gapRem]);
 }
@@ -46,7 +46,7 @@ export function useGridStyle({ density = 'video', gapRem = 1 }: GridStyleOptions
 /**
  * How many cards actually share a row right now.
  *
- * `.flow-grid` fills with `auto-fill`, so the user's column preference is only
+ * `.video-grid` fills with `auto-fill`, so the user's column preference is only
  * a ceiling — a narrow window sheds columns rather than shrinking cards. Only
  * the resolved track list knows the real count, so anything that has to line up
  * with a row boundary (a shelf slotted into the feed) has to measure it.
@@ -85,7 +85,7 @@ export function useResolvedGridColumns(
       */
       const width = Number.parseFloat(widths[0] ?? '');
       if (Number.isFinite(width) && width > 0) {
-        element.style.setProperty('--flow-grid-track-w', `${width}px`);
+        element.style.setProperty('--video-grid-track-w', `${width}px`);
         setTrackWidth(Math.round(width));
       }
     };

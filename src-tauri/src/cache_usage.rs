@@ -1,10 +1,10 @@
-//! What the settings' Cache rows measure, empty and limit. Three stores hold anything Flow can get
+//! What the settings' Cache rows measure, empty and limit. Three stores hold anything the app can get
 //! again: the web view's HTTP cache (almost all of it artwork), the lyrics files, and the network
 //! responses kept in the database. There is no media cache: streams aren't stored on disk.
 //!
 //! The web view owns its cache and can't be told to drop only that while it runs, and its own
 //! browsing-data call would take the app's local storage too. So artwork is emptied, and held to
-//! its limit, when Flow starts, before the first window opens.
+//! its limit, when the app starts, before the first window opens.
 
 use std::path::{Path, PathBuf};
 
@@ -231,7 +231,7 @@ mod tests {
 
     impl TempDir {
         fn new() -> Self {
-            let dir = std::env::temp_dir().join(format!("flow-cache-{}", uuid::Uuid::new_v4()));
+            let dir = std::env::temp_dir().join(format!("youglidetube-cache-{}", uuid::Uuid::new_v4()));
             std::fs::create_dir_all(&dir).unwrap();
             Self(dir)
         }

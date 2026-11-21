@@ -1,6 +1,6 @@
 /** Seeks whichever player is mounted, in this window or the pop-out. */
 export const seekToTime = (seconds: number) => {
-  window.dispatchEvent(new CustomEvent("flow-player-seek", { detail: { time: seconds } }));
+  window.dispatchEvent(new CustomEvent("player-seek", { detail: { time: seconds } }));
 };
 
 /** The watch player's own video. A card or a Short can have a video of its own on the page too. */

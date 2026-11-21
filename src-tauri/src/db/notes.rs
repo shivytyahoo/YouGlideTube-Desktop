@@ -1,4 +1,4 @@
-//! The `notes` table: a note on a video or a channel, in Flow for Android's shape.
+//! The `notes` table: a note on a video or a channel, in the Android app's shape.
 
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqliteConnection, SqlitePool};

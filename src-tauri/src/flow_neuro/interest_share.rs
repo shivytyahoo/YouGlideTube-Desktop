@@ -1,4 +1,4 @@
-//! Shares a ranked list between the viewer's lasting interest groups, from Flow for Android's
+//! Shares a ranked list between the viewer's lasting interest groups, from the Android app's
 //! `NeuroInterestShare` (#907). Ranking by one taste fills every page with the strongest group, so
 //! each group gets places in proportion to the square root of its weight and keeps its own ranked
 //! order; items of no group keep the share they had.

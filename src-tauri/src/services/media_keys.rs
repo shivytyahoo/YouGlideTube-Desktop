@@ -11,13 +11,13 @@ use tauri_plugin_global_shortcut::{
 use super::music_tray::MusicTray;
 
 /// Every window listens on its own label; the payload is one of the commands below.
-pub const MEDIA_COMMAND_EVENT: &str = "flow:media-command";
+pub const MEDIA_COMMAND_EVENT: &str = "youglidetube:media-command";
 pub const COMMAND_TOGGLE: &str = "toggle";
 pub const COMMAND_NEXT: &str = "next";
 pub const COMMAND_PREVIOUS: &str = "previous";
 
 /// What the frontend's media session arbiter announces when a player starts.
-const PLAYBACK_CLAIMED_EVENT: &str = "flow:playback-claimed";
+const PLAYBACK_CLAIMED_EVENT: &str = "youglidetube:playback-claimed";
 const MAIN_WINDOW: &str = "main";
 
 // The X11 backend has no key for the combined play/pause media code; XF86AudioPlay is that key.
@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn the_last_window_to_play_gets_the_command() {
-        assert_eq!(target_window(Some("flow-2"), |_| true), "flow-2");
+        assert_eq!(target_window(Some("youglidetube-2"), |_| true), "youglidetube-2");
     }
 
     #[test]

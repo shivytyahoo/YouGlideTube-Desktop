@@ -1,4 +1,4 @@
-//! Home's interest chips, from Flow for Android's `InterestChips`: the viewer's heaviest interest
+//! Home's interest chips, from the Android app's `InterestChips`: the viewer's heaviest interest
 //! groups, kept steady for a day unless one of them grows or shrinks by more than 30 %. Clusters
 //! in one theme category (Gaming, Sports, ...) become a single theme chip.
 

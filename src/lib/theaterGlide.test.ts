@@ -34,7 +34,7 @@ describe("the chrome that fades during the glide", () => {
   it("is the controls and the glow, and never the video or what holds it", () => {
     const frame = document.createElement("div");
     frame.innerHTML = `
-      <div id="flow-player-root">
+      <div id="player-root">
         <div data-player-ambient></div>
         <div data-player-content>
           <video></video>

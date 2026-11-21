@@ -1,4 +1,4 @@
-//! The taskbar Jump List: tasks that start Flow with `--open-page=…`, which the running app picks
+//! The taskbar Jump List: tasks that start the app with `--open-page=…`, which the running app picks
 //! up through the single-instance plugin.
 #![cfg(windows)]
 

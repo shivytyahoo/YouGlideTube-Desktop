@@ -349,7 +349,7 @@ pub(super) fn contained<T>(read: Result<T>) -> Result<Option<T>> {
         Ok(read) => Ok(Some(read)),
         Err(EngineError::Protocol(error)) => {
             if error != Error::Gap {
-                tracing::warn!(target: "flow::sync2", kind = error.code(), "discarded an object");
+                tracing::warn!(target: "youglidetube::sync2", kind = error.code(), "discarded an object");
             }
             Ok(None)
         }

@@ -19,7 +19,7 @@ const RETENTION_PERIODS: readonly (readonly [number, StringKey])[] = [
   [365, 'settings_retention_one_year'],
 ];
 
-/** What Flow keeps of your watching and searching, and for how long. */
+/** What the app keeps of your watching and searching, and for how long. */
 export function SearchHistoryGroup() {
   const [pausedHistory, setPausedHistory] = useBoolPref(SETTINGS.PAUSE_WATCH_HISTORY, false);
   const [saveSearches, setSaveSearches] = useBoolPref(SETTINGS.SEARCH_HISTORY_ENABLED, true);

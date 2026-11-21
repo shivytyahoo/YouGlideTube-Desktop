@@ -56,7 +56,7 @@ export function MusicPlaybackSettings() {
       <SettingItem title={getString('settings_open_music_player_on_play')} description={getString('settings_open_music_player_on_play_desc')}>
         <ToggleSwitch checked={openPlayer} onChange={setOpenPlayer} />
       </SettingItem>
-      {/* The backend can't read the system volume on Linux, so there only Flow's own mute counts. */}
+      {/* The backend can't read the system volume on Linux, so there only the app's own mute counts. */}
       <SettingItem title={getString('settings_pause_when_muted')} description={getString(IS_LINUX_RUNTIME ? 'settings_pause_when_muted_desc_app_only' : 'settings_pause_when_muted_desc')}>
         <ToggleSwitch checked={pauseWhenMuted} onChange={setPauseWhenMuted} />
       </SettingItem>

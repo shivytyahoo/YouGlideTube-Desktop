@@ -1,5 +1,5 @@
 //! `profiles_registry.json`: the device-level list of profiles. The JSON shape, field order and
-//! defaults match Flow for Android's `ProfileRegistry.kt`, so both apps read each other's files.
+//! defaults match the Android app's `ProfileRegistry.kt`, so both apps read each other's files.
 //! Android treats a `null` or wrong-typed field as a corrupt file, so nothing here is ever
 //! written as `null`.
 
@@ -283,7 +283,7 @@ mod tests {
 
     #[test]
     fn save_and_read_round_trip_and_rescue_a_corrupt_file() {
-        let dir = std::env::temp_dir().join(format!("flow-registry-{}", new_id()));
+        let dir = std::env::temp_dir().join(format!("youglidetube-registry-{}", new_id()));
         let state = RegistryState::default().completed(7);
         save(&dir, &state).unwrap();
         assert!(matches!(read(&dir).unwrap(), Loaded::Read(read_back) if read_back == state));

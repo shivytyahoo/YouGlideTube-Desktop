@@ -570,7 +570,7 @@ pub struct BrainFlags {
 /// `recent_query_tokens`) are intentionally **not** part of the wire model.
 ///
 /// `Deserialize` is hand-written in [`crate::sync::compat`]: it accepts this grouped layout and the
-/// flat one Flow for Android sends.
+/// flat one the Android app sends.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FlowNeuroBrainSnapshot {

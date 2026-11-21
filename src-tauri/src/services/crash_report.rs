@@ -239,7 +239,7 @@ mod tests {
 
     fn temp_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
-            "flow-crash-{name}-{}",
+            "youglidetube-crash-{name}-{}",
             uuid::Uuid::new_v4().simple()
         ));
         std::fs::create_dir_all(&dir).unwrap();
@@ -282,10 +282,10 @@ mod tests {
     #[test]
     fn the_home_folder_is_hidden() {
         let scrubbed = scrub(
-            "could not open /Users/someone/Library/flow.db",
+            "could not open /Users/someone/Library/youglidetube.db",
             Some(Path::new("/Users/someone")),
         );
-        assert_eq!(scrubbed, "could not open ~/Library/flow.db");
+        assert_eq!(scrubbed, "could not open ~/Library/youglidetube.db");
     }
 
     #[test]

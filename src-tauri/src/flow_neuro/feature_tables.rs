@@ -1,4 +1,4 @@
-//! The word lists a video's text is read by, from Flow for Android's `feature_tables.json` (written
+//! The word lists a video's text is read by, from the Android app's `feature_tables.json` (written
 //! by its `NeuroFeatureTablesTest`, mirrored byte for byte under `resources/neuro`).
 
 use std::collections::{HashMap, HashSet};

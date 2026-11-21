@@ -61,7 +61,7 @@ describe("youglidetube://open", () => {
       expect(open("https://music.youtube.com/browse/MPREb_abcdef")).toBeNull();
       expect(handoffToOpen({ action: "music", v: VIDEO, list: "RDAMVMabc" })).toEqual({ action: "watch", v: VIDEO, list: "RDAMVMabc" });
       expect(handoffToOpen({ action: "music-download", v: VIDEO })).toEqual({ action: "download", v: VIDEO });
-      expect(handoffToOpen({ action: "channel", url: "https://music.youtube.com/@flow", music: true })).toMatchObject({ music: false });
+      expect(handoffToOpen({ action: "channel", url: "https://music.youtube.com/@youglidetube", music: true })).toMatchObject({ music: false });
     } finally {
       useAppSettingsStore.setState({ values: {} });
     }
@@ -69,7 +69,7 @@ describe("youglidetube://open", () => {
   });
 
   it("has the backend resolve a handle", () => {
-    expect(open("https://www.youtube.com/@flow")).toEqual({ action: "channel", url: "https://www.youtube.com/@flow", music: false });
+    expect(open("https://www.youtube.com/@youglidetube")).toEqual({ action: "channel", url: "https://www.youtube.com/@youglidetube", music: false });
   });
 
   it("opens the account's own lists locally", () => {

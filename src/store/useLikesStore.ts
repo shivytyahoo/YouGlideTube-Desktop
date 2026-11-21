@@ -7,7 +7,7 @@ import { recapLikedSong } from "../lib/recap/musicSession";
 import type { SongItem } from "../types/music";
 import type { VideoSummary } from "../types/video";
 
-export const LIKES_LIBRARY_UPDATED_EVENT = "flow:likes-library-updated";
+export const LIKES_LIBRARY_UPDATED_EVENT = "youglidetube:likes-library-updated";
 const LIKES_SETTING_KEY = "liked_items";
 
 export type LikedItemKind = "video" | "music";

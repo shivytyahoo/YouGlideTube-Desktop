@@ -1,4 +1,4 @@
-//! What a typed search teaches, ported from Flow for Android's `NeuroSearchLearning`. A search is
+//! What a typed search teaches, ported from the Android app's `NeuroSearchLearning`. A search is
 //! the most explicit interest statement there is, but its words are a question: the template
 //! around the subject ("how does X work", "what is X", "X explained") is dropped, the subject is
 //! read by the key spec, and what gets planted is a phrase it holds that the engine knows, a

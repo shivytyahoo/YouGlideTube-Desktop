@@ -116,7 +116,7 @@ const seeds: PaletteSeed[] = [
     dark: { primary: "#1e5aa8", onPrimary: "#ffffff", secondary: "#e85d04", background: "#1a1c1e", surface: "#1a1c1e", onSurface: "#e3e2e6", onSurfaceVariant: "#c3c6cf", outline: "#8d9199", error: "#ffb4ab" },
   },
   {
-    id: "default", name: "Flow Default", descriptionKey: "theme_description_default",
+    id: "default", name: "YouTube Red", descriptionKey: "theme_description_default",
     light: { primary: "#ff0000", onPrimary: "#ffffff", secondary: "#606060", background: "#ffffff", surface: "#f3f3f3", onSurface: "#111111", onSurfaceVariant: "#5f5f5f", outline: "#d7d7d7", error: "#d32f2f" },
     dark: { primary: "#ff0000", onPrimary: "#ffffff", secondary: "#aaaaaa", background: "#0f0f0f", surface: "#1d1d1d", onSurface: "#f4f4f4", onSurfaceVariant: "#b8b8b8", outline: "#343434", error: "#ef5350" },
   },
@@ -289,7 +289,7 @@ function isThemeColors(value: unknown): value is ThemeColors {
 
 export const MAX_CUSTOM_THEMES = 24;
 
-/** Accepts a list or a single theme object, the two shapes Flow for Android and desktop export. */
+/** Accepts a list or a single theme object, the two shapes the Android app and desktop export. */
 export function parseCustomThemes(serialized: string, limit = MAX_CUSTOM_THEMES): CustomThemeDefinition[] {
   try {
     const parsed: unknown = JSON.parse(serialized);

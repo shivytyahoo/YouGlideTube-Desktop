@@ -1,4 +1,4 @@
-export const HOME_RESELECTED_EVENT = "flow:home-reselected";
+export const HOME_RESELECTED_EVENT = "youglidetube:home-reselected";
 
 /** Home's rail button was clicked while Home is already open. */
 export function announceHomeReselected(): void {

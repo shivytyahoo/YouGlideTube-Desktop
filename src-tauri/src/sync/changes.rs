@@ -191,7 +191,7 @@ async fn upsert(conn: &mut SqliteConnection, c: &Change, from_peer: bool) -> Res
 }
 
 /// Everything recorded for `collection`, keyed by record key. Tombstones past the retention window
-/// are dropped first, matching the subscription tombstones and Flow for Android.
+/// are dropped first, matching the subscription tombstones and the Android app.
 pub async fn load(
     conn: &mut SqliteConnection,
     collection: &str,

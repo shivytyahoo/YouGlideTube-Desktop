@@ -42,7 +42,7 @@ fn copy_bounded(reader: impl std::io::Read, path: &Path) -> Result<(), ImportErr
 
 /// Copies the database out of a backup zip, or the file itself when it is one.
 pub fn copy_to_temp(source: &Path, entry_name: &str) -> Result<TempDb, ImportError> {
-    let dir = std::env::temp_dir().join(format!("flow-import-db-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("youglidetube-import-db-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir)?;
     let temp = TempDb {
         path: dir.join("import.db"),

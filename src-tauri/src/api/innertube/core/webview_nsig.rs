@@ -13,7 +13,7 @@ const SOLVE_TIMEOUT: Duration = Duration::from_secs(8);
 /// `n` solved by player `player_id`, or None without a GUI or a result in time.
 pub async fn solve(player_id: &str, n: &str) -> Option<String> {
     let result = super::hidden_webview::run(
-        "flow-n-solver",
+        "youglidetube-n-solver",
         "/nsolve",
         &[("player", player_id), ("n", n)],
         SOLVE_TIMEOUT,

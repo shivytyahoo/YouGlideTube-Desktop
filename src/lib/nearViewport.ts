@@ -11,7 +11,7 @@ const DWELL_MS = 150;
  * Offscreen feed cards are skipped by `content-visibility`, which leaves everything
  * inside them with no layout to observe, so a grid card is watched by its wrapper.
  */
-const SKIPPED_WRAPPER = ".flow-grid-card";
+const SKIPPED_WRAPPER = ".video-grid-card";
 
 interface Watcher {
   onNear: () => void;

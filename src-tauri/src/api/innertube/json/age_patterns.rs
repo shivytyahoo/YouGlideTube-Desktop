@@ -19,7 +19,7 @@ pub struct AgePatterns {
 }
 
 /// The abbreviated units the related list writes ("hace 3 m", "5 дн. назад"),
-/// keyed by base language, from Flow for Android. They only count right after
+/// keyed by base language, from the Android app. They only count right after
 /// the text's one number, since a lone letter is also a word.
 pub static ABBREVIATED: &[(&str, Units)] = &[
     ("de", &[(AgeUnit::Hour, &["std."])]),

@@ -31,7 +31,7 @@ export function ChannelPageSkeleton() {
 
       {/* Grid Content Skeleton */}
       <div className=" mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flow-grid gap-y-8 pb-8" style={gridStyle}>
+        <div className="video-grid gap-y-8 pb-8" style={gridStyle}>
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="flex flex-col gap-3">
               <div className="w-full aspect-video rounded-xl bg-chrome-zinc-800" />
@@ -53,7 +53,7 @@ export function ChannelPageSkeleton() {
 export function ShortsGridSkeleton() {
   const gridStyle = useGridStyle({ density: "dense" });
   return (
-    <div className="flow-grid gap-y-4" style={gridStyle}>
+    <div className="video-grid gap-y-4" style={gridStyle}>
       {Array.from({ length: 12 }).map((_, i) => (
         <div key={i} className="flex flex-col gap-2">
           <div className="relative w-full aspect-[9/16] rounded-xl bg-chrome-zinc-800 animate-pulse border border-chrome-zinc-800/50" />
@@ -67,7 +67,7 @@ export function ShortsGridSkeleton() {
 export function PlaylistsGridSkeleton() {
   const gridStyle = useGridStyle({ gapRem: 1.5 });
   return (
-    <div className="flow-grid gap-y-6" style={gridStyle}>
+    <div className="video-grid gap-y-6" style={gridStyle}>
       {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="flex flex-col gap-3">
           <div className="relative w-full aspect-video rounded-xl mt-3 bg-chrome-zinc-800 animate-pulse border border-chrome-zinc-800/50">

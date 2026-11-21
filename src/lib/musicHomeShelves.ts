@@ -2,7 +2,7 @@ import type { StringKey } from "./i18n/index";
 import type { MusicFeedEntry } from "./musicFeedComposer";
 
 /**
- * The music home sections you can hide. Their names are stored, and match Flow for Android's, so
+ * The music home sections you can hide. Their names are stored, and match the Android app's, so
  * they must never be renamed.
  */
 export const MUSIC_HOME_SHELVES = [

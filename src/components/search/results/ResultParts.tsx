@@ -8,7 +8,7 @@ import type { PlaylistItem } from '../../../types/music';
 import type { PlaylistSummary, SearchChannel, SearchShelf, VideoSummary } from '../../../types/video';
 
 // Column count and card floor come from the user's grid preference (useGridStyle).
-export const RESULT_GRID = 'flow-grid gap-y-8';
+export const RESULT_GRID = 'video-grid gap-y-8';
 
 export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');

@@ -4,7 +4,7 @@ import { advanceStory, hasFinished, storyPageAt } from "./storyClock";
 
 /**
  * The story's clock. Runs off animation frames and writes progress straight to the bar, so a running
- * page never re-renders. It stops while the page is held or paused and while Flow isn't the window
+ * page never re-renders. It stops while the page is held or paused and while the app isn't the window
  * in front, and resumes from where it was. The last page waits, and `replay` starts over.
  */
 export function useStoryAutoplay(durations: readonly number[], onFrame?: (fraction: number) => void) {

@@ -76,15 +76,15 @@ export interface PipTakeoverPayload {
 
 export const PIP_EVENTS = {
   /** Backend → pop-out: a new handoff replaced the session it is playing. */
-  sessionChanged: "flow:pip-session-changed",
-  progress: "flow:pip-progress",
-  videoChanged: "flow:pip-video-changed",
-  handback: "flow:pip-handback",
+  sessionChanged: "youglidetube:pip-session-changed",
+  progress: "youglidetube:pip-progress",
+  videoChanged: "youglidetube:pip-video-changed",
+  handback: "youglidetube:pip-handback",
   /** Pop-out → main: decoding has started, the swap can happen now. */
-  ready: "flow:pip-ready",
-  takeover: "flow:pip-takeover",
+  ready: "youglidetube:pip-ready",
+  takeover: "youglidetube:pip-takeover",
   /** App window → other app windows: this one now owns the pop-out. */
-  claimed: "flow:pip-claimed",
+  claimed: "youglidetube:pip-claimed",
 } as const;
 
 export function openPipWindow(session: PipSession): Promise<void> {

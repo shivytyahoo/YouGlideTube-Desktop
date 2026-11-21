@@ -1,5 +1,4 @@
-//! Community posts of the followed channels, for Subscriptions' Posts view. Ported from Flow for
-//! Android's `SubscriptionPostsRepository`: the site has no combined posts feed, so each channel
+//! Community posts of the followed channels, for Subscriptions' Posts view. Ported from the Android app's `SubscriptionPostsRepository`: the site has no combined posts feed, so each channel
 //! costs one browse of its Posts tab. A page is [`CHANNELS_PER_PAGE`] channels, the most active first, and
 //! each channel's recent posts are kept for half an hour.
 

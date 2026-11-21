@@ -360,7 +360,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
                 <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
                   {getString("downloads_videos_section")}
                 </h2>
-                <div className="flow-grid gap-y-8" style={cardGridStyle}>
+                <div className="video-grid gap-y-8" style={cardGridStyle}>
                   {videoEntries.map((entry) => (
                     <SelectableRow
                       key={entry.key}
@@ -413,7 +413,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
                 <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
                   {getString("downloads_playlists_section")}
                 </h2>
-                <div className="flow-grid gap-y-8" style={cardGridStyle}>
+                <div className="video-grid gap-y-8" style={cardGridStyle}>
                   {playlistEntries.map((entry) => (
                     <DownloadCollectionCard
                       key={`collection-${entry.record.id}`}
@@ -432,7 +432,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
                 <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
                   {getString("downloads_albums_section")}
                 </h2>
-                <div className="flow-grid gap-y-8" style={collectionGridStyle}>
+                <div className="video-grid gap-y-8" style={collectionGridStyle}>
                   {albumEntries.map((entry) => (
                     <DownloadCollectionCard
                       key={`collection-${entry.record.id}`}

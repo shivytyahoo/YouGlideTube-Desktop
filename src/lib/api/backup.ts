@@ -60,7 +60,7 @@ export function exportBackupFile(kind: BackupFileKind, path: string): Promise<Ex
   return invokeBackend<ExportResult>("export_backup_file", { kind, path, settingKeys: SETTING_EXPORT_KEYS });
 }
 
-/** A picked file, as the desktop's backup shape whichever Flow app wrote it, or as text. */
+/** A picked file, as the desktop's backup shape whichever YouGlideTube app wrote it, or as text. */
 export function readBackupFile(path: string): Promise<ReadBackup> {
   return invokeBackend<ReadBackup>("read_backup", { path });
 }

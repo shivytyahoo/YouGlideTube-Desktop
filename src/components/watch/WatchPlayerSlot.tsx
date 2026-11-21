@@ -21,7 +21,7 @@ export function WatchPlayerSlot() {
 
   return (
     <div
-      data-flow-watch-player-slot="true"
+      data-youglidetube-watch-player-slot="true"
       style={tallerAspect === null ? undefined : { aspectRatio: String(tallerAspect), maxHeight: "calc(100vh - 160px)" }}
       className={
         isTheaterMode

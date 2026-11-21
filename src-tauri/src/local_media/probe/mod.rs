@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn a_file_that_cant_be_parsed_still_gives_an_empty_answer() {
-        let dir = std::env::temp_dir().join(format!("flow-probe-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("youglidetube-probe-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let video = dir.join("broken.mkv");
         std::fs::write(&video, b"not a real file").unwrap();

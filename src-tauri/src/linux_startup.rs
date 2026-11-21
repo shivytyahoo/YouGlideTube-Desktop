@@ -38,7 +38,7 @@
 //! while its page runs still confirms, so the sentinel can't see that failure.
 //! Two things cover it: NVIDIA proprietary on Wayland, the known case, starts at
 //! tier 1 (Debian and Gentoo patch the same rule into their own WebKitGTK), and
-//! `--safe-graphics` / `FLOW_SAFE_GRAPHICS=1` forces tier 3 for one launch. A
+//! `--safe-graphics` / `YOUGLIDETUBE_SAFE_GRAPHICS=1` forces tier 3 for one launch. A
 //! render confirmed under it is remembered like any other, so the next normal
 //! launch keeps working. The user can also set a floor in Settings.
 //!
@@ -333,6 +333,7 @@ impl LaunchFacts {
         .iter()
         .any(|key| std::env::var_os(key).is_some());
         let safe_graphics = std::env::args_os().any(|arg| arg == SAFE_GRAPHICS_ARG)
+            || std::env::var_os("YOUGLIDETUBE_SAFE_GRAPHICS").is_some_and(|value| value == "1")
             || std::env::var_os("FLOW_SAFE_GRAPHICS").is_some_and(|value| value == "1");
         Self {
             nvidia_wayland: nvidia && wayland,
@@ -373,8 +374,8 @@ enum LaunchLock {
     Unavailable,
 }
 
-/// Whether this process may record a launch. A second launch while Flow runs (a
-/// `flow://` link, the launcher, a desktop action) is handed to the running
+/// Whether this process may record a launch. A second launch while the app runs (a
+/// `youglidetube://` link, the launcher, a desktop action) is handed to the running
 /// window by the single-instance plugin and exits, so it never renders. That
 /// plugin only starts after this module, so without the lock every second
 /// launch counted as a failed startup and pushed the next cold start a tier up.
@@ -777,7 +778,7 @@ mod tests {
 
     #[test]
     fn only_the_first_instance_holds_the_launch_lock() {
-        let dir = std::env::temp_dir().join(format!("flow-launch-lock-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("youglidetube-launch-lock-{}", std::process::id()));
         let LaunchLock::Held(first) = try_launch_lock(&dir) else {
             panic!("the first instance should take the lock");
         };

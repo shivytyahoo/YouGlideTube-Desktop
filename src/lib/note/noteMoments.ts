@@ -24,7 +24,7 @@ function labelAfter(text: string, end: number): string {
 }
 
 /**
- * Every time in `text`, in writing order, read the way Flow for Android reads them. With
+ * Every time in `text`, in writing order, read the way the Android app reads them. With
  * `durationSeconds` known, a time past the end of the video is not one of its moments; minutes or
  * seconds of 60 and more never are.
  */

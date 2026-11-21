@@ -1,5 +1,5 @@
 export { WatchLayout } from "./WatchLayout";
-export { FlowPlayerCore } from "./FlowPlayerCore";
+export { PlayerCore } from "./PlayerCore";
 export { WatchMetadata } from "./WatchMetadata";
 export { DescriptionCard } from "./DescriptionCard";
 export { RelatedVideos } from "./RelatedVideos";
@@ -8,7 +8,7 @@ export { WatchPageSkeleton } from "./WatchPageSkeleton";
 export { WatchErrorState } from "./WatchErrorState";
 export type {
   WatchLayoutProps,
-  FlowPlayerCoreProps,
+  PlayerCoreProps,
   WatchMetadataProps,
   DescriptionCardProps,
   RelatedVideosProps,

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { create } from "zustand";
-import { deepFlowAllowsHistory } from "../lib/deepFlow";
+import { deepGlideAllowsHistory } from "../lib/deepGlide";
 import { SETTINGS } from "../lib/settings/schema";
 import {
   isDefaultFilterState,
@@ -71,7 +71,7 @@ const sameQuery = (a: string, b: string) => a.trim().toLowerCase() === b.trim().
 
 interface SearchHistoryState {
   entries: SearchHistoryEntry[];
-  /** Newest first; a repeated query moves to the top. Skipped when saving searches is off, and in Deep Flow unless history is allowed there. */
+  /** Newest first; a repeated query moves to the top. Skipped when saving searches is off, and in Deep Glide unless history is allowed there. */
   record: (query: string) => void;
   /** Keeps these filters on the search's entry; the default set clears them. No entry, no change. */
   rememberFilters: (query: string, filters: SearchFilterState) => void;
@@ -90,7 +90,7 @@ export const useSearchHistoryStore = create<SearchHistoryState>((set, get) => ({
     const saving = getSettingValue(SETTINGS.SEARCH_HISTORY_ENABLED) !== "false";
     // With search history off the search still counts, but its words aren't kept. Android's rule.
     recapSearch(saving ? trimmed : null);
-    if (!saving || !deepFlowAllowsHistory()) return;
+    if (!saving || !deepGlideAllowsHistory()) return;
     set((state) => {
       const earlier = state.entries.find((entry) => sameQuery(entry.query, trimmed));
       const entries = [

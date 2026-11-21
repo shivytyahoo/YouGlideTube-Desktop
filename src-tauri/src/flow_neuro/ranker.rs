@@ -1,4 +1,4 @@
-//! Scores one candidate the way Flow for Android does (`NeuroScoring.scoreCandidate`), term by term
+//! Scores one candidate the way the Android app does (`NeuroScoring.scoreCandidate`), term by term
 //! in its order, checked against its `rank_golden.json`. Additive terms and factors interleave as on
 //! Android; the impression-fatigue factor is left out because it can never fire there (Android A1),
 //! and a watched song gets no exemption from the watched penalty (music never trains this engine).

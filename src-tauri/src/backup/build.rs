@@ -67,7 +67,7 @@ fn take_recap(collections: &mut Map<String, Value>) -> Option<Value> {
 fn desktop_section(export: &BackupExport, settings: &HashMap<String, String>, now: u64) -> Value {
     json!({
         "schemaVersion": 2,
-        "app": { "name": "Flow", "version": env!("CARGO_PKG_VERSION") },
+        "app": { "name": "YouGlideTube", "version": env!("CARGO_PKG_VERSION") },
         "exportedAt": iso_now(now),
         "scope": export.scope,
         "settings": settings,
@@ -185,7 +185,7 @@ pub async fn master_archive(
     Ok(Archive {
         root,
         manifest: Some(json!({
-            "format": "flow-master",
+            "format": "youglidetube-master",
             "version": 1,
             "defaultId": view.default_id,
             "profiles": view.profiles,

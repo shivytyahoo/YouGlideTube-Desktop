@@ -1,5 +1,4 @@
-//! Which candidates Home may show, and placing late arrivals below what the viewer sees, from Flow
-//! for Android's `HomeFeedFilters`.
+//! Which candidates Home may show, and placing late arrivals below what the viewer sees, from the Android app's `HomeFeedFilters`.
 
 use std::collections::HashSet;
 

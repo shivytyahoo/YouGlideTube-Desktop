@@ -170,7 +170,7 @@ pub async fn publish_now(app: &AppHandle, mut now: Now) -> Result<()> {
 /// has already seen, is dropped.
 pub async fn receive(app: &AppHandle, bytes: &[u8]) {
     if let Err(error) = take(app, bytes).await {
-        tracing::debug!(target: "flow::sync2", kind = error.kind(), "live message dropped");
+        tracing::debug!(target: "youglidetube::sync2", kind = error.kind(), "live message dropped");
     }
 }
 

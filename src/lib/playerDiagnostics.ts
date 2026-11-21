@@ -63,7 +63,7 @@ export async function buildPlayerReport(ctx: PlayerReportContext): Promise<strin
     getDiagnosticEvents().slice(-40).map(formatDiagnosticEvent),
   );
 
-  return [`Flow Desktop — playback diagnostics`, environment, failure, recentEvents]
+  return [`the desktop app — playback diagnostics`, environment, failure, recentEvents]
     .filter(Boolean)
     .join("\n\n");
 }

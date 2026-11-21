@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Logo } from "../common/Logo";
 import { X, Repeat, Search, Share2, Play, Loader2 } from "lucide-react";
 import { usePlayerStore } from "../../store/usePlayerStore";
 import { useUiStore } from "../../store/useUiStore";
@@ -305,8 +306,8 @@ export const Chapters: React.FC<ChaptersProps> = ({
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-chrome-zinc-950 font-bold text-chrome-zinc-700 text-xs">
-                          FLOW
+                        <div className="w-full h-full flex items-center justify-center bg-chrome-zinc-950">
+                          <Logo size={32} />
                         </div>
                       )}
 

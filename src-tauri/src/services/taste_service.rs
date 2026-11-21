@@ -1,4 +1,4 @@
-//! What Your taste shows, from Flow for Android's `TasteTopics` and `TasteViewModel`: the viewer's
+//! What Your taste shows, from the Android app's `TasteTopics` and `TasteViewModel`: the viewer's
 //! picks with how often they watched each, the interests learned in the groups the engine reads
 //! them in, and the hidden channels by name.
 

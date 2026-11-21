@@ -30,15 +30,15 @@ it("coalesces resize writes into a later frame and cancels them on unmount", asy
   try {
     await act(async () => root.render(createElement(Harness)));
     const grid = container.firstElementChild as HTMLElement;
-    expect(grid.style.getPropertyValue("--flow-grid-track-w")).toBe("100px");
+    expect(grid.style.getPropertyValue("--video-grid-track-w")).toBe("100px");
     expect(resolved).toEqual({ columns: 2, trackWidth: 100 });
     tracks = "120.4px 120.4px";
     const resize = (width: number) => notify([{ contentRect: { width } } as ResizeObserverEntry], {} as ResizeObserver);
     await act(async () => { resize(300); resize(310); });
     expect(request).toHaveBeenCalledTimes(1);
-    expect(grid.style.getPropertyValue("--flow-grid-track-w")).toBe("100px");
+    expect(grid.style.getPropertyValue("--video-grid-track-w")).toBe("100px");
     await act(async () => frame(0));
-    expect(grid.style.getPropertyValue("--flow-grid-track-w")).toBe("120.4px");
+    expect(grid.style.getPropertyValue("--video-grid-track-w")).toBe("120.4px");
     expect(resolved).toEqual({ columns: 2, trackWidth: 120 });
     resize(320);
     await act(async () => root.unmount());

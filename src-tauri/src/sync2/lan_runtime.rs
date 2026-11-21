@@ -104,7 +104,7 @@ impl Dialer<'_> {
                 true
             }
             Err(error) => {
-                tracing::debug!(target: "flow::sync2", kind = error.kind(), "LAN member not reached");
+                tracing::debug!(target: "youglidetube::sync2", kind = error.kind(), "LAN member not reached");
                 false
             }
         }
@@ -230,7 +230,7 @@ pub async fn spread_leave<T: Store>(app: &AppHandle, session: &Session<'_, T>, l
     });
     let spread = async {
         let reached = futures_util::future::join_all(meets).await;
-        tracing::info!(target: "flow::sync2", reached = reached.iter().filter(|r| **r).count(), "LAN leave passed on");
+        tracing::info!(target: "youglidetube::sync2", reached = reached.iter().filter(|r| **r).count(), "LAN leave passed on");
         // A member's session closes once it stopped asking, which includes pulling the entry.
         tokio::time::sleep(IDLE).await;
     };
@@ -253,11 +253,11 @@ pub fn spawn(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let daemon = ServiceDaemon::new().ok();
         if daemon.is_none() {
-            tracing::warn!(target: "flow::sync2", "mDNS is unavailable; LAN members are met only at kept addresses");
+            tracing::warn!(target: "youglidetube::sync2", "mDNS is unavailable; LAN members are met only at kept addresses");
         }
         loop {
             if let Err(error) = run(&app, daemon.as_ref()).await {
-                tracing::warn!(target: "flow::sync2", kind = error.kind(), "LAN sync stopped");
+                tracing::warn!(target: "youglidetube::sync2", kind = error.kind(), "LAN sync stopped");
                 tokio::time::sleep(CHECK_EVERY).await;
             }
         }
@@ -365,7 +365,7 @@ async fn follow_nearby(app: &AppHandle, near: &mut BTreeSet<String>) {
     if now == *near {
         return;
     }
-    tracing::info!(target: "flow::sync2", members = now.len(), "LAN members nearby changed");
+    tracing::info!(target: "youglidetube::sync2", members = now.len(), "LAN members nearby changed");
     changed(app);
     if !now.is_subset(near) {
         let _ = announce(app).await;
@@ -383,7 +383,7 @@ async fn run(app: &AppHandle, daemon: Option<&ServiceDaemon>) -> Result<()> {
         .map_err(crate::sync::error::SyncError::from)?
         .port();
     let mut saved = load_addresses(app, &local.pool).await;
-    tracing::info!(target: "flow::sync2", "LAN sync started");
+    tracing::info!(target: "youglidetube::sync2", "LAN sync started");
     // Dropped with the run, which aborts the tasks holding its keys.
     let mut tasks = JoinSet::new();
     tasks.spawn(deliver_live(app.clone(), local.clone(), port));
@@ -429,7 +429,7 @@ async fn run(app: &AppHandle, daemon: Option<&ServiceDaemon>) -> Result<()> {
             }
             change = next_event(network.as_ref()) => match change {
                 Some(DaemonEvent::IpAdd(IpAddr::V4(_))) => {
-                    tracing::info!(target: "flow::sync2", "network changed; meeting LAN members again");
+                    tracing::info!(target: "youglidetube::sync2", "network changed; meeting LAN members again");
                     (tried, network_changed_at) = (BTreeMap::new(), now_ms());
                     None
                 }

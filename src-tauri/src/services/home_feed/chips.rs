@@ -1,4 +1,4 @@
-//! Home's chips, from Flow for Android's `HomeChipFeeds`: one per heavy interest, "New to you",
+//! Home's chips, from the Android app's `HomeChipFeeds`: one per heavy interest, "New to you",
 //! "Recently uploaded", "Mixes", "Live" and "Watched". Each is its own list, fetched when the chip
 //! is chosen and kept for as long as it stays true.
 

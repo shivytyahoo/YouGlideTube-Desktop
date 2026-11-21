@@ -1,5 +1,5 @@
 //! Orders scored candidates so one channel, topic or near-identical title cannot fill the feed,
-//! ported from Flow for Android's `NeuroScoring.applySmartDiversity` and checked against its
+//! ported from the Android app's `NeuroScoring.applySmartDiversity` and checked against its
 //! `rank_golden.json`. One fix over Android (A8): a high scorer deferred from the first phase that
 //! the second phase cannot place falls through to the relaxed fill instead of being dropped.
 

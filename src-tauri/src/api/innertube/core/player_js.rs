@@ -3,7 +3,7 @@
 //! parameter. Web-family clients (`MWEB`/`WEB`) need both, and googlevideo refuses
 //! their SABR endpoint outright while `n` is unsolved.
 //!
-//! Mirrors Flow for Android's `PlayerJsFetcher` + `CipherDeobfuscator`: the
+//! Mirrors the Android app's `PlayerJsFetcher` + `CipherDeobfuscator`: the
 //! script is cached on disk per player version and run as is rather than
 //! re-implementing its transform, in a hidden web view ([`super::webview_nsig`])
 //! or, without a GUI, by `sidecar/nsig.cjs` under Node.

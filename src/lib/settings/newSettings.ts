@@ -6,9 +6,9 @@ type FirstSeen = Record<string, number>;
 const ALWAYS_KNOWN = 0;
 
 /**
- * Which settings are new. Flow notices a setting it hasn't seen on its own, so nothing is tagged per
+ * Which settings are new. the app notices a setting it hasn't seen on its own, so nothing is tagged per
  * release: the first run marks everything as always known, and a setting that appears in a later
- * build is new for a number of days from the day it was first seen. Same rule as Flow for Android.
+ * build is new for a number of days from the day it was first seen. Same rule as the Android app.
  */
 export function recordKnownSettings(known: FirstSeen | null, keys: string[], today: number): FirstSeen {
   const recorded: FirstSeen = {};

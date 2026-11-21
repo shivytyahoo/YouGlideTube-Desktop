@@ -182,7 +182,7 @@ pub async fn read_playlists(path: &Path, now: u64) -> Result<Found, ImportError>
     })
 }
 
-/// Everything a NewPipe backup holds that Flow keeps.
+/// Everything a NewPipe backup holds that the app keeps.
 pub async fn read_backup(path: &Path, now: u64) -> Result<Found, ImportError> {
     let (watches, playlists) = with_database(path, async |pool| {
         Ok((

@@ -2,26 +2,27 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { completeOnboarding } from "../lib/api/recommendation";
 import { Logo } from "../components/common/Logo";
-import { AlertsStep } from "../components/onboarding/AlertsStep";
-import { ArtistsStep } from "../components/onboarding/ArtistsStep";
-import InterestsStep from "../components/onboarding/InterestsStep";
+import WelcomeStep from "../components/onboarding/WelcomeStep";
+import SignInStep from "../components/onboarding/SignInStep";
 import ChannelsStep from "../components/onboarding/ChannelsStep";
-import ImportStep from "../components/onboarding/ImportStep";
 import { ReadyStep } from "../components/onboarding/ReadyStep";
 import { onboardingProgress, onboardingSteps } from "../lib/onboardingSteps";
 import { getString } from "../lib/i18n/index";
 import { profileDisplayName } from "../lib/profiles/display";
 import { useProfilesStore } from "../store/useProfilesStore";
-import { useSubscriptionStore } from "../store/useSubscriptionStore";
 
+/**
+ * The setup flow, as on Android: Welcome, Sign in, Channels, Ready. The two
+ * middle steps are the only ones the progress bar counts, and both are
+ * skippable. No interests, artists, alerts or import step — Android's flow
+ * has none of those.
+ */
 export const Onboarding: React.FC = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
-  // Fixed at the start: subscribing during setup must not take the Import step away.
-  const [steps] = useState(() => onboardingSteps(useSubscriptionStore.getState().subscriptions.length > 0));
-  const step = steps[currentStep] ?? "interests";
+  const [steps] = useState(() => onboardingSteps());
+  const step = steps[currentStep] ?? "welcome";
   const lastStep = steps.length - 1;
-  const importIndex = steps.indexOf("import");
   const profiles = useProfilesStore((state) => state.view);
   const loadProfiles = useProfilesStore((state) => state.load);
   const settingUp =
@@ -32,30 +33,22 @@ export const Onboarding: React.FC = () => {
   useEffect(() => {
     void loadProfiles();
   }, [loadProfiles]);
-  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
 
-  const handleTopicToggle = (topic: string) => {
-    if (selectedTopics.includes(topic)) {
-      setSelectedTopics(selectedTopics.filter((t) => t !== topic));
-    } else {
-      setSelectedTopics([...selectedTopics, topic]);
+  const finish = async () => {
+    try {
+      await completeOnboarding([]);
+      navigate("/");
+    } catch (e) {
+      console.error("Failed to complete onboarding", e);
+      navigate("/");
     }
   };
-
-  const canAdvance = step === "interests" ? selectedTopics.length >= 3 : true;
 
   const handleNext = async () => {
     if (currentStep < lastStep) {
       setCurrentStep(currentStep + 1);
     } else {
-      try {
-        const topics = selectedTopics.length >= 3 ? selectedTopics : ["Science", "Technology", "Music"];
-        await completeOnboarding(topics);
-        navigate("/");
-      } catch (e) {
-        console.error("Failed to complete onboarding", e);
-        navigate("/");
-      }
+      await finish();
     }
   };
 
@@ -65,24 +58,18 @@ export const Onboarding: React.FC = () => {
     }
   };
 
-  const handleSkip = async () => {
-    try {
-      const topics = selectedTopics.length >= 3 ? selectedTopics : ["Science", "Technology", "Music"];
-      await completeOnboarding(topics);
-      navigate("/");
-    } catch (e) {
-      console.error("Failed to skip onboarding", e);
-      navigate("/");
-    }
-  };
-
   const progressPercentage = onboardingProgress(steps, step);
+  const isMiddleStep = step === "signin" || step === "channels";
   const nextLabel =
-    step === "ready" ? getString("onboarding_start_watching") : getString("onboarding_continue");
+    step === "welcome"
+      ? getString("onboarding_welcome_get_started")
+      : step === "ready"
+        ? getString("onboarding_start_watching")
+        : getString("onboarding_continue");
 
   return (
     <div className="w-full h-full overflow-hidden flex flex-col bg-surface font-sans relative">
-      {/* Absolute Top Progress Bar */}
+      {/* Absolute Top Progress Bar (middle steps only) */}
       {progressPercentage !== null && (
         <div className="absolute top-0 start-0 end-0 h-[2px] bg-chrome-zinc-800/50 z-50">
           <div
@@ -100,30 +87,34 @@ export const Onboarding: React.FC = () => {
         )}
       </div>
 
+      {/* Skip (middle steps only, top-right) */}
+      {isMiddleStep && (
+        <div className="absolute top-0 end-0 z-40 p-8">
+          <button
+            className="text-chrome-neutral-500 hover:text-chrome-neutral-300 font-semibold text-sm transition-colors cursor-pointer"
+            onClick={finish}
+          >
+            {getString("onboarding_skip")}
+          </button>
+        </div>
+      )}
+
       {/* Scrollable Content Area */}
       <div className="flex-1 overflow-y-auto w-full pt-32 pb-16">
         <div className="max-w-5xl mx-auto px-8 lg:px-12 w-full">
 
-          {step === "interests" && (
-            <InterestsStep
-              selectedTopics={selectedTopics}
-              onTopicToggle={handleTopicToggle}
+          {step === "welcome" && <WelcomeStep />}
+
+          {step === "signin" && <SignInStep />}
+
+          {step === "channels" && <ChannelsStep />}
+
+          {step === "ready" && (
+            <ReadyStep
+              onJumpToSignIn={() => setCurrentStep(steps.indexOf("signin"))}
+              onJumpToChannels={() => setCurrentStep(steps.indexOf("channels"))}
             />
           )}
-
-          {step === "channels" && (
-            <ChannelsStep />
-          )}
-
-          {step === "artists" && <ArtistsStep />}
-
-          {step === "alerts" && <AlertsStep />}
-
-          {step === "import" && (
-            <ImportStep />
-          )}
-
-          {step === "ready" && <ReadyStep interestCount={selectedTopics.length} />}
         </div>
       </div>
 
@@ -139,34 +130,13 @@ export const Onboarding: React.FC = () => {
                 <span>&larr;</span> {getString("onboarding_back")}
               </button>
             )}
-            {currentStep === 0 && importIndex >= 0 && (
-              <button
-                className="text-chrome-neutral-500 hover:text-chrome-neutral-300 font-semibold text-sm transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                onClick={() => setCurrentStep(importIndex)}
-              >
-                {getString("onboarding_restore_backup")}
-              </button>
-            )}
-            {step !== "ready" && (
-              <button
-                className="text-chrome-neutral-500 hover:text-chrome-neutral-300 font-semibold text-sm transition-colors cursor-pointer"
-                onClick={handleSkip}
-              >
-                {getString("onboarding_skip")}
-              </button>
-            )}
           </div>
-          
+
           <button
-            className={`px-8 py-3 rounded-full font-bold text-sm transition-all duration-300 ${
-              canAdvance 
-                ? "bg-primary text-chrome-white hover:bg-primary active:scale-95 cursor-pointer" 
-                : "bg-chrome-neutral-800 text-chrome-neutral-500 opacity-50 cursor-not-allowed"
-            }`}
-            disabled={!canAdvance}
+            className="px-8 py-3 rounded-full font-bold text-sm transition-all duration-300 bg-primary text-chrome-white hover:bg-primary active:scale-95 cursor-pointer"
             onClick={handleNext}
           >
-            {nextLabel}
+            {nextLabel} {step !== "ready" && <span>&rarr;</span>}
           </button>
         </div>
       </div>

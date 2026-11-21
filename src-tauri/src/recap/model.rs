@@ -167,7 +167,7 @@ pub struct ListenEvent {
     pub continued: bool,
 }
 
-/// One thing the frontend queued for the ledger. The gate that decides what Deep Flow stops is in
+/// One thing the frontend queued for the ledger. The gate that decides what Deep Glide stops is in
 /// `src/lib/recap/recapQueue.ts`, so nothing reaches this type while recording is off.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(

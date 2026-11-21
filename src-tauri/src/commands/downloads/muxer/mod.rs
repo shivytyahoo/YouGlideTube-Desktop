@@ -533,7 +533,7 @@ pub(super) fn scratch_file(tag: &str, extension: &str) -> PathBuf {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|elapsed| elapsed.as_nanos())
         .unwrap_or_default();
-    let dir = std::env::temp_dir().join(format!("flow-mux-{tag}-{}-{nanos}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("youglidetube-mux-{tag}-{}-{nanos}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("scratch dir");
     dir.join(format!("out.{extension}"))
 }

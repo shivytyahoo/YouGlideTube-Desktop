@@ -48,7 +48,7 @@ export default function MusicBrowsePage() {
   };
   const itemKey = (item: YTItem, index: number) => item.type === 'album' ? item.browseId
     : 'id' in item ? item.id : index;
-  const renderGrid = (list: YTItem[]) => <div className="flow-grid gap-y-6" style={gridStyle}>
+  const renderGrid = (list: YTItem[]) => <div className="video-grid gap-y-6" style={gridStyle}>
     {list.map((item, index) => <div key={itemKey(item, index)}>{renderItem(item)}</div>)}
   </div>;
   const renderItem = (item: YTItem) => {
@@ -90,7 +90,7 @@ export default function MusicBrowsePage() {
     {error && <div className="mb-6 flex items-center gap-3 text-sm text-chrome-neutral-400">
       <span>{error}</span><Button variant="secondary" onClick={reload}>{getString('music_retry')}</Button>
     </div>}
-    {loading && !visible.length ? <div className="flow-grid gap-y-6" style={gridStyle}>
+    {loading && !visible.length ? <div className="video-grid gap-y-6" style={gridStyle}>
       {Array.from({ length: 12 }).map((_, index) => <div key={index}
         className="aspect-square animate-pulse rounded-xl bg-surface-container-low" />)}
     </div> : sectioned ? <div className="flex flex-col gap-10">

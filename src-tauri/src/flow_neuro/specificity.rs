@@ -1,4 +1,4 @@
-//! How specific a key is in general language, ported from Flow for Android's `NeuroSpecificity`
+//! How specific a key is in general language, ported from the Android app's `NeuroSpecificity`
 //! (#907): "pixel" or "snapdragon" name one subject, while "better", "top" and "year" sit in
 //! titles of every subject. A viewer's own history cannot tell them apart, so the signal comes from
 //! general word frequencies (`resources/neuro/freq/<lang>.txt`, one "word zipf×10" line per word,

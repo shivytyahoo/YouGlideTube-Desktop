@@ -261,8 +261,8 @@ export function usePipSession() {
       usePlayerStore.getState().enterVideoPip("manual");
       void returnToMainWindow();
     };
-    window.addEventListener("flow-video-expand-request", onExpandRequest);
-    return () => window.removeEventListener("flow-video-expand-request", onExpandRequest);
+    window.addEventListener("video-expand-request", onExpandRequest);
+    return () => window.removeEventListener("video-expand-request", onExpandRequest);
   }, [returnToMainWindow]);
 
   const toggleAlwaysOnTop = useCallback(() => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { loadChangelog, releaseFromText, sortReleases, type ChangelogRelease } from "./changelog";
 
-const TEXT = ["FLOW DESKTOP CHANGE LOG", "VERSION: 0.2.0", "DATE: 2026-11-01", "STATUS: RELEASE", "", "ABOUT", "A client.", "", "MUSIC", "- Faster.", "- Better.", "", "FIXES", "- Fixed it."].join("\n");
+const TEXT = ["YOUGLIDETUBE DESKTOP CHANGE LOG", "VERSION: 0.2.0", "DATE: 2026-11-01", "STATUS: RELEASE", "", "ABOUT", "A client.", "", "MUSIC", "- Faster.", "- Better.", "", "FIXES", "- Fixed it."].join("\n");
 
 const release = (version: string, date: string | null): ChangelogRelease => ({ version, date, sections: [] });
 

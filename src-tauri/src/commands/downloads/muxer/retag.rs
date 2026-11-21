@@ -36,7 +36,7 @@ pub fn set_mp4_lyrics(path: &Path, lyrics: &str) -> Result<(), String> {
     })
 }
 
-/// Writes `metadata` into the `ilst` of a file that has no Flow tags yet. Items it doesn't
+/// Writes `metadata` into the `ilst` of a file that has no YouGlideTube tags yet. Items it doesn't
 /// set stay; those it does replace any of the same kind.
 pub fn set_mp4_tags(path: &Path, metadata: &EmbeddedMetadata) -> Result<(), String> {
     let block = ilst::ilst_box(metadata);
@@ -56,14 +56,14 @@ pub fn set_mp4_tags(path: &Path, metadata: &EmbeddedMetadata) -> Result<(), Stri
     })
 }
 
-/// What a file's index says: its Flow tags by lowercased name, and its length.
+/// What a file's index says: its YouGlideTube tags by lowercased name, and its length.
 #[derive(Debug, Default, PartialEq)]
 pub struct Mp4FlowTags {
     pub fields: HashMap<String, String>,
     pub duration_seconds: Option<i64>,
 }
 
-/// Reads the `io.github.aedev.flow` freeform tags, without touching the media.
+/// Reads the `io.github.shivytyahoo.glidetube` freeform tags, without touching the media.
 pub fn read_mp4_flow_tags(path: &Path) -> Result<Mp4FlowTags, String> {
     let io = |error: std::io::Error| format!("Could not read the file: {error}");
     let mut file = File::open(path).map_err(io)?;
@@ -112,7 +112,7 @@ fn parse_moov_tags(moov: &[u8]) -> Result<Mp4FlowTags, String> {
     Ok(tags)
 }
 
-/// A freeform atom's lowercased name and value, when it is one of Flow's.
+/// A freeform atom's lowercased name and value, when it is one of the app's.
 fn freeform_field(atom: &[u8]) -> Result<Option<(String, String)>, String> {
     let (mut mean, mut name, mut value) = (None, None, None);
     for (kind, whole) in children(atom)? {
@@ -516,7 +516,7 @@ mod tests {
 
     #[test]
     fn tags_written_later_read_back_and_the_media_survives() {
-        let path = untagged_song("flow-retag");
+        let path = untagged_song("youglidetube-retag");
         assert!(read_mp4_flow_tags(&path).expect("reads").fields.is_empty());
         set_mp4_tags(&path, &metadata()).expect("retags");
 
@@ -535,7 +535,7 @@ mod tests {
 
     #[test]
     fn tagging_twice_does_not_stack_tags() {
-        let path = untagged_song("flow-retag-twice");
+        let path = untagged_song("youglidetube-retag-twice");
         set_mp4_tags(&path, &metadata()).expect("retags");
         set_mp4_tags(&path, &metadata()).expect("retags");
         let bytes = std::fs::read(&path).expect("reads");
@@ -548,7 +548,7 @@ mod tests {
 
     #[test]
     fn a_tagged_file_reads_its_length() {
-        let path = tagged_song("flow-length");
+        let path = tagged_song("youglidetube-length");
         assert!(
             read_mp4_flow_tags(&path)
                 .expect("reads")
@@ -559,7 +559,7 @@ mod tests {
 
     #[test]
     fn a_broken_file_is_an_error_not_a_panic() {
-        let path = crate::commands::downloads::muxer::scratch_file("flow-broken", "m4a");
+        let path = crate::commands::downloads::muxer::scratch_file("youglidetube-broken", "m4a");
         std::fs::write(&path, b"not an mp4 at all").expect("writes");
         assert!(read_mp4_flow_tags(&path).is_err());
     }

@@ -12,7 +12,7 @@ import { IconButton } from '../ui/IconButton';
 import { TopbarSearch } from './TopbarSearch';
 import { SETTINGS } from '../../lib/settings/schema';
 import { getString } from '../../lib/i18n/index';
-import { toggleDeepFlow } from '../../lib/deepFlow';
+import { toggleDeepGlide } from '../../lib/deepGlide';
 import { NotificationsBell } from '../notifications/NotificationsBell';
 import { activeTab, useTabsStore } from '../../store/useTabsStore';
 import { useSidebarDrawer } from '../../lib/useSidebarDrawer';
@@ -34,7 +34,7 @@ export function Topbar() {
   const seeThrough = usePlayerStore((s) => s.isAmbientSpreadShown && s.isPlayerBelowTopbar) && isWatchPage;
   const sidebarOpen = usesDrawer ? isWatchSidebarOpen : isSidebarExpanded;
   const showAppLogo = useAppSettingsStore((state) => state.values[SETTINGS.SHOW_APP_LOGO_ICON] !== 'false');
-  const deepFlowActive = useAppSettingsStore((state) => state.values[SETTINGS.DEEP_FLOW_ACTIVE] === 'true');
+  const deepGlideActive = useAppSettingsStore((state) => state.values[SETTINGS.DEEP_GLIDE_ACTIVE] === 'true');
   const canGoBack = useTabsStore((state) => activeTab(state).index > 0);
   const tabCount = useTabsStore((state) => state.tabs.length);
   const canGoForward = useTabsStore((state) => {
@@ -108,11 +108,11 @@ export function Topbar() {
         <NotificationsBell />
         <IconButton
           onClick={() => {
-            void toggleDeepFlow();
+            void toggleDeepGlide();
           }}
-          title={getString(deepFlowActive ? 'deep_flow_topbar_disable' : 'deep_flow_topbar_enable')}
-          aria-pressed={deepFlowActive}
-          className={deepFlowActive ? 'deep-flow-topbar-active' : undefined}
+          title={getString(deepGlideActive ? 'deep_glide_topbar_disable' : 'deep_glide_topbar_enable')}
+          aria-pressed={deepGlideActive}
+          className={deepGlideActive ? 'deep-glide-topbar-active' : undefined}
         >
           <HatGlasses />
         </IconButton>

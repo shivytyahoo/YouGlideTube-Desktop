@@ -1,5 +1,5 @@
-//! Finding files Flow saved that this library no longer lists, by the tags in them, and tagging
-//! older downloads saved before Flow wrote tags. Field names match Android's `FlowTagFields`.
+//! Finding files YouGlideTube saved that this library no longer lists, by the tags in them, and tagging
+//! older downloads saved before YouGlideTube wrote tags. Field names match Android's `FlowTagFields`.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -58,7 +58,7 @@ fn is_mp4_extension(ext: &str) -> bool {
     matches!(ext, "mp4" | "m4a")
 }
 
-/// A file's Flow tags and length, whichever container it is in; `None` when it has none.
+/// A file's YouGlideTube tags and length, whichever container it is in; `None` when it has none.
 fn read_file_tags(path: &Path) -> Option<(HashMap<String, String>, Option<i64>)> {
     let ext = extension(path)?;
     let (fields, duration) = if is_mp4_extension(&ext) {
@@ -161,7 +161,7 @@ pub async fn find_earlier_downloads(pool: &SqlitePool, folders: Vec<PathBuf>) ->
     Ok(added)
 }
 
-/// The tags Flow would have written, from what the library kept about the download.
+/// The tags YouGlideTube would have written, from what the library kept about the download.
 fn tags_from_record(record: &DownloadRecord) -> Option<DownloadTags> {
     let is_music = record.media_kind != "video";
     let artists: Vec<String> = record
@@ -227,7 +227,7 @@ fn retag_file(record: &DownloadRecord) -> Option<bool> {
     Some(muxer::retag::set_mp4_tags(path, &metadata).is_ok())
 }
 
-/// Tags the downloads saved before Flow wrote tags.
+/// Tags the downloads saved before YouGlideTube wrote tags.
 pub async fn retag_older_downloads(pool: &SqlitePool) -> AppResult<RetagResult> {
     let records = crate::db::downloads::list_downloads(pool).await?;
     tokio::task::spawn_blocking(move || {
@@ -260,7 +260,7 @@ mod tests {
 
     fn scratch_dir(tag: &str) -> PathBuf {
         let dir =
-            std::env::temp_dir().join(format!("flow-recovery-{tag}-{}", uuid::Uuid::new_v4()));
+            std::env::temp_dir().join(format!("youglidetube-recovery-{tag}-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -275,7 +275,7 @@ mod tests {
         pool
     }
 
-    /// A small song Flow wrote, tagged with `id`.
+    /// A small song YouGlideTube wrote, tagged with `id`.
     fn tagged_song(dir: &Path, name: &str, id: &str) -> PathBuf {
         let path = dir.join(name);
         muxer::write_test_song(&path);

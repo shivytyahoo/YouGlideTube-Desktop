@@ -226,7 +226,7 @@ pub async fn serve(
             match answer(stream, hello, &pool, &device, sink).await {
                 Ok(session) => met(session),
                 Err(error) => {
-                    tracing::debug!(target: "flow::sync2", kind = error.kind(), "LAN session ended");
+                    tracing::debug!(target: "youglidetube::sync2", kind = error.kind(), "LAN session ended");
                 }
             }
         });

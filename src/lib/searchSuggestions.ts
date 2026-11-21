@@ -18,7 +18,7 @@ export type SuggestionRow =
   | { kind: "history"; key: string; query: string; filters?: SearchFilterState }
   /** "Show all": the rest of the history, under an empty box. */
   | { kind: "more"; key: string; count: number }
-  /** A pasted link Flow opens directly. */
+  /** A pasted link the app opens directly. */
   | { kind: "link"; key: string; parsed: ParsedYoutubeUrl }
   | { kind: "query"; key: string; text: string; entity: SuggestionEntity | null }
   | { kind: "music"; key: string; item: SuggestedMusicItem };
@@ -162,7 +162,7 @@ export function musicItemImage(item: SuggestedMusicItem): string | null {
 // Only text that is plainly a web address, so a search such as "node.js/express" draws no warning.
 const URL_LIKE = /^(https?:\/\/|www\.)\S+$/i;
 
-/** A YouTube or YouTube Music link Flow can open, as a suggestion row. */
+/** A YouTube or YouTube Music link the app can open, as a suggestion row. */
 export function linkSuggestion(text: string): SuggestionRow | null {
   const parsed = parseYoutubeUrl(text);
   if (!parsed) return null;
@@ -170,7 +170,7 @@ export function linkSuggestion(text: string): SuggestionRow | null {
   return { kind: "link", key: "link", parsed };
 }
 
-/** Text that looks like a web address Flow can't open, so Enter will only search for it. */
+/** Text that looks like a web address the app can't open, so Enter will only search for it. */
 export function isUnsupportedLink(text: string): boolean {
   const q = text.trim();
   return URL_LIKE.test(q) && !linkSuggestion(q);

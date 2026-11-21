@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sent: unknown[][] = [];
-let deepFlow = false;
+let deepGlide = false;
 let failNext = false;
 let failWith = "down";
 
@@ -15,7 +15,7 @@ vi.mock("../api/recap", () => ({
     sent.push(entries);
   },
 }));
-vi.mock("../deepFlow", () => ({ isDeepFlowCurrentlyActive: () => deepFlow }));
+vi.mock("../deepGlide", () => ({ isDeepGlideCurrentlyActive: () => deepGlide }));
 vi.mock("../profiles/beforeSwitch", () => ({ onBeforeProfileSwitch: () => () => {} }));
 
 const {
@@ -49,13 +49,13 @@ const kinds = () => sent.flat().map((entry) => (entry as { kind: string }).kind)
 
 describe("recap queue", () => {
   beforeEach(async () => {
-    deepFlow = false;
+    deepGlide = false;
     await flushRecapQueue();
     sent.length = 0;
   });
 
   it("records nothing that Deep Flow stops", async () => {
-    deepFlow = true;
+    deepGlide = true;
     recapView(view);
     recapListen(listen);
     recapDislike({ id: "v", title: "t" });
@@ -67,7 +67,7 @@ describe("recap queue", () => {
   });
 
   it("still takes back what is stored during Deep Flow, and notes an artist said no to", async () => {
-    deepFlow = true;
+    deepGlide = true;
     recapDislikeRemoved("v");
     recapQueriesCleared();
     recapArtistSaidNo(null, "a", true);

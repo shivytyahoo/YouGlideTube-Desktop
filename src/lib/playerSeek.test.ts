@@ -14,11 +14,11 @@ describe("seekWhenVideoReady", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     seeks.length = 0;
-    window.addEventListener("flow-player-seek", onSeek);
+    window.addEventListener("player-seek", onSeek);
   });
 
   afterEach(() => {
-    window.removeEventListener("flow-player-seek", onSeek);
+    window.removeEventListener("player-seek", onSeek);
     document.body.innerHTML = "";
     vi.useRealTimers();
   });

@@ -98,7 +98,7 @@ export function useTabSession(): boolean {
       .then(([enabled, raw, startPath]) => {
         if (cancelled) return;
         const session = enabled === "true" ? parseTabSession(raw) : null;
-        // Only a plain launch onto Home moves: a link Flow was opened with, or restored tabs, win.
+        // Only a plain launch onto Home moves: a link the app was opened with, or restored tabs, win.
         const launched = useTabsStore.getState();
         if (!session && startPath && startPath !== "/" && currentEntry(activeTab(launched)).pathname === "/") {
           launched.replace(startPath);

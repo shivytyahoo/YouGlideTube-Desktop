@@ -117,7 +117,7 @@ pub enum ReadBackup {
     },
 }
 
-/// Reads a picked file for the restore page: a Flow backup in the desktop's shape, whichever app
+/// Reads a picked file for the restore page: a YouGlideTube backup in the desktop's shape, whichever app
 /// wrote it, or the text of a file for the format parsers.
 #[tauri::command]
 pub async fn read_backup(path: String) -> Result<ReadBackup, ErrorResponse> {

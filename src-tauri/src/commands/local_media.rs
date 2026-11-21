@@ -632,7 +632,7 @@ mod tests {
 
     #[test]
     fn a_folder_taken_off_the_list_stops_showing_its_files_at_once() {
-        let dir = std::env::temp_dir().join(format!("flow-visible-{}", Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("youglidetube-visible-{}", Uuid::new_v4()));
         let keep = dir.join("keep");
         let hidden = dir.join("keep/hidden");
         let other = dir.join("other");

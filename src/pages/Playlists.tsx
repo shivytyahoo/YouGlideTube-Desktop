@@ -222,7 +222,7 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay: _onPlay }) => {
           ) : (
             <DndContext sensors={dragSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={visiblePlaylists.map((playlist) => playlist.id)} strategy={rectSortingStrategy}>
-                <div className="flow-grid gap-y-6" style={gridStyle}>
+                <div className="video-grid gap-y-6" style={gridStyle}>
                   {visiblePlaylists.map((playlist) => {
                     const card = (
                       <PlaylistCard

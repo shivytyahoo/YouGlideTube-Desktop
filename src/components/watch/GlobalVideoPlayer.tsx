@@ -8,7 +8,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAppSettingsStore } from "../../store/useAppSettingsStore";
 import { usePlayerStore } from "../../store/usePlayerStore";
 import { SETTINGS } from "../../lib/settings/schema";
-import { FlowPlayerCore } from "./FlowPlayerCore";
+import { PlayerCore } from "./PlayerCore";
 import { decideRouteChangePlayerAction, watchVideoIdFromPath } from "../../lib/watchRouteSync";
 import { expandPlayerInOwnerTab } from "../../lib/tabs/tabPlayback";
 import { useTabsStore } from "../../store/useTabsStore";
@@ -24,7 +24,7 @@ type PlayerBounds = {
 };
 
 function readSlotBounds(): PlayerBounds | null {
-  const slot = document.querySelector<HTMLElement>("[data-flow-watch-player-slot='true']");
+  const slot = document.querySelector<HTMLElement>("[data-youglidetube-watch-player-slot='true']");
   if (!slot) return null;
   const rect = slot.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) return null;
@@ -129,7 +129,7 @@ export function GlobalVideoPlayer() {
       const next = readSlotBounds();
       if (!next) return;
       pageTop ??=
-        document.querySelector("[data-flow-watch-player-slot='true']")?.closest("main")?.getBoundingClientRect().top ?? null;
+        document.querySelector("[data-youglidetube-watch-player-slot='true']")?.closest("main")?.getBoundingClientRect().top ?? null;
       publishBelowTopbar(pageTop !== null && next.top >= pageTop - 0.5);
       const prev = lastSlotBoundsRef.current;
       lastSlotBoundsRef.current = next;
@@ -140,7 +140,7 @@ export function GlobalVideoPlayer() {
     };
 
     sync();
-    const slot = document.querySelector<HTMLElement>("[data-flow-watch-player-slot='true']");
+    const slot = document.querySelector<HTMLElement>("[data-youglidetube-watch-player-slot='true']");
     let resizeRaf: number | null = null;
     const onResize = () => {
       pageTop = null;
@@ -241,8 +241,8 @@ export function GlobalVideoPlayer() {
   }, [currentVideo, expandVideoPlayer, navigate]);
 
   useEffect(() => {
-    window.addEventListener("flow-video-expand-request", expandFromFloating);
-    return () => window.removeEventListener("flow-video-expand-request", expandFromFloating);
+    window.addEventListener("video-expand-request", expandFromFloating);
+    return () => window.removeEventListener("video-expand-request", expandFromFloating);
   }, [expandFromFloating]);
 
   const miniPlayerSize = useAppSettingsStore((state) => state.values[SETTINGS.MINI_PLAYER_SIZE]);
@@ -287,7 +287,7 @@ export function GlobalVideoPlayer() {
   const playerNode = useMemo(
     () =>
       videoIdForPlayer ? (
-        <FlowPlayerCore videoId={videoIdForPlayer} videoDetails={cachedDetails} />
+        <PlayerCore videoId={videoIdForPlayer} videoDetails={cachedDetails} />
       ) : null,
     [videoIdForPlayer, cachedDetails],
   );

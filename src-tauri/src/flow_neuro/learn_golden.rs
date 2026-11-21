@@ -1,4 +1,4 @@
-//! The learning math against Flow for Android's `learn_golden.json` (written by its
+//! The learning math against the Android app's `learn_golden.json` (written by its
 //! `NeuroLearnGoldenTest`, mirrored by `scripts/mirror-neuro-fixtures.sh`), so both apps learn
 //! the same way from the same events.
 

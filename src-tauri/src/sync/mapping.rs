@@ -381,7 +381,7 @@ fn like_from_value(mut v: Value, device_id: &str) -> Option<Like> {
     })
 }
 
-/// Flow for Android reads a like's title, artist and thumbnail from flat `meta` fields, while the
+/// the Android app reads a like's title, artist and thumbnail from flat `meta` fields, while the
 /// desktop item nests them under `video` or `song`. Copy them up so a desktop like doesn't arrive
 /// on the phone as a blank row; the nested object stays for desktop peers.
 fn add_flat_like_meta(item: &mut serde_json::Map<String, Value>) {

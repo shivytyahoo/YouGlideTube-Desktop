@@ -43,7 +43,7 @@ parity audit against the Android app (1,703 files) and close the gaps.
 - Rebrand: product `YouGlideTube`, identifier
   `io.github.shivytyahoo.glidetube.desktop`, window title, package name,
   README header, copyright. License stays GPL-3.0-only (Flow's `LICENSE`
-  kept); attribution in `FORK.md`.
+  kept); attribution in `CREDITS.md`.
 - Retheme: new `youglidetube` theme seed is the default (dark `#1A1C1E`,
   brand `#1E5AA8`, saffron `#E85D04`, coral `#FF3D68` as a CSS token).
   No layouts redesigned.
@@ -322,7 +322,7 @@ Server subscriptions feed (`FEsubscriptions`) + subscribe/unsubscribe; server hi
   `chown`). Run the binaries directly: `./node_modules/.bin/tsc`,
   `./node_modules/.bin/vite build`, `./node_modules/.bin/vitest run`.
 - `libzstd1` was downgraded from the sandbox's `+hatch1` build to stock
-  Ubuntu (see `FORK.md`); `apt-get check` is clean. **A VM restart
+  Ubuntu (see `CREDITS.md`); `apt-get check` is clean. **A VM restart
   reverts this** (back to `+hatch1`) **and wipes all apt-installed `-dev`
   packages** — after any restart, re-run `apt-get update`, re-downgrade
   `libzstd1`, and reinstall the Tauri `-dev` packages before any

@@ -16,7 +16,7 @@ pub const CONTENT_COUNTRY_SETTING: &str = "trending_region";
 static CONTENT_LANGUAGE: RwLock<String> = RwLock::new(String::new());
 static CONTENT_COUNTRY: RwLock<String> = RwLock::new(String::new());
 
-/// The host language the site accepts for a language tag, as Flow for Android
+/// The host language the site accepts for a language tag, as the Android app
 /// normalises it: the bare language, Brazilian and European Portuguese and the
 /// three Chinese variants told apart, and English for anything unusable.
 #[must_use]

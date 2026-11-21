@@ -112,7 +112,7 @@ pub fn validate_browse_id(id: &str) -> AppResult<()> {
     }
 }
 
-/// Links Flow hands to the system to open: web pages and mail only, never a
+/// Links the app hands to the system to open: web pages and mail only, never a
 /// file, a script or another app's scheme.
 pub fn validate_external_url(url: &str) -> AppResult<()> {
     let parsed =
@@ -126,7 +126,7 @@ pub fn validate_external_url(url: &str) -> AppResult<()> {
     }
 }
 
-/// A page inside Flow that a new window opens on: an app path such as
+/// A page inside the app that a new window opens on: an app path such as
 /// `/watch/<id>`, never a URL that could point the window somewhere else.
 pub fn validate_app_route(route: &str) -> AppResult<()> {
     let valid = route.len() <= 2048
@@ -141,7 +141,7 @@ pub fn validate_app_route(route: &str) -> AppResult<()> {
     }
 }
 
-/// Hosts Flow opens links from, the same ones `src/lib/youtubeUrl.ts` reads.
+/// Hosts the app opens links from, the same ones `src/lib/youtubeUrl.ts` reads.
 const LINK_DOMAINS: [&str; 5] = [
     "youtube.com",
     "youtube-nocookie.com",
@@ -151,7 +151,7 @@ const LINK_DOMAINS: [&str; 5] = [
 ];
 const MAX_LINK_CHARS: usize = 2048;
 
-/// Whether a link from outside Flow, such as a command-line argument, is one to open at all.
+/// Whether a link from outside the app, such as a command-line argument, is one to open at all.
 /// The frontend then decides what it points at, and ignores anything else.
 pub fn is_openable_link(link: &str) -> bool {
     if link.len() > MAX_LINK_CHARS || link.chars().any(|c| c.is_control() || c.is_whitespace()) {
@@ -212,7 +212,7 @@ pub fn validate_library_file(
     }
     if !resolved.is_file() || !is_allowed_type(&resolved) {
         return Err(AppError::LocalFileRefused(
-            "That isn't a file Flow can open".into(),
+            "That isn't a file the app can open".into(),
         ));
     }
     Ok(resolved)
@@ -255,7 +255,7 @@ mod tests {
             "https://user:pass@youtube.com/watch",
             "file:///etc/passwd",
             "javascript:alert(1)",
-            "flow://watch?v=dQw4w9WgXcQ",
+            "youglidetube://watch?v=dQw4w9WgXcQ",
             "youtube.com/watch?v=dQw4w9WgXcQ",
             "https://youtube.com/a b",
             "https://youtube.com/a\nb",
@@ -304,7 +304,7 @@ mod tests {
             "file:///etc/passwd",
             "javascript:alert(1)",
             "smb://server/share",
-            "flow://watch?v=x",
+            "youglidetube://watch?v=x",
             "https://",
             "not a url",
             "",
@@ -320,7 +320,7 @@ mod tests {
 
     impl Library {
         fn new() -> Self {
-            let dir = std::env::temp_dir().join(format!("flow-lib-{}", uuid::Uuid::new_v4()));
+            let dir = std::env::temp_dir().join(format!("youglidetube-lib-{}", uuid::Uuid::new_v4()));
             std::fs::create_dir_all(dir.join("music")).unwrap();
             let resolved = std::fs::canonicalize(dir).unwrap();
             let root = resolved.join("music");

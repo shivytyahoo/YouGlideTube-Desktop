@@ -72,21 +72,13 @@ describe("buildThemeFileTheme", () => {
     expect(built.theme.variants.amoled.background).toBe("#000000");
   });
 
-  it("still reads a file written with the old --flow-* names", () => {
+  it("reads a file written with the --youglidetube-* names", () => {
     const built = buildThemeFileTheme(tokens({
-      "--flow-primary": "#cba6f7",
-      "--flow-background": "#11111b",
+      "--youglidetube-primary": "#cba6f7",
+      "--youglidetube-background": "#11111b",
     }), hexOnly);
     expect(built.theme.variants.dark.primary).toBe("#cba6f7");
     expect(built.theme.variants.dark.background).toBe("#11111b");
-  });
-
-  it("prefers the --youglidetube-* name when a file sets both", () => {
-    const built = buildThemeFileTheme(tokens({
-      "--youglidetube-primary": "#cba6f7",
-      "--flow-primary": "#ff0000",
-    }), hexOnly);
-    expect(built.theme.variants.dark.primary).toBe("#cba6f7");
   });
 });
 

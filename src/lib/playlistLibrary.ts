@@ -24,7 +24,7 @@ export interface StoredPlaylist {
 
 const PLAYLISTS_SETTING_KEY = "user_playlists";
 export const WATCH_LATER_PLAYLIST_ID = "watch-later";
-export const PLAYLIST_LIBRARY_UPDATED_EVENT = "flow:playlist-library-updated";
+export const PLAYLIST_LIBRARY_UPDATED_EVENT = "youglidetube:playlist-library-updated";
 
 const WATCH_LATER_PLAYLIST_DEFAULTS: StoredPlaylist = {
   id: WATCH_LATER_PLAYLIST_ID,

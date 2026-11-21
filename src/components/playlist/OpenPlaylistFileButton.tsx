@@ -4,7 +4,7 @@ import { getString } from "../../lib/i18n/index";
 import { importPlaylistFileWithToast } from "../../lib/playlistTransfer";
 import { Button } from "../ui/Button";
 
-/** Opens a saved Flow playlist, from this app or Flow for Android. */
+/** Opens a saved YouGlideTube playlist, from this app or the Android app. */
 export function OpenPlaylistFileButton() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);

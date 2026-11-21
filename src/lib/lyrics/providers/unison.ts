@@ -2,7 +2,7 @@ import type { LyricsEntry, LyricsProvider } from "../types";
 import { lyricsHttpGet, enc } from "../http";
 import { parseTTMLToLyricsEntries } from "../ttmlParser";
 import { parseLyrics } from "../lyricsUtils";
-import { flowUserAgent } from "./common";
+import { youglidetubeUserAgent } from "./common";
 import { cleanArtist } from "../matching";
 
 const LYRICS_URL = "https://unison.boidu.dev/lyrics";
@@ -34,7 +34,7 @@ export const unisonProvider: LyricsProvider = {
     let url = `${LYRICS_URL}?song=${enc(title)}&artist=${enc(cleanArtist(artist))}`;
     if (album?.trim()) url += `&album=${enc(album)}`;
     if (durationSec > 0) url += `&duration=${durationSec}`;
-    const res = await lyricsHttpGet(url, { "User-Agent": await flowUserAgent(), Accept: "application/json" });
+    const res = await lyricsHttpGet(url, { "User-Agent": await youglidetubeUserAgent(), Accept: "application/json" });
     if (res.status === 404) return [];
     if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}`);
     return parseUnison(res.body);

@@ -106,7 +106,7 @@ pub fn spawn(app: AppHandle) {
             }
             let started = Instant::now();
             if let Err(error) = sync_now(&app).await {
-                tracing::warn!(target: "flow::sync2", kind = error.kind(), "push failed");
+                tracing::warn!(target: "youglidetube::sync2", kind = error.kind(), "push failed");
             }
             last_push = Some(started);
         }

@@ -1,4 +1,4 @@
-//! Load-more, from Flow for Android's `HomeViewModel.loadNextPrefetchPage` and
+//! Load-more, from the Android app's `HomeViewModel.loadNextPrefetchPage` and
 //! `HomeLoadMorePolicy`: a page of eight from channel memory, the reserve, a related pass, the next
 //! discovery searches and deeper pages of productive ones, the subscription backlog, and a wider
 //! related pass last. A page too small waits for the next attempt; three empty attempts end the

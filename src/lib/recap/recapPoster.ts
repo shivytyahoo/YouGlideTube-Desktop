@@ -110,7 +110,7 @@ function drawPortrait(
 
 /**
  * The card the story ends on and the image that gets saved: the period's two faces, its time in a
- * headline figure, four tiles, the trait that stood out and the Flow mark.
+ * headline figure, four tiles, the trait that stood out and the YouGlideTube mark.
  */
 export function drawPoster(
   ctx: CanvasRenderingContext2D,

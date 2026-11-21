@@ -20,7 +20,7 @@ export const ChannelShortsGrid: React.FC<ChannelShortsGridProps> = ({ shorts }) 
   if (!shorts.length) return null;
 
   return (
-    <div className="flow-grid gap-y-4" style={gridStyle}>
+    <div className="video-grid gap-y-4" style={gridStyle}>
       {shorts.map((short) => (
         <ShortCard
           key={short.id}
@@ -43,7 +43,7 @@ export const ChannelPlaylistsGrid: React.FC<ChannelPlaylistsGridProps> = ({ play
   if (!playlists.length) return null;
 
   return (
-    <div className="flow-grid gap-y-6" style={gridStyle}>
+    <div className="video-grid gap-y-6" style={gridStyle}>
       {playlists.map((playlist) => (
         <PlaylistCard key={playlist.id} playlist={playlist} />
       ))}

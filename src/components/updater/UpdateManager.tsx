@@ -9,7 +9,7 @@ import { UpdateDialog } from "./UpdateDialog";
  */
 const STARTUP_CHECK_DELAY_MS = 4000;
 
-/** A long session looks again this often, as Flow for Android does. */
+/** A long session looks again this often, as the Android app does. */
 export const LONG_SESSION_CHECK_MS = 12 * 60 * 60 * 1000;
 
 /**

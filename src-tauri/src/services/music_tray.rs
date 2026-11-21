@@ -12,10 +12,10 @@ use tauri::{AppHandle, Emitter, Manager};
 use super::media_keys::{self, COMMAND_NEXT, COMMAND_PREVIOUS, COMMAND_TOGGLE};
 
 /// Event the main window listens on for the Continue watching item.
-const CONTINUE_WATCHING_EVENT: &str = "flow:tray-continue-watching";
+const CONTINUE_WATCHING_EVENT: &str = "youglidetube:tray-continue-watching";
 const MAIN_WINDOW: &str = "main";
 
-const TRAY_ID: &str = "flow-music";
+const TRAY_ID: &str = "youglidetube-music";
 const ID_SHOW: &str = "show";
 const ID_CONTINUE: &str = "continue-watching";
 const TITLE_MAX_CHARS: usize = 64;

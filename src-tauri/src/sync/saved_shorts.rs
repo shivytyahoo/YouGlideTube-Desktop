@@ -1,4 +1,4 @@
-//! Flow for Android keeps saved Shorts in a playlist with the reserved id `saved_shorts`; the
+//! the Android app keeps saved Shorts in a playlist with the reserved id `saved_shorts`; the
 //! desktop keeps them in the `saved_shorts_library` setting, newest first. On the wire they are
 //! that playlist, so its tracks merge one by one like any other playlist's.
 

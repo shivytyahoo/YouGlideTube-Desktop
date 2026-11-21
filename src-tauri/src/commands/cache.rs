@@ -103,7 +103,7 @@ pub async fn clear_cache(
     }
 }
 
-/// Saves a limit and holds the cache to it now where that can be done while Flow runs.
+/// Saves a limit and holds the cache to it now where that can be done while the app runs.
 #[tauri::command]
 pub async fn set_cache_limit(
     kind: CacheKind,
@@ -132,7 +132,7 @@ pub async fn set_cache_limit(
 }
 
 /// At launch, after the database is open: the two caches that can be held to their limits while
-/// Flow runs. Never holds up startup.
+/// The app runs. Never holds up startup.
 pub fn spawn_startup_trim(app: AppHandle, pool: SqlitePool) {
     tauri::async_runtime::spawn(async move {
         let Ok(dir) = app_data_dir(&app) else {

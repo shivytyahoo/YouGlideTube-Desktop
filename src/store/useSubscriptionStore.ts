@@ -24,7 +24,7 @@ export interface SubscriptionGroup {
 
 interface FollowOptions {
   learn?: boolean;
-  /** A music artist, which Flow for Android files apart from video channels. */
+  /** A music artist, which the Android app files apart from video channels. */
   isMusic?: boolean;
 }
 

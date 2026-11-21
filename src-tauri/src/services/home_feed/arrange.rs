@@ -1,4 +1,4 @@
-//! Orders within a lane and across a page, from Flow for Android's `HomeFeedRanking`: poor fits
+//! Orders within a lane and across a page, from the Android app's `HomeFeedRanking`: poor fits
 //! demoted (never dropped), pages laid out in short runs by source, channels spaced apart, and an
 //! even share per search.
 

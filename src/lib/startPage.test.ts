@@ -4,7 +4,7 @@ import { claimStartPage, startPageChoices, startPagePath } from "./startPage";
 const all = { shorts: true, music: true, explore: true };
 
 describe("startPagePath", () => {
-  it("uses Flow for Android's tab ids", () => {
+  it("uses the Android app's tab ids", () => {
     expect(startPagePath("3", all)).toBe("/subscriptions");
     expect(startPagePath("0", all)).toBe("/");
     expect(startPagePath("6", all)).toBe("/explore");

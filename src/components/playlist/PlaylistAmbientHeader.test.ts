@@ -14,7 +14,7 @@ const meta = {
   id: "p",
   title: "Mine",
   description: "My notes",
-  channelName: "Flow",
+  channelName: "YouGlideTube",
   viewCountText: null,
   videoCount: 2,
   videoCountText: "2 videos",

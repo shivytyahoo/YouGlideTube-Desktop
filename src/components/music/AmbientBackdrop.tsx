@@ -13,7 +13,7 @@ const at = (role: "ground" | "base" | "accent", alpha: number) =>
   `color-mix(in srgb, var(--player-${role}) ${Math.round(alpha * 100)}%, transparent)`;
 
 /**
- * The washes of Flow Android's `PlayerBackground`, with the same stops. They
+ * The washes of the Android app's `PlayerBackground`, with the same stops. They
  * read the `--player-*` colours set on the full player, so the backdrop and the
  * controls always agree, light player included.
  */

@@ -151,11 +151,11 @@ describe("stored failures", () => {
 
   it("round-trips, shared by every profile", () => {
     const failures = failed(["a"]);
-    window.__FLOW_PROFILE__ = { id: "study", isDefault: false };
+    window.__YOUGLIDETUBE_PROFILE__ = { id: "study", isDefault: false };
     saveDecodeFailures(failures);
-    window.__FLOW_PROFILE__ = { id: "", isDefault: true };
+    window.__YOUGLIDETUBE_PROFILE__ = { id: "", isDefault: true };
     expect(loadDecodeFailures()).toEqual(failures);
-    delete window.__FLOW_PROFILE__;
+    delete window.__YOUGLIDETUBE_PROFILE__;
   });
 
   it("starts empty when nothing is stored or it can't be read", () => {

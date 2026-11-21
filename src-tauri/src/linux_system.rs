@@ -1,4 +1,4 @@
-//! What kind of Linux system Flow runs on, for advice the user can act on:
+//! What kind of Linux system the app runs on, for advice the user can act on:
 //! which command installs video decoders here, and whether the install
 //! carries its own (`AppImage`, Flatpak) so the system's don't matter.
 

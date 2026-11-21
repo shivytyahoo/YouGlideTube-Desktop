@@ -10,7 +10,7 @@ import { bedtimeState, nextBedtimeAt } from "./bedtime";
 import { BreakClock } from "./breakClock";
 
 const TICK_MS = 15_000;
-/** A longer gap between ticks means the computer slept: that time wasn't spent in Flow. */
+/** A longer gap between ticks means the computer slept: that time wasn't spent in the app. */
 const SLEEP_GAP_MS = 60_000;
 
 function notify(title: StringKey, body: StringKey) {
@@ -20,7 +20,7 @@ function notify(title: StringKey, body: StringKey) {
 }
 
 /**
- * A computer stays on screen while its owner works elsewhere, so Flow counts as in use while its
+ * A computer stays on screen while its owner works elsewhere, so the app counts as in use while its
  * window has focus, or is visible and playing.
  */
 export function flowInUse(): boolean {
@@ -28,7 +28,7 @@ export function flowInUse(): boolean {
   return document.hasFocus() || usePlayerStore.getState().isPlaying || useMusicPlayerStore.getState().isPlaying;
 }
 
-/** The break and bedtime reminders. They run only while Flow does; nothing wakes the computer. */
+/** The break and bedtime reminders. They run only while the app does; nothing wakes the computer. */
 export function useWellbeingReminders() {
   const breakOn = useAppSettingsStore((s) => s.values[SETTINGS.BREAK_REMINDER] === "true");
   const breakMinutes = Number(useAppSettingsStore((s) => s.values[SETTINGS.BREAK_FREQUENCY]) ?? "30");

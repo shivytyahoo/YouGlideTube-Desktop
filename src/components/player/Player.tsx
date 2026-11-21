@@ -17,7 +17,7 @@ import type {
   VideoChapter,
 } from "../../types/video";
 import { CodecMissingBanner } from "./CodecMissingBanner";
-import { FlowPlayerControls } from "./FlowPlayerControls";
+import { PlayerControls } from "./PlayerControls";
 import { MiniPlayerControls } from "./MiniPlayerControls";
 import {
   allVideoRepresentations,
@@ -661,16 +661,16 @@ export const Player: React.FC<PlayerProps> = ({
     if (import.meta.env.DEV) console.log(`[Player] ${event}`, entry);
     recordPlayerEvent(`${event} ${summarizePlayerLogPayload(entry)}`.slice(0, PLAYER_LOG_MAX_CHARS));
     const globalWindow = window as Window & {
-      __FLOW_PLAYER_LOGS__?: Array<{ event: string; payload: Record<string, unknown>; at: string }>;
+      __YOUGLIDETUBE_PLAYER_LOGS__?: Array<{ event: string; payload: Record<string, unknown>; at: string }>;
     };
-    globalWindow.__FLOW_PLAYER_LOGS__ = globalWindow.__FLOW_PLAYER_LOGS__ || [];
-    globalWindow.__FLOW_PLAYER_LOGS__.push({
+    globalWindow.__YOUGLIDETUBE_PLAYER_LOGS__ = globalWindow.__YOUGLIDETUBE_PLAYER_LOGS__ || [];
+    globalWindow.__YOUGLIDETUBE_PLAYER_LOGS__.push({
       event,
       payload: entry,
       at: new Date().toISOString(),
     });
-    if (globalWindow.__FLOW_PLAYER_LOGS__.length > 200) {
-      globalWindow.__FLOW_PLAYER_LOGS__.shift();
+    if (globalWindow.__YOUGLIDETUBE_PLAYER_LOGS__.length > 200) {
+      globalWindow.__YOUGLIDETUBE_PLAYER_LOGS__.shift();
     }
   }, [isDashPlayback, selectedQualityId]);
   const logPlayerEventRef = useRef(logPlayerEvent);
@@ -1267,9 +1267,9 @@ export const Player: React.FC<PlayerProps> = ({
         seekTo(customEvent.detail.time);
       }
     };
-    window.addEventListener("flow-player-seek", handleExternalSeek);
+    window.addEventListener("player-seek", handleExternalSeek);
     return () => {
-      window.removeEventListener("flow-player-seek", handleExternalSeek);
+      window.removeEventListener("player-seek", handleExternalSeek);
     };
   }, [seekTo]);
 
@@ -1397,7 +1397,7 @@ export const Player: React.FC<PlayerProps> = ({
   const togglePictureInPicture = useCallback(() => {
     if (videoPlayerMode === "pip") {
       expandVideoPlayer();
-      window.dispatchEvent(new CustomEvent("flow-video-expand-request"));
+      window.dispatchEvent(new CustomEvent("video-expand-request"));
       return;
     }
     if (isFullscreen) {
@@ -2532,7 +2532,7 @@ export const Player: React.FC<PlayerProps> = ({
   return (
     <div
       ref={containerRef}
-      id="flow-player-root"
+      id="player-root"
       // The frame and its controls run left to right in every language, as on Android: the
       // timeline, the skip buttons and the double-tap sides all follow the video, not the text.
       dir="ltr"
@@ -2822,7 +2822,7 @@ export const Player: React.FC<PlayerProps> = ({
           showNextPrevControls={miniPlayerShowNextPrevControls}
         />
       ) : (
-      <FlowPlayerControls
+      <PlayerControls
         title={title}
         isLoading={isLoading}
         error={error}

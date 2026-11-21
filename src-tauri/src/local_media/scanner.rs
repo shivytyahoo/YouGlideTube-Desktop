@@ -90,7 +90,7 @@ impl LocalMediaScanner {
 /// How long after launch the first pass starts, so it never competes with the first page.
 const LAUNCH_SCAN_DELAY: std::time::Duration = std::time::Duration::from_secs(5);
 
-/// Picks up what changed while Flow was closed. With no folders chosen it costs one small read.
+/// Picks up what changed while the app was closed. With no folders chosen it costs one small read.
 pub fn scan_at_launch(scanner: Arc<LocalMediaScanner>, app: AppHandle, device_pool: SqlitePool) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(LAUNCH_SCAN_DELAY).await;

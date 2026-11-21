@@ -1,4 +1,4 @@
-//! From raw fetches to ranked lanes to the first page, from Flow for Android's `HomeFeedAssembly`.
+//! From raw fetches to ranked lanes to the first page, from the Android app's `HomeFeedAssembly`.
 
 use std::collections::{HashMap, HashSet};
 

@@ -3,7 +3,7 @@ import { NavigationType } from "react-router-dom";
 import { SETTINGS } from "./settings/schema";
 import type { VideoSummary } from "../types/video";
 
-const openAppWindow = vi.fn(async () => "flow-1");
+const openAppWindow = vi.fn(async () => "youglidetube-1");
 vi.mock("./api/appWindow", () => ({ openAppWindow }));
 vi.mock("./streamResolution", () => ({ prefetchStreamInfo: vi.fn(), readStreamInfoEntry: () => null }));
 
@@ -17,7 +17,7 @@ const { openedInBackgroundTab } = await import("./openTarget");
 const setTabsOn = (on: boolean) =>
   useAppSettingsStore.setState((state) => ({ values: { ...state.values, tabs_enabled: String(on) } }));
 
-const video = (id: string): VideoSummary => ({ id, title: id, channelName: "Flow" });
+const video = (id: string): VideoSummary => ({ id, title: id, channelName: "YouGlideTube" });
 
 beforeEach(() => {
   useTabsStore.setState({

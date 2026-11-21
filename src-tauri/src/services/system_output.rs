@@ -1,6 +1,6 @@
-//! Whether the computer's own sound output is muted or turned all the way down. Flow for Android
+//! Whether the computer's own sound output is muted or turned all the way down. the Android app
 //! pauses music when the phone's media volume is muted; the match here is the system output, which
-//! Flow's own volume slider never sees.
+//! the app's own volume slider never sees.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -9,7 +9,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 /// Sent with `true` while the system output is silent, `false` once it plays again.
-pub const SILENT_EVENT: &str = "flow:system-output-silent";
+pub const SILENT_EVENT: &str = "youglidetube:system-output-silent";
 
 // Neither CoreAudio nor Core Audio on Windows can be asked to call back from a plain thread
 // without a run loop or a COM sink, so the output is read on a short timer instead.

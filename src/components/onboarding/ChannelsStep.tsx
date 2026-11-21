@@ -50,7 +50,7 @@ export function ChannelsStep() {
 
       {searchQuery.trim() ? (
         channels.length === 0 && !loading ? (
-          <EmptyState icon={SearchX} title={getString("onboarding_channels_no_results")} />
+          <EmptyState icon={SearchX} title={getString("onboarding_channels_no_results", searchQuery.trim())} />
         ) : (
           <div className={ONBOARDING_CARD_GRID}>
             {channels.map((channel) => (
@@ -70,7 +70,6 @@ export function ChannelsStep() {
         <EmptyState
           icon={Search}
           title={getString("onboarding_search_for_creators")}
-          body={getString("onboarding_channels_prompt")}
         />
       )}
     </div>

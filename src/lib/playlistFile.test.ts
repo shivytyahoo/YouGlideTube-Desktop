@@ -14,9 +14,9 @@ import type { SongItem } from "../types/music";
 const ID = "dQw4w9WgXcQ";
 const ID2 = "aaaaaaaaaaa";
 
-// As Flow for Android writes one: encodeDefaults = false, so empty fields are absent.
-const androidFile = JSON.stringify({
-  format: "flow-playlist",
+// Empty fields are absent, as the encoder leaves them out.
+const playlistFile = JSON.stringify({
+  format: "youglidetube-playlist",
   version: 1,
   exportedAt: 1_700_000_000_000,
   playlist: { name: "From the phone", description: "Notes" },
@@ -30,8 +30,8 @@ const androidFile = JSON.stringify({
 });
 
 describe("decodePlaylistFile", () => {
-  it("reads a file from Android, keeping good ids once each", () => {
-    const read = decodePlaylistFile(androidFile);
+  it("reads a playlist file, keeping good ids once each", () => {
+    const read = decodePlaylistFile(playlistFile);
     if (read.kind !== "read") throw new Error(read.kind);
     expect(read.file.name).toBe("From the phone");
     expect(read.file.description).toBe("Notes");
@@ -41,21 +41,26 @@ describe("decodePlaylistFile", () => {
     expect(read.file.videos[1]?.addedAt).toBeNull();
   });
 
+  it("still reads a file written under the old flow-playlist name", () => {
+    const read = decodePlaylistFile(playlistFile.replace("youglidetube-playlist", "flow-playlist"));
+    expect(read.kind).toBe("read");
+  });
+
   it("refuses what isn't a playlist", () => {
     expect(decodePlaylistFile("not json").kind).toBe("notAPlaylist");
     expect(decodePlaylistFile("[]").kind).toBe("notAPlaylist");
     expect(decodePlaylistFile(JSON.stringify({ format: "other", version: 1, playlist: { name: "x" }, videos: [] })).kind).toBe("notAPlaylist");
-    expect(decodePlaylistFile(JSON.stringify({ format: "flow-playlist", version: 1, videos: [] })).kind).toBe("notAPlaylist");
-    expect(decodePlaylistFile(JSON.stringify({ format: "flow-playlist", version: 1, playlist: { name: "x" }, videos: [{ title: "no id" }] })).kind).toBe("notAPlaylist");
+    expect(decodePlaylistFile(JSON.stringify({ format: "youglidetube-playlist", version: 1, videos: [] })).kind).toBe("notAPlaylist");
+    expect(decodePlaylistFile(JSON.stringify({ format: "youglidetube-playlist", version: 1, playlist: { name: "x" }, videos: [{ title: "no id" }] })).kind).toBe("notAPlaylist");
   });
 
-  it("says when a newer Flow wrote it", () => {
-    expect(decodePlaylistFile(JSON.stringify({ format: "flow-playlist", version: 2, playlist: { name: "x" }, videos: [] })).kind).toBe("tooNew");
+  it("says when a newer app wrote it", () => {
+    expect(decodePlaylistFile(JSON.stringify({ format: "youglidetube-playlist", version: 2, playlist: { name: "x" }, videos: [] })).kind).toBe("tooNew");
   });
 });
 
 describe("encodePlaylistFile", () => {
-  it("writes the shape Android reads, without empty fields", () => {
+  it("writes the playlist file, without empty fields", () => {
     const parsed = JSON.parse(encodePlaylistFile({
       name: "Mine",
       description: "",
@@ -63,7 +68,7 @@ describe("encodePlaylistFile", () => {
       videos: [videoToFileEntry({ id: ID, title: "T", channelName: "C", viewCountText: "1.5K views", durationSeconds: 10, addedAtInPlaylist: 9 }), { id: "bad" }],
     }, 123));
     expect(parsed).toEqual({
-      format: "flow-playlist",
+      format: "youglidetube-playlist",
       version: 1,
       exportedAt: 123,
       playlist: { name: "Mine" },
@@ -71,7 +76,7 @@ describe("encodePlaylistFile", () => {
     });
   });
 
-  it("writes a whole view count, since Android reads it as a Long", () => {
+  it("writes a whole view count, since the format stores integers", () => {
     const entry = videoToFileEntry({ id: ID, title: "T", channelName: "C", viewCountText: "4.1M views" });
     expect(entry.viewCount).toBe(4_100_000);
     expect(Number.isInteger(videoToFileEntry({ id: ID, title: "T", channelName: "C", viewCount: 12.5 }).viewCount)).toBe(true);
@@ -103,7 +108,7 @@ describe("pictures from a file", () => {
 describe("playlistFileName", () => {
   it("makes a name every file system accepts", () => {
     expect(playlistFileName('a/b:c*?"<>|')).toBe("a_b_c______.json");
-    expect(playlistFileName("   ")).toBe("flow-playlist.json");
+    expect(playlistFileName("   ")).toBe("youglidetube-playlist.json");
     expect(playlistFileName("x".repeat(200))).toBe(`${"x".repeat(80)}.json`);
   });
 });

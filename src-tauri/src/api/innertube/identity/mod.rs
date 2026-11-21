@@ -1,3 +1,3 @@
-//! The anonymous identity Flow presents to `InnerTube`.
+//! The anonymous identity the app presents to `InnerTube`.
 
 pub mod visitor;

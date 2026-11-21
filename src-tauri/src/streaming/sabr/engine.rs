@@ -173,7 +173,7 @@ pub struct SabrEngine {
     failed: AtomicBool,
 }
 
-/// The web clients whose SABR sessions take Flow's own `BotGuard` token. When that token can't be
+/// The web clients whose SABR sessions take the app's own `BotGuard` token. When that token can't be
 /// refreshed, every one of their sessions stops at the same minute.
 const WEB_SABR_CLIENTS: [&str; 2] = ["MWEB", "WEB"];
 
@@ -725,7 +725,7 @@ impl SabrEngine {
     }
 
     // Mint a new PO token, bound to the video id like the one the session opened
-    // with (Flow for Android's binding), and install it for subsequent requests.
+    // with (the Android app's binding), and install it for subsequent requests.
     // Returns whether a token was obtained.
     async fn refresh_po_token(&self) -> bool {
         match crate::api::innertube::core::botguard::remint_po_token(&self.descriptor.video_id)

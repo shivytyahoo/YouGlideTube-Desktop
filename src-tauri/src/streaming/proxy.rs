@@ -831,13 +831,13 @@ async fn relay_local_file(
     Ok(())
 }
 
-/// For testing recovery: with `FLOW_DEBUG_REFUSE_AFTER_BYTES=N` set, media past
+/// For testing recovery: with `YOUGLIDETUBE_DEBUG_REFUSE_AFTER_BYTES=N` set, media past
 /// byte N is refused as googlevideo refuses a walled client.
 fn debug_refusal_due(offset: u64) -> bool {
     static AFTER: std::sync::OnceLock<Option<u64>> = std::sync::OnceLock::new();
     AFTER
         .get_or_init(|| {
-            std::env::var("FLOW_DEBUG_REFUSE_AFTER_BYTES")
+            std::env::var("YOUGLIDETUBE_DEBUG_REFUSE_AFTER_BYTES")
                 .ok()
                 .and_then(|value| value.parse().ok())
         })
@@ -960,7 +960,7 @@ async fn relay_remote(
         if stall_guarded && swapped_at.is_none() && debug_refusal_due(effective_start) {
             warn!(
                 effective_start,
-                "FLOW_DEBUG_REFUSE_AFTER_BYTES: refusing the relay"
+                "YOUGLIDETUBE_DEBUG_REFUSE_AFTER_BYTES: refusing the relay"
             );
             if let Some(link) = on_refused(manager, session, &target_url, swapped_at).await {
                 (target_url, upstream_user_agent, swapped_at) =

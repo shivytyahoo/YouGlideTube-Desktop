@@ -1,5 +1,5 @@
 //! `profiles_local.json`: Desktop-only state about profiles, kept out of the registry so the
-//! registry stays byte-compatible with Flow for Android.
+//! registry stays byte-compatible with the Android app.
 
 use std::fs;
 use std::io::Write;
@@ -49,7 +49,7 @@ mod tests {
 
     #[test]
     fn update_round_trips_and_a_missing_file_is_empty() {
-        let dir = std::env::temp_dir().join(format!("flow-local-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("youglidetube-local-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&dir).unwrap();
         assert_eq!(read(&dir), LocalState::default());
         update(&dir, |state| state.keychain_deletes.push("a".into()));

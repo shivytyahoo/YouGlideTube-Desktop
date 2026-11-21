@@ -10,7 +10,7 @@ import { DockTrackInfo } from "./DockTrackInfo";
 import type { DockModel } from "./dockModel";
 import { GHOST, GHOST_IDLE } from "./dockStyles";
 
-/** Classic: the wide bar Flow Desktop always had, with its fixed transport, actions and edge progress. */
+/** Classic: the wide bar the desktop app always had, with its fixed transport, actions and edge progress. */
 export function ClassicDockBody({ model }: { model: DockModel }) {
   const { away, playing, busy, muted, eqActive, popover, setPopover, accentActive, volumeRef } = model;
   const isShuffle = useMusicPlayerStore((s) => s.isShuffle);

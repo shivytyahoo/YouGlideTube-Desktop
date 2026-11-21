@@ -1,4 +1,4 @@
-//! The custom app font: one file kept in Flow's data folder, because a picked file's path may not
+//! The custom app font: one file kept in the app's data folder, because a picked file's path may not
 //! stay readable. It is never part of a backup; a profile that names it without the file falls
 //! back to the system font.
 
@@ -18,7 +18,7 @@ fn fonts_dir(app: &AppHandle) -> Result<PathBuf, ErrorResponse> {
         .app_data_dir()
         .map(|dir| dir.join(DIR))
         .map_err(|error| {
-            AppError::Internal(format!("Could not find Flow's data folder: {error}")).into()
+            AppError::Internal(format!("Could not find the app's data folder: {error}")).into()
         })
 }
 

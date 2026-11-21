@@ -1,20 +1,16 @@
-export type OnboardingStep = "interests" | "channels" | "artists" | "alerts" | "import" | "ready";
+/** The setup steps in order, as on Android: Welcome, Sign in, Channels, Ready. */
+export type OnboardingStep = "welcome" | "signin" | "channels" | "ready";
 
-/** The setup steps in order. A new profile that copied subscriptions has nothing to import. */
-export function onboardingSteps(hasSubscriptions: boolean): OnboardingStep[] {
-  return [
-    "interests",
-    "channels",
-    "artists",
-    "alerts",
-    ...(hasSubscriptions ? [] : (["import"] as const)),
-    "ready",
-  ];
+export function onboardingSteps(): OnboardingStep[] {
+  return ["welcome", "signin", "channels", "ready"];
 }
 
-/** Ready ends the steps the bar counts: share done, or null when it is hidden. */
+/**
+ * The bar counts only the two middle steps (Sign in, Channels), as on Android:
+ * share done, or null when it is hidden (Welcome and Ready).
+ */
 export function onboardingProgress(steps: OnboardingStep[], step: OnboardingStep): number | null {
-  const counted: OnboardingStep[] = steps.filter((item) => item !== "ready");
+  const counted: OnboardingStep[] = steps.filter((item) => item === "signin" || item === "channels");
   const index = counted.indexOf(step);
   return index < 0 ? null : ((index + 1) / counted.length) * 100;
 }

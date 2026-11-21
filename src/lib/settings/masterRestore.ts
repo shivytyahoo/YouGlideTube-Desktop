@@ -10,7 +10,7 @@ interface RestoreTarget {
 /** A master backup from a build with profiles (it carries Android's manifest). */
 export function isProfilesMaster(value: unknown): value is MasterBackup {
   const manifest = (value as { manifest?: { format?: unknown } } | null)?.manifest;
-  return manifest?.format === "flow-master";
+  return manifest?.format === "youglidetube-master" || manifest?.format === "flow-master";
 }
 
 /**

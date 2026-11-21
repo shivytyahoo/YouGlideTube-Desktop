@@ -1,4 +1,4 @@
-//! The topics a video read as when it was watched with its description, from Flow for Android's
+//! The topics a video read as when it was watched with its description, from the Android app's
 //! `NeuroContentStore`: feed candidates arrive with bare titles, so a video met again is scored on
 //! what it was really about. Keys read under another key spec are dropped on load.
 

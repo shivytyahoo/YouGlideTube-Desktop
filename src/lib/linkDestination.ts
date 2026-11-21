@@ -2,7 +2,7 @@ import { routeForYoutubeUrl, type ParsedYoutubeUrl } from "./youtubeUrl";
 import { musicEnabledNow } from "./useMusicContent";
 import { isMix, mixSeedVideoId } from "./mixPlaylist";
 
-/** Where a link opened from outside Flow takes the user, as on Flow for Android. */
+/** Where a link opened from outside the app takes the user, as on the Android app. */
 export type LinkDestination =
   /** `playlistId` is the queue to play it in. */
   | { kind: "video"; videoId: string; playlistId: string | null }
@@ -28,7 +28,7 @@ function mixDestination(playlistId: string, music: boolean): LinkDestination | n
   return { kind: music && musicEnabledNow() ? "music" : "video", videoId, playlistId };
 }
 
-/** Null for a link Flow has no page for. */
+/** Null for a link the app has no page for. */
 export function linkDestination(link: ParsedYoutubeUrl): LinkDestination | null {
   switch (link.kind) {
     case "video": {

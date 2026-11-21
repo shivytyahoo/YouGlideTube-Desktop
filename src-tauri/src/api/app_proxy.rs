@@ -232,7 +232,7 @@ mod tests {
     fn local_devices_stay_direct() {
         for host in [
             "localhost",
-            "flow.local",
+            "youglidetube.local",
             "127.0.0.1",
             "10.0.0.2",
             "172.16.4.1",

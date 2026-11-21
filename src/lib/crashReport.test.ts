@@ -12,7 +12,7 @@ const REPORT = [
   "Where: src/lib.rs:1:2",
   "",
   "Backtrace:",
-  "   0: flow::run",
+  "   0: youglidetube::run",
 ].join("\n");
 
 describe("crash report", () => {
@@ -36,7 +36,7 @@ describe("crash report", () => {
     expect(url.searchParams.get("template")).toBe("bug_report.yml");
     expect(url.searchParams.get("title")).toBe("[Bug]: index out of bounds in src/lib.rs:1:2");
     expect(url.searchParams.get("app-version")).toBe("0.1.0-beta4");
-    expect(url.searchParams.get("logs")).toContain("flow::run");
+    expect(url.searchParams.get("logs")).toContain("youglidetube::run");
   });
 
   it("keeps the link short enough to open however long the report is", () => {

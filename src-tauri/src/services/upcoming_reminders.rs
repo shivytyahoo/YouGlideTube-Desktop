@@ -1,4 +1,4 @@
-//! "Remind me" on an upcoming video, from Flow for Android's `UpcomingVideoReminderWorker`. A reminder
+//! "Remind me" on an upcoming video, from the Android app's `UpcomingVideoReminderWorker`. A reminder
 //! is kept with the profile until the video's start, then lands in the inbox as a notification; one
 //! that came due while the app was closed lands at the next launch.
 

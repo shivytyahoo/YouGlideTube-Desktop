@@ -1,4 +1,4 @@
-//! How much the viewer takes to each kind of video ("tutorial", "review"), from Flow for Android's
+//! How much the viewer takes to each kind of video ("tutorial", "review"), from the Android app's
 //! `NeuroFormats`: learned from what they watch, and a small nudge in ranking, never a reason on
 //! its own.
 

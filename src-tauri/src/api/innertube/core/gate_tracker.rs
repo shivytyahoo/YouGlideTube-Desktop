@@ -1,8 +1,8 @@
 //! Clients googlevideo has started refusing for this viewer.
 //!
 //! A refused media URL says which client minted it in its `c=` parameter. When
-//! the URL was fresh and had not expired, the refusal is about that client: Flow
-//! for Android measured these walls lasting for a while per visitor, so the
+//! the URL was fresh and had not expired, the refusal is about that client: the Android app
+//! measured these walls lasting for a while per visitor, so the
 //! client is tried last for 30 minutes instead of first. Both the video and the
 //! music ladders read this.
 
@@ -67,7 +67,7 @@ pub fn classify_denial(url: &str, now_secs: u64, link_age: Duration) -> Denial {
 /// Remember that googlevideo refused `url`, issued `link_age` ago, gating the
 /// client that minted it unless the link was expired or old.
 /// The app clients googlevideo walls per visitor rather than per client: a fresh visitor is
-/// served on them again, so a gate on one asks for a new identity as well (Flow for Android #921).
+/// served on them again, so a gate on one asks for a new identity as well (the Android app #921).
 const VISITOR_WALLED_CLIENTS: [&str; 2] = ["VISIONOS", "ANDROID_VR"];
 
 static IDENTITY_WALLED: AtomicBool = AtomicBool::new(false);

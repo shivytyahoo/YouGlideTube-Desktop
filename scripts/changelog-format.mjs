@@ -1,6 +1,6 @@
 // The format of changelog/*.txt, read by the release script and by the app's Changelog dialog,
 // so this module must stay free of Node imports.
-const TITLE_LINES = new Set(["FLOW DESKTOP CHANGE LOG", "FLOW CHANGE LOG"]);
+const TITLE_LINES = new Set(["YOUGLIDETUBE DESKTOP CHANGE LOG"]);
 const META_LINE = /^(VERSION|DATE|STATUS):(.*)$/i;
 const HEADING_LINE = /^[A-Z][A-Z &/,:-]+:?$/;
 

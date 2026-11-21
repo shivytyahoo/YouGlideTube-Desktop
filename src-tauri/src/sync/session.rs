@@ -442,7 +442,7 @@ pub async fn start_host(
     // inbound TCP on this side, the address we advertised is the first thing to check (issue #41).
     let candidates = transport::lan_ip_candidates();
     tracing::info!(
-        target: "flow::sync::session",
+        target: "youglidetube::sync::session",
         candidates = ?candidates.iter().map(|c| format!("{}={}{}", c.interface, c.ip, if c.virtual_iface { " (virtual)" } else { "" })).collect::<Vec<_>>(),
         "LAN address candidates, best first"
     );
@@ -476,7 +476,7 @@ pub async fn start_host(
 
     let (h2c_fp, c2h_fp) = key_fingerprints(&master, &session_id);
     tracing::info!(
-        target: "flow::sync::session", role = "host", receive, ip = %ip, port, sas = %sas,
+        target: "youglidetube::sync::session", role = "host", receive, ip = %ip, port, sas = %sas,
         key_h2c = %h2c_fp, key_c2h = %c2h_fp, expires_at,
         "hosting armed — compare SAS + key fingerprints with the other device's log if it fails"
     );
@@ -511,7 +511,7 @@ pub async fn start_host(
                     host_receive_session(&app, &manager, listener, master, session_id, &device_id)
                         .await
                 {
-                    tracing::error!(target: "flow::sync::session", role = "host-receiver", "session failed: {e}");
+                    tracing::error!(target: "youglidetube::sync::session", role = "host-receiver", "session failed: {e}");
                     manager
                         .set_status(&app, SyncStatus::failed(&e, Some("host")))
                         .await;
@@ -608,7 +608,7 @@ async fn host_session(
     .await;
 
     if let Err(e) = result {
-        tracing::error!(target: "flow::sync::session", role = "host", "session failed: {e}");
+        tracing::error!(target: "youglidetube::sync::session", role = "host", "session failed: {e}");
         manager
             .set_status(&app, SyncStatus::failed(&e, Some("host")))
             .await;
@@ -710,7 +710,7 @@ pub async fn scan_join(
                 client_recv_session(&app, &manager, payload).await
             };
             if let Err(e) = res {
-                tracing::error!(target: "flow::sync::session", role = "client", "session failed: {e}");
+                tracing::error!(target: "youglidetube::sync::session", role = "client", "session failed: {e}");
                 manager
                     .set_status(&app, SyncStatus::failed(&e, Some("client")))
                     .await;
@@ -733,7 +733,7 @@ async fn client_recv_session(
 
     let (h2c_fp, c2h_fp) = key_fingerprints(&master, &session_id);
     tracing::info!(
-        target: "flow::sync::session", role = "client", ip = %payload.ip, port = payload.p,
+        target: "youglidetube::sync::session", role = "client", ip = %payload.ip, port = payload.p,
         sas = %sas, key_h2c = %h2c_fp, key_c2h = %c2h_fp,
         "joining to receive — SAS + key fingerprints should match the host's log"
     );
@@ -772,7 +772,7 @@ async fn client_send_session(
     let sas = compute_sas(&master, &session_id);
     let (h2c_fp, c2h_fp) = key_fingerprints(&master, &session_id);
     tracing::info!(
-        target: "flow::sync::session", role = "client-sender", ip = %payload.ip, port = payload.p,
+        target: "youglidetube::sync::session", role = "client-sender", ip = %payload.ip, port = payload.p,
         sas = %sas, key_h2c = %h2c_fp, key_c2h = %c2h_fp,
         "joining to send (host wants to receive) — verify the SAS matches the other device"
     );
@@ -876,7 +876,7 @@ async fn connect_any(
                 }
             }
         }
-        tracing::info!(target: "flow::sync::session", %ip, "address unreachable: {last_error}");
+        tracing::info!(target: "youglidetube::sync::session", %ip, "address unreachable: {last_error}");
     }
     Err(last_error)
 }
@@ -915,7 +915,7 @@ fn apply_step(
             let mut frame = ApplyResultFrame::default();
             for s in &report.stats {
                 tracing::info!(
-                    target: "flow::sync::session", role, collection = %s.collection_key,
+                    target: "youglidetube::sync::session", role, collection = %s.collection_key,
                     added = s.added, updated = s.updated, skipped = s.skipped, tombstoned = s.tombstoned,
                     "merged collection"
                 );

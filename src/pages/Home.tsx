@@ -196,7 +196,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
       );
     } else if (chipMixes.length > 0) {
       body = (
-        <div className="flow-grid gap-y-8 pb-8" style={gridStyle}>
+        <div className="video-grid gap-y-8 pb-8" style={gridStyle}>
           {chipMixes.map((mix) => (
             <HomeMixCard key={mix.seed.id} mix={mix} onPlay={playMix} />
           ))}

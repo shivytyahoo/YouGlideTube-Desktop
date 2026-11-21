@@ -1,4 +1,4 @@
-//! One Home load, from Flow for Android's `HomeViewModel.loadFlowFeed`: wave 1 (three discovery
+//! One Home load, from the Android app's `HomeViewModel.loadFlowFeed`: wave 1 (three discovery
 //! searches and the related lane), the first page from local stores and those, then after paint
 //! the remaining searches, saved-interest related videos, a subscription top-up, channel memory
 //! and neighbour refreshes, each slipped in below what the viewer sees.

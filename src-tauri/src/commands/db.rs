@@ -248,7 +248,7 @@ pub(crate) fn apply_backend_setting(key: &str, value: Option<&str>) {
     }
     let enabled = value.is_some_and(|value| value.eq_ignore_ascii_case("true"));
     if key == remote_decoder::SETTING_KEY {
-        // On unless turned off, as on Flow for Android: it is the only way past a walled visitor.
+        // On unless turned off, as on the Android app: it is the only way past a walled visitor.
         remote_decoder::set_enabled(value.is_none_or(|value| value.eq_ignore_ascii_case("true")));
     } else if key == audio_preference::STABLE_VOLUME_SETTING {
         audio_preference::set_stable_volume(enabled);
@@ -263,6 +263,6 @@ pub(crate) fn apply_backend_setting(key: &str, value: Option<&str>) {
 /// syncs the way it did before this was recorded (a deletion a peer may undo).
 fn note_sync_failure(result: Result<(), SyncError>) {
     if let Err(e) = result {
-        tracing::warn!(target: "flow::sync::changes", error = %e, "could not record a local edit for sync");
+        tracing::warn!(target: "youglidetube::sync::changes", error = %e, "could not record a local edit for sync");
     }
 }

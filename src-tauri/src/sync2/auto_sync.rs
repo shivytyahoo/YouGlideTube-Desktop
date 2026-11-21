@@ -1,4 +1,4 @@
-//! This device's "Sync automatically" switch, as on Flow for Android. It is a device setting: it
+//! This device's "Sync automatically" switch, as on the Android app. It is a device setting: it
 //! never syncs and is the same whichever profile is open. Off, only Sync now and the syncs a
 //! user's own change needs run; Play on and the live channel carry on.
 

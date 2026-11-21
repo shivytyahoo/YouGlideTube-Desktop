@@ -1,4 +1,4 @@
-//! Automatic backups, Flow for Android's `AutoBackupWorker` while Flow is open: one file per kind
+//! Automatic backups, the Android app's `AutoBackupWorker` while the app is open: one file per kind
 //! in the chosen folder, replaced by each run, on a daily, weekly or monthly schedule.
 //!
 //! The list of settings a backup carries lives in the frontend's schema, which hands it over once
@@ -271,7 +271,7 @@ mod tests {
         let dir = std::env::temp_dir();
         assert!(usable_folder(dir.to_str().unwrap()).is_some());
         assert!(usable_folder("relative/path").is_none());
-        let missing = dir.join(format!("flow-no-such-{}", uuid::Uuid::new_v4()));
+        let missing = dir.join(format!("youglidetube-no-such-{}", uuid::Uuid::new_v4()));
         assert!(usable_folder(missing.to_str().unwrap()).is_none());
     }
 }

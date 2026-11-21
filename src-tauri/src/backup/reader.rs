@@ -1,4 +1,4 @@
-//! Reads any Flow backup file into the desktop's restore shape, whichever app wrote it: an Android
+//! Reads any YouGlideTube backup file into the desktop's restore shape, whichever app wrote it: an Android
 //! master zip, a desktop zip, or a JSON file from either. Every size is bounded before anything is
 //! parsed, because a backup can come from anywhere.
 
@@ -41,7 +41,7 @@ const BACKUP_DEVICE: &str = "android-backup";
 pub enum ReadError {
     #[error("the file is too large")]
     TooLarge,
-    #[error("the archive has no Flow backup in it")]
+    #[error("the archive has no YouGlideTube backup in it")]
     NoBackup,
     #[error("{0}")]
     Io(#[from] io::Error),
@@ -64,7 +64,7 @@ impl From<crate::backup::import::ImportError> for ReadError {
 pub enum BackupFile {
     /// The desktop's backup shape, ready for the normal restore.
     Backup(Value),
-    /// Not a Flow backup: another app's export, left to the format parsers.
+    /// Not a YouGlideTube backup: another app's export, left to the format parsers.
     Text(String),
     /// Another app's backup, for its importer.
     External(ImportKind),
@@ -259,7 +259,7 @@ fn read_archive<R: Read + Seek>(
     let engine = read_json(archive, ENGINE_ENTRY, &mut budget)?;
     let music = read_json(archive, MUSIC_ENTRY, &mut budget)?;
     if app_data.is_none() && engine.is_none() && music.is_none() {
-        // A zipped export of a single JSON file, as older Flow builds made.
+        // A zipped export of a single JSON file, as older YouGlideTube builds made.
         let name = names
             .iter()
             .find(|name| !name.contains('/') && name.to_ascii_lowercase().ends_with(".json"))
@@ -281,7 +281,7 @@ fn read_archive<R: Read + Seek>(
     });
 
     let manifest = read_json(archive, MANIFEST_ENTRY, &mut budget)?
-        .filter(|manifest| manifest.get("format").and_then(Value::as_str) == Some("flow-master"));
+        .filter(|manifest| matches!(manifest.get("format").and_then(Value::as_str), Some("youglidetube-master") | Some("flow-master")));
     let Some(manifest) = manifest else {
         return Ok(BackupFile::Backup(backup));
     };

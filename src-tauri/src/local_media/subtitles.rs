@@ -599,7 +599,7 @@ mod tests {
 
     #[test]
     fn finds_files_on_disk_and_counts_the_videos_beside_it() {
-        let dir = std::env::temp_dir().join(format!("flow-subs-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("youglidetube-subs-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(dir.join("Subs/Film")).unwrap();
         let dir = std::fs::canonicalize(dir).unwrap();
         for file in [
@@ -649,7 +649,7 @@ mod tests {
 
     #[test]
     fn a_file_with_no_cues_or_too_large_is_refused() {
-        let dir = std::env::temp_dir().join(format!("flow-vtt-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("youglidetube-vtt-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let empty = dir.join("a.srt");
         std::fs::write(&empty, "nothing here").unwrap();

@@ -244,13 +244,13 @@ mod tests {
     fn resource_dir_is_tried_first() {
         let candidates = sidecar_candidates(
             "nsig.cjs",
-            Some(Path::new("/usr/lib/Flow Beta")),
+            Some(Path::new("/usr/lib/YouGlideTube Beta")),
             None,
             Some(Path::new("/usr/bin/youglidetube-beta")),
         );
         assert_eq!(
             candidates.first(),
-            Some(&PathBuf::from("/usr/lib/Flow Beta/sidecar/nsig.cjs"))
+            Some(&PathBuf::from("/usr/lib/YouGlideTube Beta/sidecar/nsig.cjs"))
         );
     }
 
@@ -258,11 +258,11 @@ mod tests {
     fn flatpak_resource_dir_is_a_candidate() {
         let candidates = sidecar_candidates(
             "integrity.cjs",
-            Some(Path::new("/app/lib/Flow")),
+            Some(Path::new("/app/lib/YouGlideTube")),
             None,
-            Some(Path::new("/app/bin/flow")),
+            Some(Path::new("/app/bin/youglidetube")),
         );
-        assert!(candidates.contains(&PathBuf::from("/app/lib/Flow/sidecar/integrity.cjs")));
+        assert!(candidates.contains(&PathBuf::from("/app/lib/YouGlideTube/sidecar/integrity.cjs")));
     }
 
     #[test]
@@ -271,11 +271,11 @@ mod tests {
             "nsig.cjs",
             None,
             None,
-            Some(Path::new("C:/Program Files/Flow/flow.exe")),
+            Some(Path::new("C:/Program Files/YouGlideTube/youglidetube.exe")),
         );
         assert!(
             candidates.contains(
-                &Path::new("C:/Program Files/Flow")
+                &Path::new("C:/Program Files/YouGlideTube")
                     .join("sidecar")
                     .join("nsig.cjs")
             )

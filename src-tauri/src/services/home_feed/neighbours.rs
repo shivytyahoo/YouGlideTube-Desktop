@@ -1,5 +1,5 @@
 //! Channels several of the viewer's own sit next to in related lists, and their latest uploads,
-//! from Flow for Android's `NeighbourChannels` and its repository. A neighbour ignored too often,
+//! from the Android app's `NeighbourChannels` and its repository. A neighbour ignored too often,
 //! or none of whose uploads is on the viewer's subjects, is dropped.
 
 use std::collections::{HashMap, HashSet};

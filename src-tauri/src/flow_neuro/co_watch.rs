@@ -1,4 +1,4 @@
-//! Channels watched together, from Flow for Android's `NeuroCoWatchStore` (#907): the related list
+//! Channels watched together, from the Android app's `NeuroCoWatchStore` (#907): the related list
 //! shown beside a video the viewer really watched or liked. One list is noise, so a pair of
 //! channels counts once two different videos list it, or once the viewer has watched both.
 //! Device-local, never synced.

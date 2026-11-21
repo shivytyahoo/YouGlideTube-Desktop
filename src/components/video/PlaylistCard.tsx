@@ -210,7 +210,7 @@ export function PlaylistCard({
       const owned = await isOwnedPlaylist(playlist.id);
       if (!await confirmPlaylistRemoval(playlist, owned)) return;
       if (!await remove()) return;
-      // Undo saves again from YouTube, which doesn't know a playlist made in Flow.
+      // Undo saves again from YouTube, which doesn't know a playlist made in the app.
       showSaveToast({ destination: { kind: 'library' }, item: toastItem, removed: true, undo: owned ? undefined : save });
     } catch (error) {
       console.error('Failed to remove playlist from library', error);

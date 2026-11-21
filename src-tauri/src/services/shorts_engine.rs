@@ -32,7 +32,7 @@ pub struct ShortView {
 }
 
 impl RecommendationService {
-    /// Learns from one viewing of a Short, at the Shorts rate, as Flow for Android classifies it.
+    /// Learns from one viewing of a Short, at the Shorts rate, as the Android app classifies it.
     pub async fn report_short_view(&self, view: ShortView) -> AppResult<()> {
         let signal = if view.completed {
             Some(classify(view.duration_ms, view.duration_ms))

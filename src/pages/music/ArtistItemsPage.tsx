@@ -34,7 +34,7 @@ function GridSkeleton({ kind }: { kind: ItemKind }) {
     );
   }
   return (
-    <div className="flow-grid gap-y-6" style={gridStyle}>
+    <div className="video-grid gap-y-6" style={gridStyle}>
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="flex animate-pulse flex-col gap-3">
           <div className="aspect-square w-full rounded-xl bg-surface-container-low" />
@@ -132,7 +132,7 @@ export default function ArtistItemsPage() {
           </div>
         </>
       ) : (
-        <div className="flow-grid gap-y-6" style={gridStyle}>
+        <div className="video-grid gap-y-6" style={gridStyle}>
           {collections.map((item, i) =>
             item.type === 'album' ? (
               <MusicItemCard

@@ -131,7 +131,7 @@ export const SavedShorts: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="flow-grid gap-y-4" style={gridStyle}>
+          <div className="video-grid gap-y-4" style={gridStyle}>
             {visibleShorts.map((short) => (
               <ShortCard
                 finiteQueue

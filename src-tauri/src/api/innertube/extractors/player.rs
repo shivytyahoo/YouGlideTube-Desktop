@@ -53,10 +53,10 @@ const PLAYER_RESPONSE_CACHE_CAPACITY: usize = 12;
 /// date) before returning without them.
 
 /// Web clients mint a PO token and solve `n` before their SABR session can
-/// start, so they get the longer budget Flow for Android gives them.
+/// start, so they get the longer budget the Android app gives them.
 const WEB_PLAYER_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Client ladder for playback, in Flow for Android's order.
+/// Client ladder for playback, in the Android app's order.
 ///
 /// 1. `VISIONOS`: direct URLs with neither a PO token nor an `n` parameter, so it
 ///    reaches first frame fastest. It needs `visitorData` on the request; without
@@ -73,7 +73,7 @@ const PLAYER_CLIENT_LADDER: &[&clients::YouTubeClient] = &[
     &clients::MWEB,
     &clients::WEB,
     // Past the walls the gated clients below stop at a minute, and the source
-    // for label and kids videos the app clients refuse (Flow for Android #921, #1292).
+    // for label and kids videos the app clients refuse (the Android app #921, #1292).
     &clients::TV_TIZEN,
     &clients::ANDROID_VR_1_65_10,
     &clients::ANDROID_VR,
@@ -84,7 +84,7 @@ const PLAYER_CLIENT_LADDER: &[&clients::YouTubeClient] = &[
 
 /// The order to ask `ladder`'s clients in: demoted clients last. With VISIONOS demoted the
 /// visitor is walled, and the web clients' SABR sessions stop at the same minute, so `TV_TIZEN`,
-/// the measured way past that wall, goes first (Flow for Android #921).
+/// the measured way past that wall, goes first (the Android app #921).
 fn walk_order(
     ladder: &[&'static clients::YouTubeClient],
     gated: impl Fn(&str) -> bool,
@@ -107,7 +107,7 @@ fn walk_order(
 }
 
 /// A direct ladder that tops out below this height likely has its higher rungs
-/// served only over SABR, so the web clients are asked too (Flow for Android's
+/// served only over SABR, so the web clients are asked too (the Android app's
 /// `SabrRoutingPolicy`).
 const SABR_UPGRADE_FLOOR: u64 = 720;
 /// The longest a portrait or square upload runs and is still made a Short.
@@ -1231,7 +1231,7 @@ fn build_sabr_metadata(
 
 /// What one client's `player` request came back with.
 enum ClientOutcome {
-    /// Playable, with streams Flow can actually fetch.
+    /// Playable, with streams the app can actually fetch.
     Won(PlayerAttempt),
     /// A non-OK playability status, kept so the most specific restriction can be
     /// reported once the ladder is exhausted.
@@ -1253,7 +1253,7 @@ fn has_playable_direct_streams(streaming_data: &Value, video_id: &str) -> bool {
 
 /// How long googlevideo holds a response's streams behind its pre-roll: an
 /// answer with a start ad is refused on every byte until about 0.8 of the ad's
-/// skip offset has passed, at most 8 seconds (measured by Flow for Android on
+/// skip offset has passed, at most 8 seconds (measured by the Android app on
 /// `TV_TIZEN`).
 fn preroll_wait(ad_placements: &Value) -> Duration {
     const MAX_MS: u64 = 8_000;
@@ -1503,8 +1503,7 @@ impl InnertubeClient {
     }
 
     /// googlevideo walls the visitor, not the client: once it refused VISIONOS links, a fresh
-    /// identity is served on them again, so the demotions go with the old identity (Flow for
-    /// Android #921). Within the re-roll budget only; past it the ladder walks around the wall.
+    /// identity is served on them again, so the demotions go with the old identity (the Android app #921). Within the re-roll budget only; past it the ladder walks around the wall.
     async fn renew_walled_identity(&self) {
         if !gate_tracker::take_identity_walled() {
             return;
@@ -1559,7 +1558,7 @@ impl InnertubeClient {
     }
 
     /// Walk `ladder` in order, returning the first client that answers with
-    /// streams Flow can fetch.
+    /// streams the app can fetch.
     ///
     /// The first bot wall gets one retry of that client under a freshly issued
     /// visitor identity, which every later client then inherits: a stale or
@@ -1633,7 +1632,7 @@ impl InnertubeClient {
     }
 
     /// One client's turn on the ladder: request, then judge the answer by what
-    /// Flow can actually play rather than by its status alone.
+    /// the app can actually play rather than by its status alone.
     async fn attempt_client(
         &self,
         video_id: &str,
@@ -1642,7 +1641,7 @@ impl InnertubeClient {
     ) -> ClientOutcome {
         let web_client = client.is_web_sabr();
         // Web clients are only served with a BotGuard token on the request, bound
-        // to the video id as Flow for Android binds it. Every other family is
+        // to the video id as the Android app binds it. Every other family is
         // attested by a runtime Flow cannot run, and a BotGuard token on those is
         // a claim googlevideo validates and refuses.
         let po_token = if web_client {
@@ -1738,7 +1737,7 @@ impl InnertubeClient {
             has_playable_direct_streams(&response["streamingData"], video_id)
         };
         if !playable {
-            warn!(video_id = %video_id, client = client.name, "Player client answered OK with nothing Flow can fetch");
+            warn!(video_id = %video_id, client = client.name, "Player client answered OK with nothing the app can fetch");
             return ClientOutcome::Unusable;
         }
         let preroll = preroll_wait(&response["adPlacements"]);

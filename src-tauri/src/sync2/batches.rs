@@ -260,7 +260,7 @@ pub async fn apply_batches(
             .partition(|l| readable_record(collection, l));
         if !unreadable.is_empty() {
             tracing::warn!(
-                target: "flow::sync2",
+                target: "youglidetube::sync2",
                 collection = collection.key(),
                 count = unreadable.len(),
                 "discarded records"

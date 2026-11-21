@@ -11,7 +11,7 @@ import type { WatchHistoryRecord } from "../types/db";
 
 export const HISTORY_PAGE_SIZE = 200;
 /** Fired after watch history changed behind the stores, for example by a sync. */
-export const HISTORY_UPDATED_EVENT = "flow:history-updated";
+export const HISTORY_UPDATED_EVENT = "youglidetube:history-updated";
 
 interface HistoryState {
   records: WatchHistoryRecord[];

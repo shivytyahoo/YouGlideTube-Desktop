@@ -1,4 +1,4 @@
-//! The onboarding catalog, as Flow for Android's `NeuroTopicCatalog` lists it (the Welcome screen
+//! The onboarding catalog, as the Android app's `NeuroTopicCatalog` lists it (the Welcome screen
 //! in `src/components/onboarding/constants.ts` shows the same topics). Its keys are interests by
 //! definition: a search naming one plants it.
 

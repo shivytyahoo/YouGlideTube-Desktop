@@ -137,6 +137,6 @@ export function saveDecodeFailures(failures: DecodeFailures): void {
   try {
     profileStorage.setItem(STORAGE_KEY, JSON.stringify(failures), "device");
   } catch {
-    // Without storage, the failure is only remembered until Flow closes.
+    // Without storage, the failure is only remembered until the app closes.
   }
 }

@@ -1,7 +1,7 @@
 const CURVE_POINTS = 32;
 const STEP_MS = 100;
 
-/** Flow for Android's curves, under its names. */
+/** the Android app's curves, under its names. */
 export type CrossfadeCurve = "EQUAL_POWER" | "S_CURVE" | "HOLD" | "GENTLE";
 
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t));

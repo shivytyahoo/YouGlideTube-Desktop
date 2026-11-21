@@ -1,5 +1,5 @@
 //! A tab's filter rows: chip bars (with a sort chip that opens a sheet) and
-//! the Playlists sort menu. Ported from Flow for Android's `ChannelFilter`.
+//! the Playlists sort menu. Ported from the Android app's `ChannelFilter`.
 
 use serde_json::Value;
 

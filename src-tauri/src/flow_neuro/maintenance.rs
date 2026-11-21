@@ -1,4 +1,4 @@
-//! A one-time tidy of brains learned before the evidence horizons, from Flow for Android's
+//! A one-time tidy of brains learned before the evidence horizons, from the Android app's
 //! `NeuroMaintenance`: noise and blocked topics leave the vector and its links, each time of day
 //! gets an estimate of how many events it saw, onboarding anchors become picks, and a vector decay
 //! emptied is rehydrated from what channel profiles still know. Values stay as they are and are

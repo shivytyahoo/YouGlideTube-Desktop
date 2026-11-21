@@ -1,10 +1,10 @@
-//! What Flow writes into a downloaded file. Field names and the `io.github.aedev.flow`
+//! What YouGlideTube writes into a downloaded file. Field names and the `io.github.shivytyahoo.glidetube`
 //! freeform keys match the Android app's `DownloadTags` and `FlowTagFields`, so either
 //! app can recognise a file the other saved.
 
 use serde::{Deserialize, Serialize};
 
-pub const TAG_NAMESPACE: &str = "io.github.aedev.flow";
+pub const TAG_NAMESPACE: &str = "io.github.shivytyahoo.glidetube";
 pub const TAG_SCHEMA_VERSION: u32 = 1;
 pub const DESCRIPTION_MAX_UTF16: usize = 2_000;
 
@@ -101,7 +101,7 @@ impl DownloadTags {
             .map(|text| truncate_utf16(text, DESCRIPTION_MAX_UTF16))
     }
 
-    /// The flat Flow key/value pairs, in Android's order. Lyrics are left out.
+    /// The flat YouGlideTube key/value pairs, in Android's order. Lyrics are left out.
     #[must_use]
     pub fn flow_fields(&self) -> Vec<(&'static str, String)> {
         let mut fields = vec![

@@ -64,14 +64,14 @@ pub async fn open_database(
 /// Tells every webview which profile is active before any page script runs, so web storage
 /// can be scoped per profile (`src/lib/storage/profileStorage.ts`).
 pub fn webview_plugin<R: tauri::Runtime>(active: &ActiveProfile) -> tauri::plugin::TauriPlugin<R> {
-    tauri::plugin::Builder::new("flow-profile")
+    tauri::plugin::Builder::new("youglidetube-profile")
         .js_init_script(webview_script(active))
         .build()
 }
 
 fn webview_script(active: &ActiveProfile) -> String {
     let info = serde_json::json!({ "id": active.id, "isDefault": active.is_default });
-    format!("window.__FLOW_PROFILE__ = Object.freeze({info});")
+    format!("window.__YOUGLIDETUBE_PROFILE__ = Object.freeze({info});")
 }
 
 /// Tauri's `app_data_dir()` rule, available before the app is built.
@@ -124,7 +124,7 @@ mod tests {
     use super::*;
 
     fn temp_dir() -> PathBuf {
-        std::env::temp_dir().join(format!("flow-profiles-{}", registry::new_id()))
+        std::env::temp_dir().join(format!("youglidetube-profiles-{}", registry::new_id()))
     }
 
     #[test]
@@ -137,7 +137,7 @@ mod tests {
         };
         assert_eq!(
             webview_script(&study),
-            r#"window.__FLOW_PROFILE__ = Object.freeze({"id":"study","isDefault":false});"#
+            r#"window.__YOUGLIDETUBE_PROFILE__ = Object.freeze({"id":"study","isDefault":false});"#
         );
     }
 

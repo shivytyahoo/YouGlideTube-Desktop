@@ -132,7 +132,7 @@ impl RecommendationService {
     }
 
     /// Records `related`, the list beside a video of `channel_id` the viewer watched, liked or
-    /// follows, as a co-watch source. Feed seeds teach nothing; Deep Flow learns nothing.
+    /// follows, as a co-watch source. Feed seeds teach nothing; Deep Glide learns nothing.
     pub async fn note_related_of(&self, video_id: &str, channel_id: &str, related: &[Card]) {
         if channel_id.is_empty() || self.learning_paused().await {
             return;

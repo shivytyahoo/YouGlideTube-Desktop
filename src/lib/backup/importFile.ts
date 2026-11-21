@@ -81,7 +81,7 @@ const UNREADABLE_MESSAGES: Record<UnreadableReason, StringKey> = {
 interface LocalPlaylist { id: string; name: string; description?: string; tracks: VideoSummary[]; }
 
 /**
- * Imports a picked file: a Flow backup from either app (every profile, settings, collections and
+ * Imports a picked file: a YouGlideTube backup from either app (every profile, settings, collections and
  * brains), another app's export, or a plain subscription list. Throws an `Error` whose message
  * is ready to show.
  */
@@ -168,7 +168,7 @@ export async function importFile(
     }
   }
 
-  // Flow v2 backup: restore the full-fidelity collections (watch history, brains,
+  // v2 backup: restore the full-fidelity collections (watch history, brains,
   // likes, playlists, subscriptions) through the backend sync apply pipeline. On
   // failure fall back to the legacy fuzzy parsers below rather than aborting.
   let restoredViaCollections = false;
@@ -271,11 +271,11 @@ export async function importFile(
     }
   }
 
-  // Defense against the Deep Flow restore trap: an imported active flag without its
+  // Defense against the Deep Glide restore trap: an imported active flag without its
   // (internal, never-exported) activation timestamp would otherwise mute watch-history
   // recording and FlowNeuro learning indefinitely.
-  await setSettingValue(SETTINGS.DEEP_FLOW_ACTIVE, "false");
-  await setSettingValue(SETTINGS.DEEP_FLOW_ACTIVATED_AT, "0");
+  await setSettingValue(SETTINGS.DEEP_GLIDE_ACTIVE, "false");
+  await setSettingValue(SETTINGS.DEEP_GLIDE_ACTIVATED_AT, "0");
 
   if (counts.subscriptions + counts.playlists + counts.history + counts.settings === 0 && !restoredViaCollections) {
     throw new Error(getString("import_file_not_recognized"));

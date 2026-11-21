@@ -1,5 +1,5 @@
 //! Key spec 3: how text becomes the topic keys the engine learns, ranks and syncs by. A port of
-//! Flow for Android's `NeuroKeySpec` pipeline; both apps pass Android's
+//! the Android app's `NeuroKeySpec` pipeline; both apps pass Android's
 //! `key_spec_golden.json`, so a brain synced between them holds one key per word.
 //!
 //! 1. Fold: NFKC, small capitals, lowercase, one apostrophe ([`text::fold`]). Traditional Chinese

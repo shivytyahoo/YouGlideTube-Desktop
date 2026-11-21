@@ -1,4 +1,4 @@
-//! The collaborations a followed channel took part in but did not upload, from Flow for Android's
+//! The collaborations a followed channel took part in but did not upload, from the Android app's
 //! `ChannelCollabIndex`. A collaboration lists only on its uploader's feed and Videos tab; the one
 //! place a collaborator shows it is the shelf on its Home tab, a heavy browse, so channels are looked
 //! at a few per refresh: each at most once a day, and once a week when it has no collaborations.

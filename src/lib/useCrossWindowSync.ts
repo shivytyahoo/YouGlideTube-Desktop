@@ -37,7 +37,7 @@ function forwardMusicToMainWindow(): () => void {
   });
 }
 
-/** Keeps this window's cached data and playback in step with the other Flow windows. */
+/** Keeps this window's cached data and playback in step with the other app windows. */
 export function useCrossWindowSync(): void {
   useEffect(() => {
     const subscriptions: Array<Promise<UnlistenFn>> = [

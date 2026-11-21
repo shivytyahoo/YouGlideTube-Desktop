@@ -54,7 +54,7 @@ describe("bindMutePause", () => {
     expect(systemOutput.watching).toEqual([true, false, true]);
   });
 
-  it("pauses on Flow's mute or a zero volume and resumes when sound comes back", () => {
+  it("pauses on the app's mute or a zero volume and resumes when sound comes back", () => {
     player().toggleMute();
     expect(player().isPlaying).toBe(false);
     player().toggleMute();

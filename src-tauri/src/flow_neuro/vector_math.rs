@@ -1,4 +1,4 @@
-//! How taste vectors learn, ported from Flow for Android's `NeuroVectorMath` and checked against
+//! How taste vectors learn, ported from the Android app's `NeuroVectorMath` and checked against
 //! its `learn_golden.json`. Pure functions: vectors in, vectors out.
 //!
 //! A topic's weight is `1 - e^(-E/saturation)` for its evidence `E`: what each event gave it (its

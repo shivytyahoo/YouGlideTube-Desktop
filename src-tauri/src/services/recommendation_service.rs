@@ -13,7 +13,7 @@ use crate::flow_neuro::brain_store::BrainStore;
 use crate::flow_neuro::categories;
 use crate::flow_neuro::channel_knowledge::{learn_from_uploads, subscription_changed};
 use crate::flow_neuro::co_watch::{RelatedChannel, neighbours};
-use crate::flow_neuro::deep_flow::learning_paused;
+use crate::flow_neuro::deep_glide::learning_paused;
 use crate::flow_neuro::discovery::{SurfaceState, next_queries, note_query_novelty, stale_key};
 use crate::flow_neuro::display_forms::{label as display_label, with_pick_spellings};
 use crate::flow_neuro::features::{TopicReader, VideoText, extract_features};
@@ -167,7 +167,7 @@ impl RecommendationService {
         self.brain_store.reload().await
     }
 
-    /// Deep Flow keeps a session out of the profile: nothing learns while it runs.
+    /// Deep Glide keeps a session out of the profile: nothing learns while it runs.
     pub(crate) async fn learning_paused(&self) -> bool {
         learning_paused(&self.pool, self.get_current_time_ms())
             .await

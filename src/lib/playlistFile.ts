@@ -3,9 +3,11 @@ import type { SongItem } from "../types/music";
 import { safeFileName } from "./fileName";
 import type { VideoSummary } from "../types/video";
 
-// Flow for Android's flow-playlist format (data/playlist/PlaylistFile.kt): both apps read each other's files.
+// The playlist file format. The old "flow-playlist" name is still accepted on read, so files
+// exported before the rename keep opening.
 
-const FORMAT = "flow-playlist";
+const FORMAT = "youglidetube-playlist";
+const LEGACY_FORMAT = "flow-playlist";
 const VERSION = 1;
 const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 /** Far above any real playlist, low enough that a wrong file can't exhaust memory. */
@@ -41,7 +43,7 @@ export type PlaylistFileRead =
   | { kind: "read"; file: PlaylistFileContents }
   /** Not JSON, or JSON of some other kind. */
   | { kind: "notAPlaylist" }
-  /** Written by a newer Flow in a format this one cannot read. */
+  /** Written by a newer YouGlideTube in a format this one cannot read. */
   | { kind: "tooNew" };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -82,7 +84,7 @@ export function decodePlaylistFile(raw: string): PlaylistFileRead {
   }
   if (
     !isRecord(parsed)
-    || parsed.format !== FORMAT
+    || (parsed.format !== FORMAT && parsed.format !== LEGACY_FORMAT)
     || typeof parsed.version !== "number"
     || !isRecord(parsed.playlist)
     || typeof parsed.playlist.name !== "string"

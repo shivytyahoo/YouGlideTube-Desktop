@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const deepFlow = vi.hoisted(() => ({ record: true }));
-vi.mock("../lib/deepFlow", () => ({ deepFlowAllowsHistory: () => deepFlow.record }));
+const deepGlide = vi.hoisted(() => ({ record: true }));
+vi.mock("../lib/deepGlide", () => ({ deepGlideAllowsHistory: () => deepGlide.record }));
 vi.mock("../lib/recap/recapQueue", () => ({ recapSearch: vi.fn(), recapQueriesCleared: vi.fn() }));
 
 import { recapSearch } from "../lib/recap/recapQueue";
@@ -14,7 +14,7 @@ const queries = () => useSearchHistoryStore.getState().entries.map((entry) => en
 
 describe("search history", () => {
   beforeEach(() => {
-    deepFlow.record = true;
+    deepGlide.record = true;
     useAppSettingsStore.setState({ values: {} });
     useSearchHistoryStore.getState().clear();
   });
@@ -70,7 +70,7 @@ describe("search history", () => {
   });
 
   it("records nothing while Deep Flow keeps history private", () => {
-    deepFlow.record = false;
+    deepGlide.record = false;
     useSearchHistoryStore.getState().record("secret");
     expect(queries()).toEqual([]);
   });

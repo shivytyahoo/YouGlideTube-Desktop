@@ -12,7 +12,7 @@ export interface AmbientConditions {
 /**
  * Whether the player draws ambient light. The glow around the player shows in every resize
  * mode. Without it, ambient only fills theater's side bars, and only Fit leaves any: Fill and
- * Zoom cover the whole player, as on Flow for Android.
+ * Zoom cover the whole player, as on the Android app.
  */
 export function ambientShown({ enabled, glow, theater, videoFit, blocked }: AmbientConditions): boolean {
   if (!enabled || blocked) return false;

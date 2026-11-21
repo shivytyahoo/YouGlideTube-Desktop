@@ -195,9 +195,9 @@ export function SearchSuggestionsPanel({
           <div className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-start text-sm">
             <EyeOff className="h-4 w-4 shrink-0 text-chrome-neutral-500" />
             <span className="flex min-w-0 flex-1 flex-col">
-              <span className="font-semibold text-chrome-neutral-100">{getString("deep_flow_mode_title")}</span>
+              <span className="font-semibold text-chrome-neutral-100">{getString("deep_glide_mode_title")}</span>
               <span className="truncate text-xs text-chrome-neutral-400">
-                {deepGlide.active ? getString("deep_flow_learning_paused") : getString("deep_flow_mode_subtitle")}
+                {deepGlide.active ? getString("deep_glide_learning_paused") : getString("deep_glide_mode_subtitle")}
               </span>
             </span>
             <ToggleSwitch checked={deepGlide.active} onChange={deepGlide.onToggle} />

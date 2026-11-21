@@ -80,7 +80,7 @@ fn feature_field(feature: &str) -> Option<u64> {
 }
 
 /// The `params` token search filters with. The field numbers and values are the
-/// ones the site's own filter dialog ships (decoded by Flow for Android), so any
+/// ones the site's own filter dialog ships (decoded by the Android app), so any
 /// combination encodes the way a single filter does. None for an unfiltered
 /// relevance search.
 fn build_search_params(request: &SearchVideosRequest) -> Option<String> {
@@ -772,8 +772,7 @@ mod tests {
         assert_eq!(with(|r| r.sort_by = Some("date".into())), None);
     }
 
-    // Every expected token is one YouTube's filter dialog ships (Flow for
-    // Android's YouTubeSearchParamsTest), so these double as a spec.
+    // Every expected token is one YouTube's filter dialog ships (the Android app's YouTubeSearchParamsTest), so these double as a spec.
     #[test]
     fn builds_the_type_tokens() {
         for (kind, token) in [

@@ -1,4 +1,4 @@
-//! `app_data.json`: Flow for Android's `BackupData`, written from and read back into the desktop's
+//! `app_data.json`: the Android app's `BackupData`, written from and read back into the desktop's
 //! sync-collection records.
 //!
 //! Gson fills a field that is absent with its default and one that is `null` with null, and

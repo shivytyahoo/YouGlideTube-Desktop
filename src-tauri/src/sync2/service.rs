@@ -104,7 +104,7 @@ pub async fn sync_now(app: &AppHandle) -> Result<Vec<Received>> {
     if let Err(error) = &result
         && let Err(failed) = stop_if_shut_out(&pool, error).await
     {
-        tracing::warn!(target: "flow::sync2", kind = failed.kind(), "could not stop syncing");
+        tracing::warn!(target: "youglidetube::sync2", kind = failed.kind(), "could not stop syncing");
     }
     if matches!(result, Err(EngineError::Store(StoreError::Unauthorized))) {
         if try_pending_login(app).await.unwrap_or(false) {
@@ -120,7 +120,7 @@ pub async fn sync_now(app: &AppHandle) -> Result<Vec<Received>> {
     if let Some(kind) = &last.error
         && let Err(failed) = error_log::note(&pool, kind, last.at_ms).await
     {
-        tracing::warn!(target: "flow::sync2", kind = failed.kind(), "sync error not logged");
+        tracing::warn!(target: "youglidetube::sync2", kind = failed.kind(), "sync error not logged");
     }
     if let Ok(mut slot) = state.last.lock() {
         *slot = Some(last.clone());
@@ -490,7 +490,7 @@ pub fn sync_after(app: &AppHandle, delay: Duration, trigger: SyncTrigger) {
 
 fn log_failure<T>(result: Result<T>) {
     if let Err(error) = result {
-        tracing::warn!(target: "flow::sync2", kind = error.kind(), "sync failed");
+        tracing::warn!(target: "youglidetube::sync2", kind = error.kind(), "sync failed");
     }
 }
 

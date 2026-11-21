@@ -128,8 +128,7 @@ export interface PlayerState {
   isVideoFullscreen: boolean;
   /** Playback handed over by the other window, consumed by whichever player
    * mounts next so a handoff resumes exactly where — and how — it left off.
-   * Kept in memory rather than written to the saved-progress store, which Deep
-   * Flow disables. */
+   * Kept in memory rather than written to the saved-progress store, which Deep Glide disables. */
   pipHandoff: { videoId: string; positionSeconds: number; playing: boolean } | null;
   /** True while this window is decoding a video the *other* window is still
    * playing out loud — the pop-out warming up behind a handoff. It silences the
@@ -143,7 +142,7 @@ export interface PlayerState {
   playbackStartedVideoId: string | null;
 
   isTheaterMode: boolean;
-  /** How the picture fills the player, for this session as on Flow for Android. */
+  /** How the picture fills the player, for this session as on the Android app. */
   videoFit: VideoFit;
   /** Width over height of the video playing, once its metadata has loaded. */
   videoAspect: number | null;
@@ -617,7 +616,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
     if (currentTime > 3) {
       set({ currentTime: 0 });
-      window.dispatchEvent(new CustomEvent("flow-player-seek", { detail: { time: 0 } }));
+      window.dispatchEvent(new CustomEvent("player-seek", { detail: { time: 0 } }));
       return;
     }
 
@@ -653,7 +652,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       }
     } else {
       set({ currentTime: 0 });
-      window.dispatchEvent(new CustomEvent("flow-player-seek", { detail: { time: 0 } }));
+      window.dispatchEvent(new CustomEvent("player-seek", { detail: { time: 0 } }));
     }
   },
 

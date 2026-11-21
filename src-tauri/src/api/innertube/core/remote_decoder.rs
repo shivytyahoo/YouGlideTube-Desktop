@@ -1,10 +1,10 @@
 //! The optional remote signature and `n` decoder: the public decoder of the
-//! `PipePipe` app, as Flow for Android uses it.
+//! `PipePipe` app, as the Android app uses it.
 //!
 //! A signed stream URL needs the player's signature transform, which current
 //! players inline behind runtime-indexed string arrays, so no local extractor can
 //! find it. The decoder runs it server side. It is on unless the user turns off
-//! "Remote signature fallback", as on Flow for Android, where `TV_TIZEN` is the
+//! "Remote signature fallback", as on the Android app, where `TV_TIZEN` is the
 //! way past a walled visitor: it is a third-party round trip that receives the
 //! signature and `n` strings and a player id, never a video id.
 

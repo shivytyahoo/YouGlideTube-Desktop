@@ -5,7 +5,7 @@ use super::boxes::{container, full_box, mp4_box};
 use crate::commands::downloads::tags::{DownloadTags, TAG_NAMESPACE};
 
 pub const MAX_COVER_BYTES: usize = 1_000_000;
-const ENCODER_NAME: &str = "Flow";
+const ENCODER_NAME: &str = "YouGlideTube";
 const DATA_IMPLICIT: u32 = 0;
 const DATA_UTF8: u32 = 1;
 const DATA_JPEG: u32 = 13;
@@ -213,8 +213,8 @@ mod tests {
         // mean is a FullBox: 4 zero bytes, then the namespace.
         assert_eq!(&ilst[mean + 4..mean + 8], &[0, 0, 0, 0]);
         assert_eq!(
-            &ilst[mean + 8..mean + 8 + "io.github.aedev.flow".len()],
-            b"io.github.aedev.flow"
+            &ilst[mean + 8..mean + 8 + "io.github.shivytyahoo.glidetube".len()],
+            b"io.github.shivytyahoo.glidetube"
         );
         assert!(find(&ilst, b"videoId").is_some());
         assert!(find(&ilst, b"abc123").is_some());

@@ -8,7 +8,7 @@ describe("continueFromPreview", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     seeks.length = 0;
-    window.addEventListener("flow-player-seek", onSeek);
+    window.addEventListener("player-seek", onSeek);
     const content = document.createElement("div");
     content.setAttribute("data-player-content", "");
     const video = document.createElement("video");
@@ -18,7 +18,7 @@ describe("continueFromPreview", () => {
   });
 
   afterEach(() => {
-    window.removeEventListener("flow-player-seek", onSeek);
+    window.removeEventListener("player-seek", onSeek);
     document.body.innerHTML = "";
     vi.useRealTimers();
   });

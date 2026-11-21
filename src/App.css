@@ -996,7 +996,7 @@
   mask-composite: intersect;
 }
 
-#flow-player-root[data-fullscreen="true"] {
+#player-root[data-fullscreen="true"] {
   width: 100% !important;
   height: 100% !important;
   max-width: none !important;
@@ -1012,7 +1012,7 @@
   background-color: var(--color-chrome-black) !important;
 }
 
-#flow-player-root[data-fullscreen="true"] video {
+#player-root[data-fullscreen="true"] video {
   width: 100% !important;
   height: 100% !important;
   max-width: none !important;
@@ -1023,8 +1023,8 @@
 /*
   Adaptive content grids.
 
-  `--flow-grid-columns` is the ceiling the user picked in Settings, not a fixed
-  count: each track is at least `--flow-grid-card-min` wide, so a window too
+  `--video-grid-columns` is the ceiling the user picked in Settings, not a fixed
+  count: each track is at least `--video-grid-card-min` wide, so a window too
   narrow for that many columns sheds columns instead of squashing cards. The
   `100% / n - gap` min is deliberately a hair under the exact per-track width —
   the slack keeps sub-pixel rounding from dropping the last track on a window
@@ -1033,15 +1033,15 @@
   auto-fill, not auto-fit: a half-empty last row must keep the same track width
   as the full rows above it instead of stretching to fill.
 */
-.flow-grid {
+.video-grid {
   display: grid;
-  column-gap: var(--flow-grid-gap, 1rem);
+  column-gap: var(--video-grid-gap, 1rem);
   grid-template-columns: repeat(
     auto-fill,
     minmax(
       max(
-        var(--flow-grid-card-min, 13rem),
-        calc(100% / var(--flow-grid-columns, 4) - var(--flow-grid-gap, 1rem))
+        var(--video-grid-card-min, 13rem),
+        calc(100% / var(--video-grid-columns, 4) - var(--video-grid-gap, 1rem))
       ),
       1fr
     )
@@ -1053,10 +1053,10 @@
   height has to track the column count — a stale guess makes the scrollbar jump
   as cards paint in. 0.5625 is the 16:9 thumbnail; the addend is the meta row.
 */
-.flow-grid-card {
+.video-grid-card {
   content-visibility: auto;
   /*
-    `--flow-grid-track-w` is the used track width, published by
+    `--video-grid-track-w` is the used track width, published by
     `useResolvedGridColumns` from the same measurement that resolves the column
     count. The `100vw` fallback covers the frames before that lands, but it is
     only a guess: it counts the sidebar and page padding the grid does not
@@ -1064,7 +1064,7 @@
     correct themselves.
   */
   contain-intrinsic-size: auto calc(
-    var(--flow-grid-track-w, calc(100vw / var(--flow-grid-columns, 4))) * 0.5625 + 4.5rem
+    var(--video-grid-track-w, calc(100vw / var(--video-grid-columns, 4))) * 0.5625 + 4.5rem
   );
 }
 

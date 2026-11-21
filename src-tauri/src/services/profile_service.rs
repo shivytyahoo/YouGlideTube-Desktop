@@ -40,8 +40,8 @@ const NEVER_COPIED_AS_SETTINGS: [&str; 14] = [
     "saved_shorts_library",
     "subscription_tombstones",
     "user_neuro_brain_before_v14",
-    "deep_flow_active",
-    "deep_flow_activated_at",
+    "deep_glide_active",
+    "deep_glide_activated_at",
     "tab_session",
     "sponsorblock_user_id",
     "sponsorblock_saved_minutes",
@@ -665,7 +665,7 @@ mod tests {
     use super::*;
 
     fn temp_dir() -> PathBuf {
-        std::env::temp_dir().join(format!("flow-profile-service-{}", registry::new_id()))
+        std::env::temp_dir().join(format!("youglidetube-profile-service-{}", registry::new_id()))
     }
 
     async fn setup() -> (PathBuf, ProfileService, SqlitePool) {
@@ -680,7 +680,7 @@ mod tests {
             ("subscription_groups", "[2]"),
             ("user_neuro_brain", "{brain}"),
             ("liked_items", "[likes]"),
-            ("deep_flow_active", "true"),
+            ("deep_glide_active", "true"),
         ] {
             sqlx::query("INSERT INTO settings (key, value) VALUES (?, ?)")
                 .bind(key)
@@ -706,7 +706,7 @@ mod tests {
     async fn keys_in(dir: &Path) -> Vec<String> {
         let pool = SqlitePool::connect(&format!(
             "sqlite://{}",
-            dir.join("flow-desktop.sqlite").display()
+            dir.join("youglidetube.sqlite").display()
         ))
         .await
         .unwrap();
@@ -726,7 +726,7 @@ mod tests {
             "theme_id",
             "autoplay_enabled",
             "download_location",
-            "deep_flow_active",
+            "deep_glide_active",
             "liked_items",
         ]
         .map(String::from)
@@ -876,13 +876,13 @@ mod tests {
             .create(&pool, request("Study", CopyParts::default()))
             .await
             .unwrap();
-        assert!(!service.hold_link("flow://watch?v=a"));
+        assert!(!service.hold_link("youglidetube://watch?v=a"));
         service.prepare_switch(&study.id, false).unwrap();
-        assert!(service.hold_link("flow://watch?v=a"));
-        assert!(service.hold_link("flow://watch?v=b"));
+        assert!(service.hold_link("youglidetube://watch?v=a"));
+        assert!(service.hold_link("youglidetube://watch?v=b"));
         assert_eq!(
             service.take_held_link().as_deref(),
-            Some("flow://watch?v=b")
+            Some("youglidetube://watch?v=b")
         );
         assert_eq!(service.take_held_link(), None);
         std::fs::remove_dir_all(dir).unwrap();
@@ -959,7 +959,7 @@ mod tests {
     async fn dump(dir: &Path) -> String {
         let pool = SqlitePool::connect(&format!(
             "sqlite://{}",
-            dir.join("flow-desktop.sqlite").display()
+            dir.join("youglidetube.sqlite").display()
         ))
         .await
         .unwrap();
@@ -1152,10 +1152,10 @@ mod tests {
         assert!(
             dir.join("profiles")
                 .join(&b.id)
-                .join("flow-desktop.sqlite")
+                .join("youglidetube.sqlite")
                 .exists()
         );
-        assert!(dir.join("flow-desktop.sqlite").exists());
+        assert!(dir.join("youglidetube.sqlite").exists());
         assert_eq!(service.list().unwrap().profiles.len(), 2);
         std::fs::remove_dir_all(dir).unwrap();
     }

@@ -1,5 +1,5 @@
 /**
- * Colour tone maths, ported from Flow Android's `ui/theme/ColorTone.kt`: tone is
+ * Colour tone maths, ported from the Android app's `ui/theme/ColorTone.kt`: tone is
  * CIELAB L* (close to HCT tone), measured and set the way AndroidX `ColorUtils`
  * does, so both apps derive the same player colours from the same cover.
  */

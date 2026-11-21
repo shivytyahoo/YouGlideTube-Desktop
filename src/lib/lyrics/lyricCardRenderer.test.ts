@@ -97,7 +97,7 @@ describe("drawLyricCard", () => {
     const { ctx, texts } = fakeContext();
     drawLyricCard(ctx, data, { ...look, align }, plan({ align }), null);
     expect(texts.find((entry) => entry.text === "First lyric line")).toMatchObject({ x, align });
-    expect(texts.map((entry) => entry.text)).toEqual(expect.arrayContaining(["Song", "Artist", "Flow"]));
+    expect(texts.map((entry) => entry.text)).toEqual(expect.arrayContaining(["Song", "Artist", "YouGlideTube"]));
   });
 
   it("puts only the badge on the poster, beside the song", () => {

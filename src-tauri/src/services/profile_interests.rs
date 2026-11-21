@@ -1,6 +1,6 @@
-//! A profile's interests as the Flow Neuro page shows them: its brain, persona and music taste.
+//! A profile's interests: its brain, persona and music taste.
 //! For a profile that isn't running, they are read from its own database on this device, without
-//! loading it (Flow-Tube/Flow#1034).
+//! loading it.
 
 use serde::Serialize;
 use sqlx::SqlitePool;

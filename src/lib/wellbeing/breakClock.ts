@@ -1,7 +1,7 @@
 const BREAK_LENGTH_MS = 5 * 60_000;
 
 /**
- * How long Flow has been in use since the last break. A short look away keeps the count; five
+ * How long the app has been in use since the last break. A short look away keeps the count; five
  * minutes or more away is the break, and the count starts over.
  */
 export class BreakClock {
@@ -23,7 +23,7 @@ export class BreakClock {
     this.hiddenAtMs = nowMs;
   }
 
-  /** Starts the count over from `nowMs`, with Flow in use. */
+  /** Starts the count over from `nowMs`, with the app in use. */
   restart(nowMs: number) {
     this.countedMs = 0;
     this.hiddenAtMs = null;

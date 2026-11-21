@@ -18,7 +18,7 @@ const PHYSICAL =
 /** Files that are left to right on purpose, so physical sides are the right ones there. */
 const LEFT_TO_RIGHT_FILES: Record<string, string> = {
   "components/player/Player.tsx": "the video frame is dir=ltr, as Android's player is",
-  "components/player/FlowPlayerControls.tsx": "inside the video frame: timeline and transport",
+  "components/player/PlayerControls.tsx": "inside the video frame: timeline and transport",
   "components/player/MiniPlayerControls.tsx": "inside the video frame",
   "components/player/HeatmapStrip.tsx": "drawn over the timeline",
   "components/player/gesture/overlay.tsx": "double-tap sides are physical, as on Android",
@@ -26,7 +26,7 @@ const LEFT_TO_RIGHT_FILES: Record<string, string> = {
   "components/player/SponsorBlockSkipButton.tsx": "inside the video frame",
   "components/player/UpNextCard.tsx": "inside the video frame",
   "components/player/AutoplaySwitch.tsx": "inside the video frame",
-  "components/watch/FlowPlayerCore.tsx": "its badge renders inside the video frame",
+  "components/watch/PlayerCore.tsx": "its badge renders inside the video frame",
   "components/watch/GlobalVideoPlayer.tsx": "the floating video frame is dir=ltr",
   "components/ui/MediaScrubber.tsx": "a timeline is dir=ltr in every language",
   "components/ui/WindowResizeEdges.tsx": "the window's own edges don't mirror",

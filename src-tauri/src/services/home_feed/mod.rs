@@ -1,4 +1,4 @@
-//! Home's feed, built in the backend as Flow for Android builds it (`HomeViewModel` and the
+//! Home's feed, built in the backend as the Android app builds it (`HomeViewModel` and the
 //! `HomeFeed*` files): a first page mixed from subscriptions, related videos, discovery searches,
 //! channels the viewer keeps watching and neighbour channels; late arrivals slipped in below the
 //! viewport; and load-more pages that end, retry or report failure. The page renders snapshots:

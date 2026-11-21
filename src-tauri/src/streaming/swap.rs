@@ -1,4 +1,4 @@
-//! Keeps a video playing when googlevideo refuses one of its links mid-play (Flow for Android
+//! Keeps a video playing when googlevideo refuses one of its links mid-play (the Android app
 //! #921). The proxy asks for the video's links again and reopens the refused byte range on the
 //! identical file from whichever client still serves it, so the player never sees the refusal
 //! and keeps playing from its buffer meanwhile.
@@ -41,7 +41,7 @@ const RESOLVE_TIMEOUT: Duration = Duration::from_secs(15);
 const MAX_VIDEOS: usize = 64;
 
 /// The exact encode a googlevideo link serves. Links with the same itag, `lmt` and `clen` serve
-/// byte-identical files whichever client minted them (Flow for Android measured `VISIONOS`,
+/// byte-identical files whichever client minted them (the Android app measured `VISIONOS`,
 /// `ANDROID_VR` and `TV_TIZEN`), so a byte range of one is the same byte range of the other.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct FileKey {

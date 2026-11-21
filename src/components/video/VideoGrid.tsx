@@ -84,7 +84,7 @@ function VideoGridComponent({
   const { columns, trackWidth } = useResolvedGridColumns(gridRef, gridStyle);
   // Few columns or a wide window can stretch a card past `hqdefault` even on a 1× screen.
   const highResThumbnails = trackWidth > 0 ? thumbnailNeedsHighRes(trackWidth) : undefined;
-  const gridClass = "flow-grid gap-y-8 pb-8";
+  const gridClass = "video-grid gap-y-8 pb-8";
 
   const shown = rows && columns > 0 ? videos.slice(0, rows * columns) : videos;
   const insertAfterIndex = insertAfterCard(Boolean(insertNode), columns, shown.length);
@@ -117,7 +117,7 @@ function VideoGridComponent({
             at the peak of its expansion — even at two columns on a wide window.
           */}
           <div
-            className="flow-grid-card p-2 -m-2"
+            className="video-grid-card p-2 -m-2"
             {...(trackImpressions ? { [IMPRESSION_ATTRIBUTE]: video.id } : {})}
             {...(onLastVisibleIndex ? { [GRID_INDEX_ATTRIBUTE]: index } : {})}
             {...(scrollAnchors ? { [SCROLL_ANCHOR_ATTRIBUTE]: key } : {})}

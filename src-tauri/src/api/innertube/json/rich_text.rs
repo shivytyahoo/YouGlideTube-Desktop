@@ -1,6 +1,5 @@
 //! Attributed text (`content` plus `commandRuns` and `attachmentRuns`), as
-//! descriptions and comments carry it, read into [`RichText`]. Ported from Flow
-//! for Android's `toRichText`.
+//! descriptions and comments carry it, read into [`RichText`]. Ported from the Android app's `toRichText`.
 
 use serde_json::Value;
 

@@ -2,7 +2,7 @@ import { invokeBackend } from "./errors";
 import { isTauriEnv } from "./env";
 
 /** Event the backend sends the main window when the tray's Continue watching item is clicked. */
-export const TRAY_CONTINUE_WATCHING_EVENT = "flow:tray-continue-watching";
+export const TRAY_CONTINUE_WATCHING_EVENT = "youglidetube:tray-continue-watching";
 
 // Mirrors the backend TrayUpdate (serde camelCase).
 export interface MusicTrayUpdate {

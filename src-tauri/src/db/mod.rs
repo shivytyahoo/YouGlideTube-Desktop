@@ -73,7 +73,14 @@ pub async fn open_closed_profile(dir: PathBuf) -> AppResult<SqlitePool> {
 async fn open_migrated(dir: PathBuf, max_connections: u32) -> AppResult<SqlitePool> {
     std::fs::create_dir_all(&dir).map_err(AppError::from)?;
 
-    let db_path = dir.join("flow-desktop.sqlite");
+    // The database used to be `flow-desktop.sqlite`; a build that still has it
+    // moves it to the new name once, so no history or setting is lost.
+    let legacy_path = dir.join("flow-desktop.sqlite");
+    let db_path = dir.join("youglidetube.sqlite");
+    if !db_path.exists() && legacy_path.exists() {
+        std::fs::rename(&legacy_path, &db_path)
+            .map_err(|error| AppError::Internal(format!("Failed to rename DB file: {error}")))?;
+    }
     let database_url = format!("sqlite://{}", db_path.to_string_lossy());
 
     // Ensure SQLite database file is created if it does not exist

@@ -190,7 +190,7 @@ async fn download_thumbnail(
     if bytes.is_empty() {
         return None;
     }
-    let path = std::env::temp_dir().join(format!("flow-toast-{video_id}.jpg"));
+    let path = std::env::temp_dir().join(format!("youglidetube-toast-{video_id}.jpg"));
     tokio::fs::write(&path, &bytes).await.ok()?;
     Some(path)
 }

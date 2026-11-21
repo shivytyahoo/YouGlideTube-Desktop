@@ -1,4 +1,4 @@
-//! Seeds a brain from an imported watch history or subscription list, the way Flow for Android
+//! Seeds a brain from an imported watch history or subscription list, the way the Android app
 //! does (`FlowNeuroEngine.bootstrapFromWatchHistory` / `bootstrapFromSubscriptions`). An import
 //! is evidence of taste, not a stream of real watches, so it learns gently and never counts as
 //! months of use.

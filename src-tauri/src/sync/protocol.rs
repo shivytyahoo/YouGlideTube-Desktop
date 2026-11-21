@@ -228,7 +228,7 @@ where
                     message: e.to_string(),
                 };
                 if let Err(send_err) = self.send_frame(FrameType::Error, &frame).await {
-                    tracing::debug!(target: "flow::sync::protocol", %send_err, "couldn't send ERROR frame");
+                    tracing::debug!(target: "youglidetube::sync::protocol", %send_err, "couldn't send ERROR frame");
                 }
             }
             self.close().await;
@@ -293,7 +293,7 @@ pub fn withheld(ours: &CapabilitiesFrame, theirs: &CapabilitiesFrame) -> Vec<Wit
             let travels = (local.produce && peer.consume) || (peer.produce && local.consume);
             let reason = key_mismatch(local, peer).filter(|_| travels)?;
             tracing::info!(
-                target: "flow::sync::protocol",
+                target: "youglidetube::sync::protocol",
                 collection = collection.key(), ?reason,
                 our_key_spec = local.key_spec, peer_key_spec = peer.key_spec,
                 our_key_language = %local.key_language, peer_key_language = %peer.key_language,
@@ -372,7 +372,7 @@ where
     GFut: Future<Output = ()>,
 {
     let mut peer = FramedPeer::new(ch, cipher);
-    tracing::info!(target: "flow::sync::protocol", role = "sender", "session started, awaiting HELLO");
+    tracing::info!(target: "youglidetube::sync::protocol", role = "sender", "session started, awaiting HELLO");
     let result = async {
         // Decrypting HELLO authenticates the client (valid GCM tag = proof of key).
         let client_hello = handshake_host(&mut peer, &our_hello, sas_confirm_required).await?;
@@ -409,7 +409,7 @@ where
     GFut: Future<Output = ()>,
 {
     let mut peer = FramedPeer::new(ch, cipher);
-    tracing::info!(target: "flow::sync::protocol", role = "client-sender", "session started, sending HELLO");
+    tracing::info!(target: "youglidetube::sync::protocol", role = "client-sender", "session started, sending HELLO");
     let result = async {
         let host_hello = handshake_client(&mut peer, &our_hello).await?;
         let their_caps = exchange_caps(&mut peer, &our_caps, "client-sender").await?;
@@ -453,7 +453,7 @@ where
         return Err(SyncError::UnsupportedVersion(client_hello.protocol));
     }
     tracing::info!(
-        target: "flow::sync::protocol",
+        target: "youglidetube::sync::protocol",
         peer_device = %client_hello.device_id, peer_name = %client_hello.device_name,
         peer_platform = ?client_hello.platform, peer_protocol = client_hello.protocol,
         "received HELLO (key + envelope verified by successful decrypt)"
@@ -493,7 +493,7 @@ where
         protocol: PROTOCOL_VERSION,
     };
     tracing::info!(
-        target: "flow::sync::protocol",
+        target: "youglidetube::sync::protocol",
         peer_device = %host_hello.device_id, peer_name = %host_hello.device_name,
         peer_platform = ?host_hello.platform, "received HELLO_ACK (handshake ok)"
     );
@@ -517,7 +517,7 @@ where
             "the other device's capabilities",
         )
         .await?;
-    tracing::info!(target: "flow::sync::protocol", role, peer_collections = their.collections.len(), "capabilities exchanged");
+    tracing::info!(target: "youglidetube::sync::protocol", role, peer_collections = their.collections.len(), "capabilities exchanged");
     Ok(their)
 }
 
@@ -546,7 +546,7 @@ where
         .collect();
     selection.sort_by(|a, b| a.key().cmp(b.key()));
     tracing::info!(
-        target: "flow::sync::protocol", role = "sender",
+        target: "youglidetube::sync::protocol", role = "sender",
         selection = ?selection.iter().map(|c| c.key()).collect::<Vec<_>>(),
         "negotiated selection (chosen ∩ produce ∩ consume)"
     );
@@ -587,7 +587,7 @@ where
         );
         prepared.push(p);
     }
-    tracing::info!(target: "flow::sync::protocol", role = "sender", collections = manifest.collections.len(), "sending MANIFEST");
+    tracing::info!(target: "youglidetube::sync::protocol", role = "sender", collections = manifest.collections.len(), "sending MANIFEST");
     peer.send_frame(FrameType::Manifest, &manifest).await?;
 
     // CONSENT — one-way (receiver → sender only): wait for the RECEIVER's merge decision; the sender
@@ -600,7 +600,7 @@ where
             "the other device to accept the sync",
         )
         .await?;
-    tracing::info!(target: "flow::sync::protocol", role = "sender", peer_accepted = their_consent.accepted, "consent (receiver merge)");
+    tracing::info!(target: "youglidetube::sync::protocol", role = "sender", peer_accepted = their_consent.accepted, "consent (receiver merge)");
     if !their_consent.accepted {
         peer.close().await;
         return Ok(HostOutcome::Declined);
@@ -637,7 +637,7 @@ where
             },
         )
         .await?;
-        tracing::info!(target: "flow::sync::protocol", role = "sender", collection = p.collection.key(), records = p.count, "collection streamed (COMPLETE sent)");
+        tracing::info!(target: "youglidetube::sync::protocol", role = "sender", collection = p.collection.key(), records = p.count, "collection streamed (COMPLETE sent)");
     }
 
     // One aggregate APPLY_RESULT back from the receiver.
@@ -648,7 +648,7 @@ where
             "the other device to save the data",
         )
         .await?;
-    tracing::info!(target: "flow::sync::protocol", role = "sender", collections = results.collections.len(), "received APPLY_RESULT — transfer complete");
+    tracing::info!(target: "youglidetube::sync::protocol", role = "sender", collections = results.collections.len(), "received APPLY_RESULT — transfer complete");
     peer.close().await;
     Ok(HostOutcome::Completed(SendOutcome {
         peer: peer_hello,
@@ -676,7 +676,7 @@ where
     AFut: Future<Output = ApplyOutput<R>>,
 {
     let mut peer = FramedPeer::new(ch, cipher);
-    tracing::info!(target: "flow::sync::protocol", role = "receiver", "session started, sending HELLO");
+    tracing::info!(target: "youglidetube::sync::protocol", role = "receiver", "session started, sending HELLO");
     let result = async {
         let host_hello = handshake_client(&mut peer, &our_hello).await?;
         let their_caps = exchange_caps(&mut peer, &our_caps, "receiver").await?;
@@ -713,7 +713,7 @@ where
     AFut: Future<Output = ApplyOutput<R>>,
 {
     let mut peer = FramedPeer::new(ch, cipher);
-    tracing::info!(target: "flow::sync::protocol", role = "host-receiver", "session started, awaiting HELLO");
+    tracing::info!(target: "youglidetube::sync::protocol", role = "host-receiver", "session started, awaiting HELLO");
     let result = async {
         let client_hello = handshake_host(&mut peer, &our_hello, sas_confirm_required).await?;
         let their_caps = exchange_caps(&mut peer, &our_caps, "host-receiver").await?;
@@ -761,7 +761,7 @@ where
         )
         .await?;
     tracing::info!(
-        target: "flow::sync::protocol", role = "receiver",
+        target: "youglidetube::sync::protocol", role = "receiver",
         selection = ?selection.send.iter().map(|c| c.key()).collect::<Vec<_>>(),
         manifest_collections = manifest.collections.len(),
         "received SELECTION + MANIFEST"
@@ -774,7 +774,7 @@ where
         .ch
         .keepalive_while(allow_merge(peer_hello.clone(), manifest.clone()))
         .await?;
-    tracing::info!(target: "flow::sync::protocol", role = "receiver", accepted, "consent (merge?) sent");
+    tracing::info!(target: "youglidetube::sync::protocol", role = "receiver", accepted, "consent (merge?) sent");
     peer.send_frame(FrameType::Consent, &ConsentFrame { accepted })
         .await?;
     if !accepted {
@@ -788,7 +788,7 @@ where
         .await??;
 
     peer.send_frame(FrameType::ApplyResult, &result).await?;
-    tracing::info!(target: "flow::sync::protocol", role = "receiver", collections = result.collections.len(), "sent APPLY_RESULT — transfer complete");
+    tracing::info!(target: "youglidetube::sync::protocol", role = "receiver", collections = result.collections.len(), "sent APPLY_RESULT — transfer complete");
     Ok(ClientOutcome::Completed(ReceivedPayload {
         peer: peer_hello,
         applied,
@@ -894,7 +894,7 @@ where
         let hash = codec::sha256_hex(&acc);
         if hash != complete.hash || hash != entry.hash {
             tracing::warn!(
-                target: "flow::sync::protocol", role = "receiver", collection = %name,
+                target: "youglidetube::sync::protocol", role = "receiver", collection = %name,
                 computed = %hash, complete_hash = %complete.hash, manifest_hash = %entry.hash,
                 "payload hash mismatch — data corrupted in transit or canonicalization differs \
                  between platforms"
@@ -909,12 +909,12 @@ where
 
         let Some(collection) = collection_from_key(&name).filter(|c| consumes(our_caps, *c)) else {
             tracing::info!(
-                target: "flow::sync::protocol", role = "receiver", collection = %name, records = count,
+                target: "youglidetube::sync::protocol", role = "receiver", collection = %name, records = count,
                 "received a collection this device cannot consume — discarding after drain"
             );
             continue;
         };
-        tracing::info!(target: "flow::sync::protocol", role = "receiver", collection = %name, records = count, "collection received + staged");
+        tracing::info!(target: "youglidetube::sync::protocol", role = "receiver", collection = %name, records = count, "collection received + staged");
         staged.push(StagedCollection {
             collection,
             ndjson: acc,

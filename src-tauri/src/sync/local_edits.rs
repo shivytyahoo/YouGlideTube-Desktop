@@ -81,7 +81,7 @@ pub async fn stamp_restored_watch(pool: &SqlitePool, video_id: &str) -> Result<(
 }
 
 /// A setting that holds a synced collection rather than an app setting. Changing one is sent soon;
-/// app settings wait for the next sync, as on Flow for Android.
+/// app settings wait for the next sync, as on the Android app.
 #[must_use]
 pub fn is_collection_setting(key: &str) -> bool {
     is_tracked_blob(key) || key == mapping::SUBSCRIBED_CHANNELS_SETTING_KEY

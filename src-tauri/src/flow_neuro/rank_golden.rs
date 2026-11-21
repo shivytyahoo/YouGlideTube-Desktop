@@ -1,4 +1,4 @@
-//! Ranking against Flow for Android's `rank_golden.json` (written by its `NeuroRankGoldenTest`):
+//! Ranking against the Android app's `rank_golden.json` (written by its `NeuroRankGoldenTest`):
 //! candidate scores for a mature and a cold-start brain, diversity orders, the seen gate, topic
 //! relevance and topic blocks. Candidates carry their vectors, so the scores check scoring alone.
 

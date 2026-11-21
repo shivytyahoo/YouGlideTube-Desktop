@@ -2,9 +2,7 @@
 
 **A YouTube and YouTube Music desktop client with Google sign-in, native playback and local recommendations.**
 
-> **Fork notice:** YouGlideTube Desktop is built on open-source foundations (see [FORK.md](FORK.md) for credits), rebranded and rethemed for [YouGlideTube](https://github.com/shivytyahoo/YouGlideTube) (GPL-3.0). This fork adds Google sign-in (SAPISID cookie session, like the YouGlideTube Android app) on top of the local-first client.
-
-> YouGlideTube Desktop is under active development. Features and storage formats may change before the first stable release.
+> YouGlideTube Desktop is under active development. Features and storage formats may change before the first stable release. Credit for the open-source code this app is built on is in [CREDITS.md](CREDITS.md) and in the app's Credit & Thanks screen (Settings → About).
 
 ---
 
@@ -18,12 +16,6 @@
 - SponsorBlock, DeArrow, Return YouTube Dislike, and Discord Rich Presence integrations.
 - Imports from YouGlideTube backups, Google Takeout, NewPipe, LibreTube, FreeTube, and OPML.
 
-### Local recommendations
-
-The local recommendation engine learns from watches, skips, likes, dislikes, searches, topic preferences, and creator affinity, and ranks content on your device without sending a recommendation profile to any server.
-
-The Control Center lets you inspect topic weights, time-based patterns, channel memory, learning activity, and blocked content. You can export, import, reset, or temporarily pause learning with Deep Glide mode.
-
 ## Google sign-in
 
 Sign-in works like the YouGlideTube mobile app: click **Sign in** in the top bar and sign in on Google's own page, which opens in a window inside the app. Once you sign in, the session connects automatically — the window closes by itself and the home feed reloads signed-in. When signed in, the top bar shows your account photo (or the first letter of your display name, fetched from YouTube) and a logout button instead, and **Settings → Google account** shows the account page from the mobile app: status, account name and handle, Add account and Sign out. Your session stays on your device (stored as a cookie file in the app-data directory) and is only sent to YouTube.
@@ -34,7 +26,7 @@ If Google refuses sign-in in that window, the dialog's second option signs in wi
 
 ## YouGlideTube parity
 
-This fork aims to look, feel and behave like the [YouGlideTube Android app](https://github.com/shivytyahoo/YouGlideTube) — same settings, screens, features and naming. Only the Tauri size/architecture approach is borrowed, never the upstream look, feel or feature set. [`PARITY.md`](PARITY.md) is the feature-by-feature audit against the Android app (19 features match, 10 partial, 6 missing): what matches today is the watch/search/Shorts/music/downloads surface plus Google sign-in with the real account name and a Settings → Google account page; the remaining gap is the server-account surface (subscriptions feed, server history, server Watch Later, multi-account, clip downloads).
+This app aims to look, feel and behave like the [YouGlideTube Android app](https://github.com/shivytyahoo/YouGlideTube) — same settings, screens, features and naming. [`PARITY.md`](PARITY.md) is the feature-by-feature audit against the Android app (19 features match, 10 partial, 6 missing): what matches today is the watch/search/Shorts/music/downloads surface plus Google sign-in with the real account name and a Settings → Google account page; the remaining gap is the server-account surface (subscriptions feed, server history, server Watch Later, multi-account, clip downloads).
 
 ---
 
@@ -54,10 +46,7 @@ YouGlideTube Desktop still contacts YouTube and optional services such as Sponso
 
 ## Downloads and supported systems
 
-No YouGlideTube Desktop release is published yet — there is no GitHub
-repo for the fork (see [TAURI_PLAN.md](TAURI_PLAN.md) step 4 for what
-creating one entails). Until then, build the installer yourself
-([Building installers](#building-installers)) or from CI on a fork.
+Releases are published on GitHub ([YouGlideTube-Desktop](https://github.com/shivytyahoo/YouGlideTube-Desktop/releases)). Until a release is published, build the installer yourself ([Building installers](#building-installers)) or from CI.
 
 - **Stable:** reviewed releases intended for normal use.
 - **Beta / RC:** public GitHub prereleases for wider testing. These install as **YouGlideTube Beta** with isolated application data.
@@ -76,7 +65,7 @@ Linux builds require a compatible glibc, GTK 3, and WebKitGTK 4.1 environment. L
 In-app updates are **not set up yet**: the app has no update server
 configured, so Settings → About says so instead of offering a check.
 See [TAURI_PLAN.md](TAURI_PLAN.md) step 4 for what a real release needs
-(a fork repo, a fresh update-signing keypair, and updater endpoints).
+(a fresh update-signing keypair and updater endpoints).
 
 ## Building installers
 
@@ -106,13 +95,12 @@ GitHub Actions release workflow (`.github/workflows/release.yml`) does:
 it builds Windows, macOS and Linux packages per architecture, signs the
 updater artifacts, and publishes them to GitHub Releases. It needs a
 configured updater (endpoints + public key) and a signing key — neither
-exists yet for this fork (see [TAURI_PLAN.md](TAURI_PLAN.md) step 4).
+exists yet (see [TAURI_PLAN.md](TAURI_PLAN.md) step 4).
 Nightly builds come from `.github/workflows/build.yml`; AUR packages
 live in `packaging/aur/` and are published by `.github/workflows/aur.yml`.
 
 Expected sizes (measured on Linux in the sandbox: optimized
-**`.deb` 21.73 MiB, installed ~56 MB** — the nightly-profile build,
-essentially the upstream release `.deb` at 21.5 MB. The debug `.deb` is
+**`.deb` 21.73 MiB, installed ~56 MB** — the nightly-profile build. The debug `.deb` is
 193 MB / ~819 MB installed, because the binary is unoptimized with
 debuginfo; a full release-profile build OOMs in this sandbox, see
 [TAURI_PLAN.md](TAURI_PLAN.md) step 4. Windows/macOS sizes are
@@ -189,8 +177,7 @@ Without Terminal: try to open YouGlideTube once, then go to **System Settings > 
 
 ### Flatpak
 
-Flatpak packaging is not set up for this fork yet (the upstream
-Flatpak id and registry still point at the upstream app). That is a follow-up —
+Flatpak packaging is not set up yet. That is a follow-up —
 see [TAURI_PLAN.md](TAURI_PLAN.md).
 
 ### Linux media codecs
@@ -245,6 +232,6 @@ Windows, Linux, and macOS packages are built natively by the GitHub Actions rele
 
 ## License
 
-YouGlideTube Desktop is free software licensed under the [GNU General Public License v3.0](LICENSE). It is based on open-source code (GPL-3.0-only, copyright © 2025–2026 A-EDev); see [FORK.md](FORK.md).
+YouGlideTube Desktop is free software licensed under the [GNU General Public License v3.0](LICENSE). It is based on open-source code (GPL-3.0-only, copyright © 2025–2026 A-EDev); see [CREDITS.md](CREDITS.md).
 
-This license requires that any project using this source code, including the local recommendation engine, must also be released as open source under GPLv3. It may not be used in a proprietary or closed-source application.
+This license requires that any project using this source code must also be released as open source under GPLv3. It may not be used in a proprietary or closed-source application.

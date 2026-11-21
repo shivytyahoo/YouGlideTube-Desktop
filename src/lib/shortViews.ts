@@ -1,7 +1,7 @@
 import { addWatchRecord } from "./api/db";
 import { recordSeenShorts, reportShortView } from "./api/shorts";
 import { recapView } from "./recap/recapQueue";
-import { shouldRecordWatchHistory } from "./deepFlow";
+import { shouldRecordWatchHistory } from "./deepGlide";
 import type { ShortItem } from "../types/shorts";
 
 /** How long a Short has to stay on screen before it counts as seen. */
@@ -74,7 +74,7 @@ export function finishShortView() {
     skipped: view.positionMs < HISTORY_MIN_MS,
     continued: false,
   });
-  // In history a watched Short can open related reel chains, as Flow for Android's do.
+  // In history a watched Short can open related reel chains, as the Android app's do.
   if (view.positionMs >= HISTORY_MIN_MS && shouldRecordWatchHistory()) {
     void addWatchRecord({
       videoId: view.short.id,

@@ -13,7 +13,7 @@ const placeholders = (text: string) =>
 describe("translations", () => {
   const base = strings as Record<string, string>;
 
-  it("covers the languages Flow for Android ships", () => {
+  it("covers the languages the Android app ships", () => {
     expect(Object.keys(locales).length).toBe(33);
   });
 

@@ -34,7 +34,7 @@ describe("themes", () => {
     expect(resolveTheme(custom.id, parsed)).toEqual(custom);
   });
 
-  it("carries Flow for Android's six extra palettes with readable contrast", () => {
+  it("carries the Android app's six extra palettes with readable contrast", () => {
     const luminance = (hex: string) => {
       const [r, g, b] = [1, 3, 5].map((i) => {
         const c = parseInt(hex.slice(i, i + 2), 16) / 255;

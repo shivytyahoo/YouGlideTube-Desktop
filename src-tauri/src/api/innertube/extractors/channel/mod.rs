@@ -1,5 +1,5 @@
 //! A channel: its header, tabs, each tab's items and filters, and its About
-//! panel. Ported from Flow for Android's channel parsers, read structurally so
+//! panel. Ported from the Android app's channel parsers, read structurally so
 //! no tab, shelf or filter depends on its English title.
 
 mod about;
@@ -217,7 +217,7 @@ impl InnertubeClient {
 }
 
 /// The site answers some channel searches with nothing in one language and
-/// finds them in English (Flow for Android #2057: "xlov" on a channel has no
+/// finds them in English (the Android app #2057: "xlov" on a channel has no
 /// videos with `hl=es` and 28 with `hl=en`, on the website too).
 fn should_search_in_english(found: usize, language: &str) -> bool {
     found == 0

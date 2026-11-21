@@ -675,8 +675,8 @@ export function ShortVideoSurface({
       const detail = (event as CustomEvent<{ time?: number }>).detail;
       if (typeof detail?.time === "number") seekTo(detail.time);
     };
-    window.addEventListener("flow-player-seek", handleExternalSeek);
-    return () => window.removeEventListener("flow-player-seek", handleExternalSeek);
+    window.addEventListener("player-seek", handleExternalSeek);
+    return () => window.removeEventListener("player-seek", handleExternalSeek);
   }, [active, seekTo]);
 
   return (

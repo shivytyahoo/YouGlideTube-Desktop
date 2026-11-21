@@ -1,4 +1,4 @@
-import { LOGO_GLYPH_PATH, LOGO_SHAPE_BOUNDS, LOGO_SHAPE_PATH } from "../brand/logo";
+import logoUrl from "../../assets/youglidetube-logo.png";
 import { fitText } from "../canvasImage";
 import { css } from "../color/tone";
 import { isRtlText } from "../direction";
@@ -27,7 +27,7 @@ const DECOR = 220;
 const DECOR_OVERHANG = 64;
 const DECOR_TURN = (18 * Math.PI) / 180;
 const LOGO_WIDTH = 28;
-const LOGO_HEIGHT = LOGO_WIDTH * (LOGO_SHAPE_BOUNDS.height / LOGO_SHAPE_BOUNDS.width);
+const LOGO_HEIGHT = LOGO_WIDTH;
 const LOGO_SPACING = 8;
 const CARD_RADIUS = 28;
 const BACKDROP_MARGIN = 24;
@@ -147,7 +147,7 @@ export function planLyricCard(data: LyricCardData, look: LyricCardLook, measurer
   const fixedHeight = aspectHeight(look.aspect, width);
   const inner = cardWidth - PADDING * 2;
   const base = look.layout === "poster" ? POSTER_LINE : LINE;
-  const markWidth = LOGO_WIDTH + LOGO_SPACING + measurer.width("Flow", font(MARK.weight, MARK.size, look.fontFamily));
+  const markWidth = LOGO_WIDTH + LOGO_SPACING + measurer.width("YouGlideTube", font(MARK.weight, MARK.size, look.fontFamily));
 
   // Heights above and below the lines, which don't change with the lines' scale.
   const above =
@@ -231,16 +231,29 @@ function lobedPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, radius
   ctx.closePath();
 }
 
-function drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, shape: string, glyph: string) {
-  const unit = LOGO_WIDTH / LOGO_SHAPE_BOUNDS.width;
-  ctx.save();
-  ctx.translate(x - LOGO_SHAPE_BOUNDS.x * unit, y - LOGO_SHAPE_BOUNDS.y * unit);
-  ctx.scale(unit, unit);
-  ctx.fillStyle = shape;
-  ctx.fill(new Path2D(LOGO_SHAPE_PATH));
-  ctx.fillStyle = glyph;
-  ctx.fill(new Path2D(LOGO_GLYPH_PATH));
-  ctx.restore();
+/** The app logo, loaded once and cached; the card still draws without it if the image fails. */
+let logoImage: HTMLImageElement | null = null;
+let logoFailed = false;
+
+async function logoReady(): Promise<HTMLImageElement | null> {
+  if (logoImage || logoFailed) return logoImage;
+  try {
+    logoImage = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("logo failed to load"));
+      img.src = logoUrl;
+    });
+  } catch {
+    logoFailed = true;
+    logoImage = null;
+  }
+  return logoImage;
+}
+
+function drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, logo: HTMLImageElement | null) {
+  if (!logo) return;
+  ctx.drawImage(logo, x, y, LOGO_WIDTH, LOGO_HEIGHT);
 }
 
 function drawMesh(ctx: CanvasRenderingContext2D, mesh: Uint8ClampedArray, x: number, y: number, width: number, height: number) {
@@ -282,6 +295,7 @@ export function drawLyricCard(
   look: LyricCardLook,
   plan: CardPlan,
   art: HTMLImageElement | null,
+  logo: HTMLImageElement | null = null,
 ) {
   const { style, fontFamily } = look;
   const ink = css(style.ink);
@@ -355,11 +369,11 @@ export function drawLyricCard(
   ctx.font = font(700, lines.size, fontFamily);
   for (const row of lines.rows) writeLine(ctx, row.text, lines.x, row.y + lines.lineHeight / 2, lines.width, look.align, row.rtl);
 
-  drawBadge(ctx, plan.mark.x, plan.mark.y, ink, css(style.ground));
+  drawBadge(ctx, plan.mark.x, plan.mark.y, logo);
   if (!plan.mark.badgeOnly) {
     ctx.fillStyle = ink;
     ctx.font = font(MARK.weight, MARK.size, fontFamily);
-    writeLine(ctx, "Flow", plan.mark.x + LOGO_WIDTH + LOGO_SPACING, plan.mark.y + LOGO_HEIGHT / 2, MARK.size * 4, "left", false);
+    writeLine(ctx, "YouGlideTube", plan.mark.x + LOGO_WIDTH + LOGO_SPACING, plan.mark.y + LOGO_HEIGHT / 2, MARK.size * 4, "left", false);
   }
   ctx.restore();
 }
@@ -389,6 +403,7 @@ async function fontsReady(fontFamily: string) {
 /** The card as a 1080 px PNG. If the cover can't be read back it draws again without it, so a card always comes out. */
 export async function renderLyricCardBlob(data: LyricCardData, look: LyricCardLook, art: HTMLImageElement | null): Promise<Blob | null> {
   await fontsReady(look.fontFamily);
+  const logo = await logoReady();
   const encode = (withArt: HTMLImageElement | null) =>
     new Promise<Blob | null>((resolve) => {
       const canvas = document.createElement("canvas");
@@ -402,7 +417,7 @@ export async function renderLyricCardBlob(data: LyricCardData, look: LyricCardLo
       canvas.height = Math.ceil(plan.height * SCALE);
       ctx.scale(SCALE, SCALE);
       try {
-        drawLyricCard(ctx, data, look, plan, withArt);
+        drawLyricCard(ctx, data, look, plan, withArt, logo);
         canvas.toBlob(resolve, "image/png");
       } catch {
         resolve(null);

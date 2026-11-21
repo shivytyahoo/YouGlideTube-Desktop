@@ -25,7 +25,7 @@ pub fn installed_with(exists: impl Fn(&str) -> bool) -> Vec<&'static str> {
         .collect()
 }
 
-/// The firewalls installed on this computer; none off Linux, where Flow's text covers the OS's own.
+/// The firewalls installed on this computer; none off Linux, where the app's text covers the OS's own.
 #[must_use]
 pub fn installed() -> Vec<&'static str> {
     if cfg!(target_os = "linux") {

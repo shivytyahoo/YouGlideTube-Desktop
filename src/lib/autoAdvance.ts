@@ -14,7 +14,7 @@ interface AutoAdvanceSettings {
 }
 
 /**
- * What plays by itself when a video ends, in Flow for Android's order: while the queue has more,
+ * What plays by itself when a video ends, in the Android app's order: while the queue has more,
  * only the queue switch counts and a suggestion never jumps ahead of it. Past the end of the queue,
  * only the related videos switch counts.
  */

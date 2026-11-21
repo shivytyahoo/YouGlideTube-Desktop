@@ -586,7 +586,7 @@ pub async fn remove(app: &AppHandle, id: &str, also: &[String]) -> Result<Option
     let local = local(app).await?;
     // The cut names what this device has read, so read what it can first (spec/protocol.md, Removal).
     if let Err(error) = sync_now(app).await {
-        tracing::warn!(target: "flow::sync2", kind = error.kind(), "removing without a last sync");
+        tracing::warn!(target: "youglidetube::sync2", kind = error.kind(), "removing without a last sync");
     }
     let record = linked(&local.pool).await?;
     let session = open_session(&local, &record).await?;

@@ -267,7 +267,7 @@ impl<S: Store> Session<'_, S> {
         match self.store().delete_object(path).await {
             Ok(found) => Some(found),
             Err(error) => {
-                tracing::debug!(target: "flow::sync2", %error, "garbage collection paused");
+                tracing::debug!(target: "youglidetube::sync2", %error, "garbage collection paused");
                 None
             }
         }

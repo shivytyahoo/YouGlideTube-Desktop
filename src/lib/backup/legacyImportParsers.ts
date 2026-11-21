@@ -13,7 +13,7 @@ const extractChannelIdFromUrl = (url: string): string => {
   return (id.split("/")[0] || "").split("?")[0]?.trim() || "";
 };
 
-/** Channels from a JSON subscription export (NewPipe, LibreTube, old Flow files). */
+/** Channels from a JSON subscription export (NewPipe, LibreTube, older app exports). */
 export function parseJsonSubscriptions(data: any): ParsedChannel[] {
   const channels: ParsedChannel[] = [];
   let rawSubs: any[] = [];

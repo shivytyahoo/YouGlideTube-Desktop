@@ -20,7 +20,7 @@ const text = (key: string, ...args: unknown[]) => getString(key as StringKey, ..
 describe("getString", () => {
   it("fills placeholders in order or by position", () => {
     expect(text("plain")).toBe("Plain");
-    expect(text("one_arg", "Flow")).toBe("Hello Flow");
+    expect(text("one_arg", "YouGlideTube")).toBe("Hello YouGlideTube");
     expect(text("number_arg", 3)).toBe("3 songs");
     expect(text("positional", "Artist", "Song")).toBe("Song by Artist");
   });
