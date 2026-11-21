@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn finds_the_stored_font_by_its_name() {
-        let dir = std::env::temp_dir().join(format!("flow-font-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("youglidetube-font-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join(INCOMING), b"x").unwrap();
         assert!(stored_font(&dir).is_none());

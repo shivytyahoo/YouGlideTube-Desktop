@@ -135,7 +135,7 @@ impl YouTubeClient {
 
     /// The body of a `player` request: context, video id, content-check flags,
     /// the embed URL for embedded clients, and the PO token only when this client
-    /// can actually be attested by the runtime Flow owns.
+    /// can actually be attested by the runtime the app owns.
     ///
     /// The token goes in a top-level `serviceIntegrityDimensions`, next to
     /// `context`. The server silently ignores it inside `context`, which left every

@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::errors::AppResult;
-use crate::profiles::local_state;
 
 pub const DEFAULT_ARTWORK_LIMIT_MB: u64 = 500;
 pub const DEFAULT_LYRICS_LIMIT_MB: u64 = 100;
@@ -58,6 +57,48 @@ impl CacheLocalState {
             CacheKind::Network => &mut self.network_limit_mb,
         };
         *slot = Some(limit);
+    }
+}
+
+/// The file holding the cache limits and the pending artwork clear, in the app data folder.
+const STATE_FILE_NAME: &str = "cache_local.json";
+
+/// The shape of the old `profiles_local.json`, whose `cache` part this replaces.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct LegacyLocalState {
+    cache: CacheLocalState,
+}
+
+/// The cache limits and pending clear. A build that still has the old file carries its cache
+/// part over once; the old file is left alone.
+pub fn read_state(dir: &Path) -> CacheLocalState {
+    if let Ok(raw) = std::fs::read_to_string(dir.join(STATE_FILE_NAME))
+        && let Ok(state) = serde_json::from_str(&raw)
+    {
+        return state;
+    }
+    std::fs::read_to_string(dir.join("profiles_local.json"))
+        .ok()
+        .and_then(|raw| serde_json::from_str::<LegacyLocalState>(&raw).ok())
+        .map(|legacy| legacy.cache)
+        .unwrap_or_default()
+}
+
+/// Read, change and write back, through a synced temporary file.
+pub fn update_state(dir: &Path, change: impl FnOnce(&mut CacheLocalState)) {
+    use std::io::Write;
+    let mut state = read_state(dir);
+    change(&mut state);
+    let temp = dir.join(format!("{STATE_FILE_NAME}.tmp"));
+    let written = std::fs::File::create(&temp)
+        .and_then(|mut file| {
+            file.write_all(serde_json::to_string(&state).unwrap_or_default().as_bytes())?;
+            file.sync_all()
+        })
+        .and_then(|()| std::fs::rename(&temp, dir.join(STATE_FILE_NAME)));
+    if let Err(error) = written {
+        tracing::warn!(%error, "could not write {STATE_FILE_NAME}");
     }
 }
 
@@ -117,7 +158,7 @@ pub fn dir_size(dir: &Path) -> u64 {
 
 /// Before any window opens: empties the artwork cache if asked to, or if it has gone over its limit.
 pub fn tidy_artwork_at_launch(app_data_dir: &Path, cache_dirs: &[PathBuf]) {
-    let state = local_state::read(app_data_dir).cache;
+    let state = read_state(app_data_dir);
     let limit = state.limit_mb(CacheKind::Artwork).saturating_mul(MB);
     let size: u64 = cache_dirs.iter().map(|dir| dir_size(dir)).sum();
     if !state.artwork_clear_pending && (limit == 0 || size <= limit) {
@@ -133,8 +174,8 @@ pub fn tidy_artwork_at_launch(app_data_dir: &Path, cache_dirs: &[PathBuf]) {
         }
     }
     if state.artwork_clear_pending {
-        local_state::update(app_data_dir, |state| {
-            state.cache.artwork_clear_pending = false;
+        update_state(app_data_dir, |state| {
+            state.artwork_clear_pending = false;
         });
     }
 }
@@ -272,12 +313,12 @@ mod tests {
         let cache = dir.0.join("NetworkCache");
         write(&cache.join("image"), 1024);
         write(&dir.0.join("beside/keep"), 1);
-        local_state::update(&dir.0, |state| state.cache.artwork_clear_pending = true);
+        update_state(&dir.0, |state| state.artwork_clear_pending = true);
 
         tidy_artwork_at_launch(&dir.0, std::slice::from_ref(&cache));
         assert!(!cache.exists());
         assert!(dir.0.join("beside/keep").exists());
-        assert!(!local_state::read(&dir.0).cache.artwork_clear_pending);
+        assert!(!read_state(&dir.0).artwork_clear_pending);
     }
 
     #[test]
@@ -285,8 +326,8 @@ mod tests {
         let dir = TempDir::new();
         let cache = dir.0.join("NetworkCache");
         write(&cache.join("image"), 2 * 1024 * 1024);
-        local_state::update(&dir.0, |state| {
-            state.cache.set_limit_mb(CacheKind::Artwork, 1);
+        update_state(&dir.0, |state| {
+            state.set_limit_mb(CacheKind::Artwork, 1);
         });
         tidy_artwork_at_launch(&dir.0, std::slice::from_ref(&cache));
         assert!(!cache.exists());
@@ -297,8 +338,8 @@ mod tests {
         let dir = TempDir::new();
         let cache = dir.0.join("NetworkCache");
         write(&cache.join("image"), 2 * 1024 * 1024);
-        local_state::update(&dir.0, |state| {
-            state.cache.set_limit_mb(CacheKind::Artwork, 0);
+        update_state(&dir.0, |state| {
+            state.set_limit_mb(CacheKind::Artwork, 0);
         });
         tidy_artwork_at_launch(&dir.0, std::slice::from_ref(&cache));
         assert!(cache.join("image").exists());

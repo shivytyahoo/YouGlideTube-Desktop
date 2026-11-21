@@ -52,7 +52,7 @@ describe("saved order", () => {
   it("reads back the custom order and survives junk", () => {
     savePlaylistCustomOrder(["x", "y"]);
     expect(loadPlaylistCustomOrder()).toEqual(["x", "y"]);
-    stored.set("flow_playlist_custom_order", "not json");
+    stored.set("youglidetube_playlist_custom_order", "not json");
     expect(loadPlaylistCustomOrder()).toEqual([]);
   });
 });

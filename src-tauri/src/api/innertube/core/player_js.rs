@@ -206,7 +206,7 @@ async fn run_solver(player: &PlayerScript, n: &str) -> Option<String> {
 }
 
 async fn run_node_solver(player: &PlayerScript, n: &str) -> Option<String> {
-    let Some(solver) = sidecar_script_path("nsig.cjs", "FLOW_NSIG_SCRIPT") else {
+    let Some(solver) = sidecar_script_path("nsig.cjs", "YOUGLIDETUBE_NSIG_SCRIPT") else {
         warn!("nsig.cjs sidecar not found; cannot solve n");
         return None;
     };

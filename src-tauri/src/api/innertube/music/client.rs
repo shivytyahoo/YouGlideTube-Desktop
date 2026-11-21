@@ -70,6 +70,34 @@ impl InnertubeClient {
         result
     }
 
+    /// [`Self::post_music`], but the transport error comes back unconverted,
+    /// so a caller can tell a 4xx (safe to retry elsewhere) from a 5xx or a
+    /// transport failure (the request may have applied).
+    pub(crate) async fn post_music_raw(
+        &self,
+        endpoint: &str,
+        client: &MusicClient,
+        payload: &mut Value,
+    ) -> Result<Value, super::super::transport::error::TransportError> {
+        MUSIC_REQUESTS.fetch_add(1, Ordering::Relaxed);
+        let started = Instant::now();
+        let result = self
+            .post_via_raw(
+                &self.client,
+                Host::Music,
+                endpoint,
+                client,
+                payload,
+                None,
+                None,
+            )
+            .await;
+        let elapsed = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+        MUSIC_REQUEST_MILLIS.fetch_add(elapsed, Ordering::Relaxed);
+        tracing::debug!(endpoint, elapsed_ms = elapsed, "Music request completed");
+        result
+    }
+
     /// Convenience: a `browse` against the music API with an optional browse id /
     /// params / continuation, all placed in the request body.
     pub(crate) async fn music_browse(

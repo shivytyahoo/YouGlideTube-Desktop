@@ -33,6 +33,15 @@ const inFlight = new Map<string, Promise<StreamInfo>>();
 const prefetchQueue: string[] = [];
 let activePrefetches = 0;
 
+/** Battery saver stops speculative resolves; the player's own resolve is untouched. */
+let prefetchEnabled = true;
+
+/** Battery saver calls this with false; re-enabling only resumes new prefetches. */
+export function setStreamPrefetchEnabled(enabled: boolean): void {
+  prefetchEnabled = enabled;
+  if (!enabled) prefetchQueue.length = 0;
+}
+
 function readCache(videoId: string): StreamInfo | null {
   const entry = cache.get(videoId);
   if (!entry) return null;
@@ -105,7 +114,7 @@ export function resolveStreamInfo(
 }
 
 function drainPrefetchQueue() {
-  while (activePrefetches < MAX_CONCURRENT_PREFETCH && prefetchQueue.length > 0) {
+  while (prefetchEnabled && activePrefetches < MAX_CONCURRENT_PREFETCH && prefetchQueue.length > 0) {
     const videoId = prefetchQueue.shift();
     if (!videoId || readCache(videoId) || inFlight.has(videoId)) continue;
     activePrefetches += 1;
@@ -129,6 +138,7 @@ function drainPrefetchQueue() {
  * paying for a second one.
  */
 export function prefetchStreamInfo(videoId: string | null | undefined) {
+  if (!prefetchEnabled) return;
   if (isLocalMediaId(videoId)) return;
   if (!videoId) return;
   if (readCache(videoId) || inFlight.has(videoId)) return;

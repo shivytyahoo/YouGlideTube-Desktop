@@ -156,12 +156,9 @@ describe("measured speed", () => {
     expect(readMeasuredSpeedKbps()).toBe(Math.round(8389 + (2097 - 8389) * 0.3));
   });
 
-  it("is shared by every profile, because the connection belongs to the computer", () => {
-    window.__YOUGLIDETUBE_PROFILE__ = { id: "study", isDefault: false };
+  it("shares one stored reading across the install, because the connection belongs to the computer", () => {
     recordVideoSegmentSpeed(segment(MB, 1000));
-    window.__YOUGLIDETUBE_PROFILE__ = { id: "", isDefault: true };
     expect(readMeasuredSpeedKbps()).toBe(8389);
-    delete window.__YOUGLIDETUBE_PROFILE__;
   });
 
   it.each([

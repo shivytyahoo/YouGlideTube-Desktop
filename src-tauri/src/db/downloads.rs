@@ -13,6 +13,11 @@ pub struct DownloadRecord {
     pub file_path: String,
     pub thumbnail_url: Option<String>,
     pub duration_seconds: Option<i64>,
+    /// A clip of the video, in milliseconds, when only part of it was saved.
+    #[serde(default)]
+    pub clip_start_ms: Option<i64>,
+    #[serde(default)]
+    pub clip_end_ms: Option<i64>,
     pub quality_label: Option<String>,
     pub file_size_bytes: Option<i64>,
     pub collection_db_id: Option<i64>,
@@ -60,7 +65,7 @@ pub struct DownloadRecord {
 
 // Dynamic queries here only splice this constant and `?` placeholders, never input, so they
 // are safe to pass through `AssertSqlSafe`.
-const SELECT_COLUMNS: &str = "id, video_id, title, author, media_kind, file_path, thumbnail_url, duration_seconds, quality_label, file_size_bytes, collection_db_id, loudness_db, created_at, cover_path, artists_json, album, album_id, album_artist, track_number, track_total, release_date, description, channel_id, container, video_codec, chapters_json, sponsorblock_json, subtitles_json";
+const SELECT_COLUMNS: &str = "id, video_id, title, author, media_kind, file_path, thumbnail_url, duration_seconds, clip_start_ms, clip_end_ms, quality_label, file_size_bytes, collection_db_id, loudness_db, created_at, cover_path, artists_json, album, album_id, album_artist, track_number, track_total, release_date, description, channel_id, container, video_codec, chapters_json, sponsorblock_json, subtitles_json";
 
 /// Inserts a completed download. An earlier download of the same item and kind in
 /// the same place (standalone, or the same collection) is replaced; the replaced
@@ -70,7 +75,6 @@ pub async fn upsert_download(
     pool: &SqlitePool,
     record: &DownloadRecord,
 ) -> AppResult<Vec<DownloadRecord>> {
-    let pool = crate::db::device::pool(pool);
     let mut replaced = Vec::new();
     if let Some(video_id) = record.video_id.as_deref() {
         let scope = "video_id = ? AND media_kind = ? AND collection_db_id IS ?";
@@ -94,9 +98,9 @@ pub async fn upsert_download(
     }
 
     sqlx::query(
-        "INSERT INTO downloads (video_id, title, author, media_kind, file_path, thumbnail_url, duration_seconds, quality_label, file_size_bytes, collection_db_id, loudness_db,
+        "INSERT INTO downloads (video_id, title, author, media_kind, file_path, thumbnail_url, duration_seconds, clip_start_ms, clip_end_ms, quality_label, file_size_bytes, collection_db_id, loudness_db,
              cover_path, artists_json, album, album_id, album_artist, track_number, track_total, release_date, description, channel_id, container, video_codec, chapters_json, sponsorblock_json, subtitles_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&record.video_id)
     .bind(&record.title)
@@ -105,6 +109,8 @@ pub async fn upsert_download(
     .bind(&record.file_path)
     .bind(&record.thumbnail_url)
     .bind(record.duration_seconds)
+    .bind(record.clip_start_ms)
+    .bind(record.clip_end_ms)
     .bind(&record.quality_label)
     .bind(record.file_size_bytes)
     .bind(record.collection_db_id)
@@ -135,7 +141,6 @@ pub async fn downloads_for_collection(
     pool: &SqlitePool,
     collection_db_id: i64,
 ) -> AppResult<Vec<DownloadRecord>> {
-    let pool = crate::db::device::pool(pool);
     let query = format!("SELECT {SELECT_COLUMNS} FROM downloads WHERE collection_db_id = ?");
     sqlx::query_as::<_, DownloadRecord>(AssertSqlSafe(query))
         .bind(collection_db_id)
@@ -145,7 +150,6 @@ pub async fn downloads_for_collection(
 }
 
 pub async fn list_downloads(pool: &SqlitePool) -> AppResult<Vec<DownloadRecord>> {
-    let pool = crate::db::device::pool(pool);
     let query = format!("SELECT {SELECT_COLUMNS} FROM downloads ORDER BY created_at DESC, id DESC");
     sqlx::query_as::<_, DownloadRecord>(AssertSqlSafe(query))
         .fetch_all(pool)
@@ -160,7 +164,6 @@ pub async fn download_by_video_id(
     video_id: &str,
     kinds: &[&str],
 ) -> AppResult<Option<DownloadRecord>> {
-    let pool = crate::db::device::pool(pool);
     let placeholders = vec!["?"; kinds.len().max(1)].join(", ");
     let query = format!(
         "SELECT {SELECT_COLUMNS} FROM downloads WHERE video_id = ? AND media_kind IN ({placeholders}) ORDER BY created_at DESC, id DESC LIMIT 1"
@@ -173,7 +176,6 @@ pub async fn download_by_video_id(
 }
 
 pub async fn downloads_by_ids(pool: &SqlitePool, ids: &[i64]) -> AppResult<Vec<DownloadRecord>> {
-    let pool = crate::db::device::pool(pool);
     if ids.is_empty() {
         return Ok(Vec::new());
     }
@@ -187,7 +189,6 @@ pub async fn downloads_by_ids(pool: &SqlitePool, ids: &[i64]) -> AppResult<Vec<D
 }
 
 pub async fn delete_downloads(pool: &SqlitePool, ids: &[i64]) -> AppResult<()> {
-    let pool = crate::db::device::pool(pool);
     if ids.is_empty() {
         return Ok(());
     }
@@ -202,7 +203,6 @@ pub async fn delete_downloads(pool: &SqlitePool, ids: &[i64]) -> AppResult<()> {
 }
 
 pub async fn clear_downloads(pool: &SqlitePool) -> AppResult<()> {
-    let pool = crate::db::device::pool(pool);
     sqlx::query("DELETE FROM downloads")
         .execute(pool)
         .await
@@ -212,7 +212,6 @@ pub async fn clear_downloads(pool: &SqlitePool) -> AppResult<()> {
 
 /// All distinct `video_id`s with a saved download, for fast "is this downloaded?" checks.
 pub async fn downloaded_video_ids(pool: &SqlitePool) -> AppResult<Vec<String>> {
-    let pool = crate::db::device::pool(pool);
     let rows = sqlx::query("SELECT DISTINCT video_id FROM downloads WHERE video_id IS NOT NULL")
         .fetch_all(pool)
         .await
@@ -269,6 +268,27 @@ mod tests {
         let replaced = upsert_download(&pool, &again).await.unwrap();
         assert_eq!(replaced.len(), 1);
         assert_eq!(replaced[0].file_path, "/music/Song.m4a");
+    }
+
+    #[tokio::test]
+    async fn a_clip_keeps_its_range() {
+        let pool = pool().await;
+        let record = DownloadRecord {
+            duration_seconds: Some(90),
+            clip_start_ms: Some(60_000),
+            clip_end_ms: Some(150_000),
+            ..song(None)
+        };
+        upsert_download(&pool, &record).await.unwrap();
+        let saved = download_by_video_id(&pool, "abc123def45", &["music"])
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(saved.duration_seconds, Some(90));
+        assert_eq!(
+            (saved.clip_start_ms, saved.clip_end_ms),
+            (Some(60_000), Some(150_000))
+        );
     }
 
     #[tokio::test]

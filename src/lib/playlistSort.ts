@@ -6,7 +6,7 @@ import { profileStorage } from "./storage/profileStorage";
 // Mirrors the Android app's PlaylistSorting.
 
 const TIMESTAMP_TOLERANCE_MS = 30 * 60 * 1000;
-const SORT_ORDERS_STORAGE_KEY = "flow_playlist_sort_orders";
+const SORT_ORDERS_STORAGE_KEY = "youglidetube_playlist_sort_orders";
 
 export const PLAYLIST_SORT_ORDERS = [
   "manual",

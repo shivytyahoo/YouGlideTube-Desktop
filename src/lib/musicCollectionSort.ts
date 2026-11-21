@@ -3,7 +3,7 @@ import { artistsText } from "./musicFormat";
 import { profileStorage } from "./storage/profileStorage";
 import type { SongItem } from "../types/music";
 
-const SORT_ORDERS_STORAGE_KEY = "flow_music_collection_sort_orders";
+const SORT_ORDERS_STORAGE_KEY = "youglidetube_music_collection_sort_orders";
 
 export const MUSIC_SORT_ORDERS = ["collection", "newest_added", "title", "artist", "album", "longest", "shortest"] as const;
 

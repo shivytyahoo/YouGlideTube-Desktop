@@ -5,7 +5,7 @@ import type { MusicStreamInfo } from "../types/music";
 const { getMusicStream } = vi.hoisted(() => ({ getMusicStream: vi.fn() }));
 vi.mock("./api/music", () => ({ getMusicStream }));
 
-import { invalidateMusicStream, isResolveTimeout, resolveMusicStream } from "./musicStreamResolution";
+import { invalidateMusicStream, isResolveTimeout, prefetchMusicStream, resolveMusicStream, setMusicPrefetchEnabled } from "./musicStreamResolution";
 
 const info = (url: string) => ({ videoId: "v", audioUrl: url }) as MusicStreamInfo;
 
@@ -65,5 +65,25 @@ describe("music stream resolution", () => {
     await resolveMusicStream("cached-song", "Auto");
     await resolveMusicStream("cached-song", "Auto");
     expect(getMusicStream).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not warm the next track while battery saver is on", async () => {
+    getMusicStream.mockResolvedValue(info("http://next"));
+    try {
+      setMusicPrefetchEnabled(false);
+      prefetchMusicStream("next-song", "Auto");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(getMusicStream).not.toHaveBeenCalled();
+    } finally {
+      setMusicPrefetchEnabled(true);
+    }
+
+    // Playing the track itself still resolves it.
+    await resolveMusicStream("next-song", "Auto");
+    expect(getMusicStream).toHaveBeenCalledTimes(1);
+
+    prefetchMusicStream("following-song", "Auto");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(getMusicStream).toHaveBeenCalledTimes(2);
   });
 });

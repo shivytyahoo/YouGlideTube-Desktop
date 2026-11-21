@@ -234,6 +234,12 @@ export interface MusicPlaylistPage {
   continuation: string | null;
 }
 
+/** One page of the account's YouTube Music library (`FEmusic_library_landing`). */
+export interface MusicLibraryPage {
+  items: YTItem[];
+  continuation: string | null;
+}
+
 export interface RelatedPage {
   sections: RelatedShelf[];
   songs: SongItem[];

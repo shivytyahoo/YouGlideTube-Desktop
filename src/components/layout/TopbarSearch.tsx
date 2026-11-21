@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Loader2, Search, X } from 'lucide-react';
+import { Loader2, Mic, Search, X } from 'lucide-react';
 import { SearchSuggestionsPanel, suggestionOptionId } from '../search/SearchSuggestionsPanel';
 import { resolveChannelId } from '../../lib/api/youtube';
 import { getString } from '../../lib/i18n/index';
@@ -20,6 +20,8 @@ import { useSearchHistoryStore, useVisibleSearchHistory, type SearchHistoryScope
 import { useSettingsSearchStore } from '../../store/useSettingsSearchStore';
 import type { SearchFilterState } from '../../lib/searchFilterState';
 import { useRunSearch } from '../../lib/useRunSearch';
+import { startVoiceSearch, type VoiceSearchHandle } from '../../lib/voiceSearch';
+import { useUiStore } from '../../store/useUiStore';
 
 const SHORTCUT_LABEL = IS_MACOS_RUNTIME ? '⌘K' : 'Ctrl K';
 
@@ -41,6 +43,7 @@ export function TopbarSearch() {
   const deepGlideActive = useAppSettingsStore((s) => s.values[SETTINGS.DEEP_GLIDE_ACTIVE] === 'true');
   const recordSearch = useSearchHistoryStore((s) => s.record);
   const runSearch = useRunSearch();
+  const showToast = useUiStore((s) => s.showToast);
   const removeSearch = useSearchHistoryStore((s) => s.remove);
   const clearHistory = useSearchHistoryStore((s) => s.clear);
   const playQueue = useMusicPlayerStore((s) => s.playQueue);
@@ -51,6 +54,8 @@ export function TopbarSearch() {
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
   const [allHistory, setAllHistory] = useState(false);
+  const [listening, setListening] = useState(false);
+  const voiceRef = useRef<VoiceSearchHandle | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -123,6 +128,33 @@ export function TopbarSearch() {
     close();
     runSearch(query, searchFilters, searchScope);
   };
+
+  // Voice search, Android's RecognizerIntent flow: tap the mic, speak, and the
+  // recognised text runs as a search. Tapping again while listening stops it.
+  // Where the webview exposes no recognizer, the mic says so honestly.
+  const onVoiceSearch = () => {
+    if (isSettingsPage) return;
+    if (listening) {
+      voiceRef.current?.stop();
+      return;
+    }
+    const handle = startVoiceSearch({
+      onTranscript: (spoken) => runTextSearch(spoken),
+      onError: () => showToast({ variant: 'error', message: getString('search_voice_unavailable') }),
+      onEnd: () => {
+        setListening(false);
+        voiceRef.current = null;
+      },
+    });
+    if (!handle) {
+      showToast({ variant: 'error', message: getString('search_voice_unavailable') });
+      return;
+    }
+    voiceRef.current = handle;
+    setListening(true);
+  };
+
+  useEffect(() => () => voiceRef.current?.stop(), []);
 
   const pick = (row: SuggestionRow) => {
     if (row.kind === 'history') return runTextSearch(row.query, useSearchHistoryStore.getState().filtersOf(row.query, searchScope));
@@ -304,6 +336,17 @@ export function TopbarSearch() {
           onChange={(event) => onInputChange(event.target.value)}
           className="h-10 min-w-0 flex-1 bg-transparent text-sm text-chrome-neutral-100 outline-none placeholder:text-chrome-neutral-500"
         />
+        {!isSettingsPage && (
+          <button
+            type="button"
+            aria-label={getString('search_voice_search')}
+            title={getString('search_voice_search')}
+            onClick={onVoiceSearch}
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-chrome-neutral-400 transition-colors hover:bg-surface-container-highest hover:text-chrome-neutral-100"
+          >
+            <Mic className={`h-4 w-4 ${listening ? 'text-chrome-accent' : ''}`} />
+          </button>
+        )}
         {currentValue ? (
           <button
             type="button"

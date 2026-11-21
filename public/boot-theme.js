@@ -1,11 +1,9 @@
-// Paints the active profile's last theme before the app loads, so the first frame after a
-// profile switch (a restart) is already in that profile's colours. ThemeController
-// (src/lib/useTheme.ts) writes the snapshot; the key follows src/lib/storage/profileStorage.ts.
+// Paints the last theme before the app loads, so the first frame is already in the
+// right colours. ThemeController (src/lib/useTheme.ts) writes the snapshot.
 (function () {
   try {
-    var profile = window.__FLOW_PROFILE__;
-    var prefix = profile && profile.id && !profile.isDefault ? "p:" + profile.id + ":" : "";
-    var raw = window.localStorage.getItem(prefix + "flow_boot_theme");
+    var raw = window.localStorage.getItem("youglidetube_boot_theme")
+      || window.localStorage.getItem("flow_boot_theme");
     if (!raw) return;
     var theme = JSON.parse(raw);
     var root = document.documentElement;

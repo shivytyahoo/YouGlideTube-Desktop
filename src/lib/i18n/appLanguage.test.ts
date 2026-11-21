@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const KEY = "flow_app_language";
+const KEY = "youglidetube_app_language";
 
 async function start(tag: string | null) {
   vi.resetModules();

@@ -24,6 +24,8 @@ import { LastRefreshedLine } from "../components/subscriptions/LastRefreshedLine
 import { SubscriptionsManage } from "../components/subscriptions/SubscriptionsManage";
 import { channelCountLabel } from "../lib/channelGroupLabels";
 import { useSubscriptionChannelDetails, useSubscriptionFeed } from "../lib/useSubscriptionFeed";
+import { useServerSubscriptions } from "../lib/useServerSubscriptions";
+import { unsubscribeChannel } from "../lib/accountSubscribe";
 import { useBoolPref, usePreference } from "../lib/usePreference";
 import { useShortsEnabled } from "../lib/useShortsContent";
 import { isVideoOfChannel } from "../lib/subscriptionFeedMerge";
@@ -50,7 +52,6 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
   const loadSubscriptions = useSubscriptionStore((s) => s.loadSubscriptions);
   const loadSubscriptionGroups = useSubscriptionStore((s) => s.loadSubscriptionGroups);
   const loading = useSubscriptionStore((s) => s.loading);
-  const unsubscribe = useSubscriptionStore((s) => s.unsubscribe);
   const subscribe = useSubscriptionStore((s) => s.subscribe);
   const mergeSubscriptions = useSubscriptionStore((s) => s.mergeSubscriptions);
   const createSubscriptionGroup = useSubscriptionStore((s) => s.createSubscriptionGroup);
@@ -61,17 +62,27 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
   const channelPrefsLoaded = useNotificationStore((state) => state.channelPrefsLoaded);
   const loadChannelPreferences = useNotificationStore((state) => state.loadChannelPreferences);
   const setChannelNotification = useNotificationStore((state) => state.setChannelNotification);
+  // Signed in, the feed is the server's (`FEsubscriptions`); signed out,
+  // the local subscriptions and their RSS scan are the fallback.
+  const serverFeed = useServerSubscriptions();
+  const signedIn = serverFeed.status === "signed-in";
   const {
-    videos,
+    videos: localVideos,
     rssChannels,
-    loading: feedLoading,
-    error: feedError,
-    scanProgress,
-    failedChannelIds,
-    lastRefreshedAt,
+    loading: feedLoadingLocal,
+    error: feedErrorLocal,
+    scanProgress: scanProgressLocal,
+    failedChannelIds: failedChannelIdsLocal,
+    lastRefreshedAt: lastRefreshedAtLocal,
     refresh: refreshFeed,
     refreshChannels,
-  } = useSubscriptionFeed(subscriptions);
+  } = useSubscriptionFeed(signedIn ? [] : subscriptions);
+  const videos = signedIn ? serverFeed.videos : localVideos;
+  const feedLoading = signedIn ? serverFeed.loading : feedLoadingLocal;
+  const feedError = signedIn ? serverFeed.error : feedErrorLocal;
+  const scanProgress = signedIn ? null : scanProgressLocal;
+  const failedChannelIds = signedIn ? [] : failedChannelIdsLocal;
+  const lastRefreshedAt = signedIn ? serverFeed.lastLoadedAt : lastRefreshedAtLocal;
   const failedChannelNames = useMemo(
     () =>
       failedChannelIds.map(
@@ -79,7 +90,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
       ),
     [failedChannelIds, subscriptions],
   );
-  const channelDetails = useSubscriptionChannelDetails(subscriptions);
+  const channelDetails = useSubscriptionChannelDetails(signedIn ? [] : subscriptions);
   const showSubscriptionVideos = useAppSettingsStore((state) => state.values[SETTINGS.SUBSCRIPTION_SHOW_VIDEOS] !== "false");
   const shortsEnabled = useShortsEnabled();
   const shortsExcludedChannels = useChannelShortsStore((state) => state.excluded);
@@ -181,6 +192,9 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
   const query = searchQuery.trim().toLowerCase();
 
   const enrichedChannels = useMemo<SubscribedChannel[]>(() => {
+    // Signed in, the rail is the server feed's channels (its own rail, else
+    // the channels of its videos); the local list is the signed-out fallback.
+    if (signedIn) return serverFeed.channels;
     return subscriptions.map((channel) => {
       const details = channelDetails[channel.id];
       return {
@@ -190,7 +204,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
         subscriberCountText: details?.subscriberCountText || channel.subscriberCountText,
       };
     });
-  }, [channelDetails, subscriptions]);
+  }, [signedIn, serverFeed.channels, channelDetails, subscriptions]);
 
   const selectedGroup = useMemo(() => {
     if (!selectedGroupName) return null;
@@ -318,6 +332,10 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                   variant="tonal"
                   disabled={scanProgress != null || feedLoading}
                   onClick={() => {
+                    if (signedIn) {
+                      serverFeed.refresh();
+                      return;
+                    }
                     if (selectedGroup) void refreshChannels(selectedGroup.channelIds);
                     else refreshFeed();
                   }}
@@ -341,7 +359,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
           </div>
         </div>
 
-        {loading && subscriptions.length === 0 ? (
+        {serverFeed.status === "unknown" || (loading && subscriptions.length === 0) ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="animate-spin text-[var(--color-primary)]" size={28} />
           </div>
@@ -457,7 +475,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                 channelNotifications={channelNotifications}
                 onSetNotification={setChannelNotification}
                 onOpenChannel={(channelId) => navigate(`/channel/${channelId}`)}
-                onUnsubscribe={unsubscribe}
+                onUnsubscribe={(channelId) => void unsubscribeChannel(channelId)}
               />
             )}
           </>

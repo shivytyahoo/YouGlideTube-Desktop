@@ -43,6 +43,8 @@ export function Topbar() {
   });
   const googleAccount = useGoogleAccount();
   const [signInOpen, setSignInOpen] = useState(false);
+  const signInDialogOpen = useUiStore((s) => s.signInDialogOpen);
+  const closeSignInDialog = useUiStore((s) => s.closeSignInDialog);
 
   return (
     <header
@@ -161,6 +163,7 @@ export function Topbar() {
           </Button>
         )}
         {signInOpen && <GoogleSignInDialog onClose={() => setSignInOpen(false)} />}
+        {signInDialogOpen && <GoogleSignInDialog onClose={closeSignInDialog} />}
       </div>
     </header>
   );

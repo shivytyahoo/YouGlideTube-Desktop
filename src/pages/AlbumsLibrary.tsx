@@ -15,6 +15,8 @@ import {
   useAlbumLibraryStore,
   type StoredAlbum,
 } from "../store/useAlbumLibraryStore";
+import { useServerMusicLibrary } from "../lib/useServerMusicLibrary";
+import type { PlaylistItem } from "../types/music";
 
 type AlbumFilter = "All" | "Owned" | "Saved";
 type AlbumSort = "Recently Added" | "Oldest" | "A-Z";
@@ -38,6 +40,7 @@ export const AlbumsLibrary: React.FC = () => {
   const loaded = useAlbumLibraryStore((s) => s.loaded);
   const load = useAlbumLibraryStore((s) => s.load);
   const createAlbum = useAlbumLibraryStore((s) => s.createAlbum);
+  const serverLibrary = useServerMusicLibrary();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<AlbumFilter>("All");
@@ -45,6 +48,28 @@ export const AlbumsLibrary: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
+
+  // Signed in, the library comes from the account: Liked Music and the
+  // saved playlists the server holds. Signed out, this page stays local.
+  const showServer =
+    serverLibrary.status === "signed-in" && (filter === "All" || filter === "Saved");
+  const serverPlaylists = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return serverLibrary.playlists.filter(
+      (playlist) => !query || playlist.title.toLowerCase().includes(query),
+    );
+  }, [serverLibrary.playlists, searchQuery]);
+  const likedMusicItem: PlaylistItem = {
+    id: "LM",
+    title: getString("liked_music"),
+    author: null,
+    songCountText: null,
+    thumbnail: null,
+  };
+  const showLikedMusic =
+    showServer &&
+    (!searchQuery.trim() ||
+      getString("liked_music").toLowerCase().includes(searchQuery.trim().toLowerCase()));
 
   useEffect(() => {
     if (!loaded) void load();
@@ -129,7 +154,37 @@ export const AlbumsLibrary: React.FC = () => {
           />
         </div>
 
-        {albums.length === 0 ? (
+        {showServer && (showLikedMusic || serverPlaylists.length > 0) && (
+          <section aria-label={getString("music_library_saved_playlists")}>
+            <h2 className="mb-4 text-lg font-semibold text-chrome-neutral-100">
+              {getString("music_library_saved_playlists")}
+            </h2>
+            <div className="video-grid gap-y-6" style={gridStyle}>
+              {showLikedMusic && (
+                <MusicItemCard
+                  key="liked-music"
+                  variant="playlist"
+                  item={likedMusicItem}
+                  fill
+                  onOpen={() => navigate("/music/playlist/LM")}
+                  onPlay={() => navigate("/music/playlist/LM")}
+                />
+              )}
+              {serverPlaylists.map((playlist) => (
+                <MusicItemCard
+                  key={playlist.id}
+                  variant="playlist"
+                  item={playlist}
+                  fill
+                  onOpen={() => navigate(`/music/playlist/${playlist.id}`)}
+                  onPlay={() => navigate(`/music/playlist/${playlist.id}`)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {albums.length === 0 && !showServer ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-chrome-neutral-800 bg-surface-container-low p-8 py-24 text-center">
             <Disc3 className="mb-4 text-chrome-neutral-600" size={48} />
             <h3 className="font-medium text-chrome-neutral-200">

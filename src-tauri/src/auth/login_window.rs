@@ -3,7 +3,7 @@
 //! app's `WebSignInFlow` (which itself mirrors the Android app's
 //! `GoogleLoginActivity`).
 //!
-//! Flow:
+//! Steps:
 //! 1. "Sign in" opens the window at [`sapisid::LOGIN_URL`].
 //! 2. A background task polls the window's `Webview::cookies()` every 1.5 s.
 //!    `cookies()` is synchronous and **deadlocks on Windows when called from
@@ -29,6 +29,7 @@ use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 use super::sapisid::{self, cookies_to_header, is_signed_in_header};
 use super::session::AuthSession;
+use crate::api::innertube::InnertubeClient;
 
 /// Label of the sign-in window.
 pub const LOGIN_WINDOW_LABEL: &str = "google-sign-in";
@@ -92,8 +93,13 @@ pub fn close_login_window(app: &tauri::AppHandle) {
 
 /// Watches the sign-in window's cookies until a session is proven, the
 /// window is closed, or capturing fails. Runs as a background task; never
-/// call it from a command body.
-pub async fn spawn_sign_in_poll(app: tauri::AppHandle, auth: Arc<AuthSession>) {
+/// call it from a command body. The captured session joins the saved
+/// accounts and becomes active (a second sign-in adds, never replaces).
+pub async fn spawn_sign_in_poll(
+    app: tauri::AppHandle,
+    auth: Arc<AuthSession>,
+    extractor: Arc<InnertubeClient>,
+) {
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(POLL_INTERVAL).await;
@@ -115,7 +121,10 @@ pub async fn spawn_sign_in_poll(app: tauri::AppHandle, auth: Arc<AuthSession>) {
                 continue;
             }
             match auth.sign_in(&header) {
-                Ok(()) => {
+                Ok(_id) => {
+                    // A fresh visitor identity for the new session (Android
+                    // resets visitorData whenever a session applies).
+                    extractor.reset_visitor_identity();
                     // Wipe the login window's cookies so the stored cookie
                     // is the only copy, like Android does. Best-effort:
                     // on Linux this clears the shared WebKit context,

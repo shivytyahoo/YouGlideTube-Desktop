@@ -3,14 +3,14 @@ import { pickSaveFile } from "../dialogs";
 import { exportBackupFile, type BackupFileKind, type ExportResult } from "../api/backup";
 
 const FILE_NAMES: Record<BackupFileKind, (now: number) => string> = {
-  APP_DATA: (now) => `flow_backup_${now}.json`,
-  BRAIN: (now) => `flow_brain_backup_${now}.zip`,
-  MASTER: (now) => `flow_master_backup_${now}.zip`,
+  APP_DATA: (now) => `youglidetube_backup_${now}.json`,
+  BRAIN: (now) => `youglidetube_brain_backup_${now}.zip`,
+  MASTER: (now) => `youglidetube_master_backup_${now}.zip`,
   NEWPIPE_SUBSCRIPTIONS: (now) => `newpipe_subscriptions_${now}.json`,
   WATCH_HISTORY: () => "youglidetube-watch-history.json",
 };
 
-/** The name a save dialog offers; the same stems the Android app uses. */
+/** The name a save dialog offers. */
 export function backupFileName(kind: BackupFileKind, now = Date.now()): string {
   return FILE_NAMES[kind](now);
 }

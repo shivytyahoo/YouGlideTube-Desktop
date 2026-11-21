@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0-beta4 — 2026-11-21
+## 1.0.0 — 2026-11-21
 
 The first desktop release — the YouGlideTube Android app, on the desktop.
 
@@ -13,7 +13,13 @@ The first desktop release — the YouGlideTube Android app, on the desktop.
 - The Android look: the Android logo, the Android onboarding, and glass top bar, sidebar, player controls and mini player
 - Notifications: a bell with an unread badge and an inbox grouped as New, Today, Yesterday, Last 7 days and Earlier, with a check interval you choose
 - Downloads: quality and format choice, multi-audio downloads, subtitles, a lyrics file and tags
+- Download a clip: pick a start and end time and download just that part, for video and audio downloads
 - Search history is saved separately for video and music searches
+- Voice search in video and music search: tap the mic and speak to search, where the device supports it
+- Music recognition: hold the mic to a song and the app identifies it, then plays it or searches for it
+- The Android launch intro: the logo ring and tagline animate when the app opens, skipped when battery saver is on
+- Battery saver in Settings: animations, glass and previews off — the fastest, lightest app
+- Settings are grouped the Android way, with a System theme in Appearance that follows your OS, and the sidebar's Library section is now called Library
 - The app's local engines are gone: the desktop app works from Google and YouTube servers like the Android app does — no on-device recommendation, music or sync engines, no local profiles
 - Imports from YouGlideTube backups, Google Takeout, NewPipe, LibreTube, FreeTube and OPML
 - Small on Linux: the optimized `.deb` is 21.73 MiB, about 56 MB installed

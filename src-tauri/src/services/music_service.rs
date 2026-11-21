@@ -11,6 +11,7 @@ use sqlx::SqlitePool;
 
 use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::music::client::record_public_cache_hit;
+use crate::api::innertube::music::endpoints;
 use crate::db::music_content;
 use crate::errors::AppResult;
 use crate::models::music::{
@@ -18,8 +19,9 @@ use crate::models::music::{
     YTItem,
 };
 use crate::models::music_pages::{
-    AlbumPage, MoodGenrePage, MusicHomePage, MusicPlaylistPage, MusicSearchResponse,
-    MusicSearchSuggestions, QueuePage, RelatedPage, RelatedShelfType, SearchSummaryPage,
+    AlbumPage, MoodGenrePage, MusicHomePage, MusicLibraryPage, MusicPlaylistPage,
+    MusicSearchResponse, MusicSearchSuggestions, QueuePage, RelatedPage, RelatedShelfType,
+    SearchSummaryPage,
 };
 use crate::models::music_stream::{MusicAudioQuality, MusicStreamInfo};
 
@@ -357,6 +359,39 @@ impl MusicService {
         self.client.music_search_suggestions(query).await
     }
 
+    // --- Library (account) ------------------------------------------------
+    /// One page of the account's YouTube Music library. The library is the
+    /// account's own, so it is never served from the public graph cache.
+    pub async fn library(
+        &self,
+        continuation: Option<&str>,
+    ) -> AppResult<MusicLibraryPage> {
+        self.client.music_library_page(continuation).await
+    }
+
+    /// The account's Liked Music, always fresh: it is the server state the
+    /// like toggles write to, so a cached copy would lie after a toggle.
+    pub async fn liked_music(&self) -> AppResult<MusicPlaylistPage> {
+        self.playlist(endpoints::LIKED_MUSIC_PLAYLIST_ID, Freshness::Network)
+            .await
+    }
+
+    /// Likes or unlikes one song on the account.
+    pub async fn set_liked(&self, video_id: &str, liked: bool) -> AppResult<()> {
+        self.client.set_music_liked(video_id, liked).await
+    }
+
+    /// Saves or unsaves a playlist in the account library.
+    pub async fn set_playlist_saved(
+        &self,
+        playlist_id: &str,
+        saved: bool,
+    ) -> AppResult<()> {
+        self.client
+            .set_music_playlist_saved(playlist_id, saved)
+            .await
+    }
+
     // --- Album / Artist / Playlist ---------------------------------------
     pub async fn album(&self, browse_id: &str, freshness: Freshness) -> AppResult<AlbumPage> {
         self.graph_page(
@@ -397,6 +432,13 @@ impl MusicService {
         playlist_id: &str,
         freshness: Freshness,
     ) -> AppResult<MusicPlaylistPage> {
+        // Liked Music is the account's own like state, never a public page:
+        // it is always fetched fresh, so a like toggle shows on the next open.
+        let freshness = if endpoints::unvl(playlist_id) == endpoints::LIKED_MUSIC_PLAYLIST_ID {
+            Freshness::Network
+        } else {
+            freshness
+        };
         self.graph_page(
             GraphSource {
                 kind: "playlist",

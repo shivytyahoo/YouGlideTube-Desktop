@@ -3,13 +3,11 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { getCurrent, onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import { listen } from "@tauri-apps/api/event";
 import { sessionStore } from "./storage/profileStorage";
-import { holdLinkForNextProfile, takeHeldLink } from "./api/profiles";
 import { takeLaunchLink } from "./api/tray";
-import { useProfilesStore } from "../store/useProfilesStore";
 
 import { getVideoDetails, resolveChannelId } from "./api/youtube";
 import { getMusicQueue, getMusicWatchQueue } from "./api/music";
-import { handoffToOpen, parseDeepLinkUrl, type Handoff } from "./flowHandoff";
+import { handoffToOpen, parseDeepLinkUrl, type Handoff } from "./youglideHandoff";
 import { playLinkedPlaylist } from "./linkedPlaylist";
 import { addWatchRecord } from "./api/db";
 import { shouldRecordWatchHistory } from "./deepGlide";
@@ -197,13 +195,6 @@ export function useDeepLinkHandoff() {
   acceptRef.current = (raw: string) => {
     const handoff = parseDeepLinkUrl(raw);
     if (!handoff) return;
-    // During a profile switch the link belongs to the next profile, not this dying process.
-    if (useProfilesStore.getState().switchingTo) {
-      void holdLinkForNextProfile(raw).then((held) => {
-        if (!held) acceptRef.current(raw);
-      });
-      return;
-    }
     pendingRef.current = handoff;
     flush();
   };
@@ -221,7 +212,7 @@ export function useDeepLinkHandoff() {
     // original handoff — bouncing the user back into the player or re-opening the
     // download dialog. sessionStorage is cleared on a real relaunch, so the next
     // genuine cold start is still handled.
-    const COLD_START_KEY = "flow_handoff_cold_start_done";
+    const COLD_START_KEY = "youglidetube_handoff_cold_start_done";
     if (!sessionStore.getItem(COLD_START_KEY)) {
       sessionStore.setItem(COLD_START_KEY, "1");
       void getCurrent()
@@ -231,11 +222,6 @@ export function useDeepLinkHandoff() {
         })
         .catch(() => {});
     }
-    void takeHeldLink()
-      .then((url) => {
-        if (url) acceptRef.current(url);
-      })
-      .catch(() => {});
     void takeLaunchLink().then((url) => {
       if (url) acceptRef.current(url);
     });

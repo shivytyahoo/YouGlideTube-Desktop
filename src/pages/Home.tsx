@@ -17,8 +17,7 @@ import {
   NEW_TO_YOU_CHIP,
   RECENT_CHIP,
   WATCHED_CHIP,
-  interestChipKey,
-  interestChipLabel,
+  serverChipKey,
   useHomeChips,
   visibleHomeMixes,
   visibleChipKeys,
@@ -64,7 +63,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   const chipOptions = useMemo(() => {
     const labels = new Map([
       [ALL_CHIP, getString("home_chip_all")],
-      ...chips.chips.interests.map((chip): [string, string] => [interestChipKey(chip), interestChipLabel(chip)]),
+      ...chips.chips.serverChips.map((chip): [string, string] => [serverChipKey(chip.label), chip.label]),
       [NEW_TO_YOU_CHIP, getString("home_chip_new_to_you")],
       [RECENT_CHIP, getString("home_chip_recently_uploaded")],
       [MIXES_CHIP, getString("home_chip_mixes")],

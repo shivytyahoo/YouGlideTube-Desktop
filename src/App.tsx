@@ -22,17 +22,16 @@ import { useStartupSubscriptionRefresh } from "./lib/useStartupSubscriptionRefre
 import { useImageProxyBootstrap } from "./lib/useImageProxy";
 import { WATCH_LATER_PLAYLIST_ID } from "./lib/playlistLibrary";
 import type { VideoSummary } from "./types/video";
-import { useProfileSwitchListener } from "./lib/profiles/useProfileSwitchListener";
-import { markSwitching } from "./store/useProfilesStore";
-import { ProfileSwitchPanel } from "./components/profiles/ProfileSwitchPanel";
-import { takeSwitchingTo } from "./lib/profiles/switchProfile";
 
 import { PageWrapper } from "./components/layout/PageWrapper";
 import { TitleBar } from "./components/layout/TitleBar";
+import { LaunchIntro } from "./components/LaunchIntro";
 
 import Home from "./pages/Home";
 import MusicHome from "./pages/music/MusicHome";
 import MusicBrowsePage from "./pages/music/MusicBrowsePage";
+import MusicSearchPage from "./pages/music/MusicSearchPage";
+import MusicRecognitionPage from "./pages/music/MusicRecognitionPage";
 import MusicMoodsPage from "./pages/music/MusicMoodsPage";
 import ArtistPage from "./pages/music/ArtistPage";
 import ArtistItemsPage from "./pages/music/ArtistItemsPage";
@@ -95,6 +94,10 @@ import { useActiveTabTitle } from "./lib/tabs/useActiveTabTitle";
 import { useTabSession } from "./lib/tabs/useTabSession";
 import { useSingleTabWhenOff } from "./lib/tabs/useSingleTabWhenOff";
 import { useMediaCommands } from "./lib/useMediaCommands";
+import { applyBatterySaverClass } from "./lib/batterySaver";
+import { useBatterySaver } from "./lib/useBatterySaver";
+import { setStreamPrefetchEnabled } from "./lib/streamResolution";
+import { setMusicPrefetchEnabled } from "./lib/musicStreamResolution";
 import { useCrossWindowSync } from "./lib/useCrossWindowSync";
 import { IS_MAIN_WINDOW } from "./lib/appWindow";
 import { SelectionMenu } from "./components/common/SelectionMenu";
@@ -129,12 +132,29 @@ function App() {
   useSingleTabWhenOff();
   useCrossWindowSync();
   useMediaCommands();
-  useProfileSwitchListener(markSwitching);
 
   // Onboarding belongs to the main window; an extra window only exists once it is done.
   const [loadingOnboarding, setLoadingOnboarding] = useState(IS_MAIN_WINDOW);
-  // A switch restarts the app; keep its "Switching to …" up until this profile is ready.
-  const [arrivedFrom] = useState(() => (IS_MAIN_WINDOW ? takeSwitchingTo() : null));
+
+  // The cold-start brand moment (as on Android): a pure overlay above the
+  // shell, main window only, skipped when the user prefers reduced motion
+  // or has battery saver on. The app underneath keeps loading; the intro
+  // never gates content.
+  const batterySaver = useBatterySaver();
+  const [showIntro, setShowIntro] = useState(
+    () => IS_MAIN_WINDOW && !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+
+  // Battery saver (Android's first settings row): glass goes solid, the
+  // speculative stream prefetches stop, and the launch intro is skipped.
+  // The setting defaults to off and loads from SQLite with the rest of the
+  // settings, so a stored "on" lands a beat after first paint — the intro
+  // hides itself the moment it arrives.
+  useEffect(() => {
+    applyBatterySaverClass(batterySaver);
+    setStreamPrefetchEnabled(!batterySaver);
+    setMusicPrefetchEnabled(!batterySaver);
+  }, [batterySaver]);
 
   useEffect(() => {
     void useFeedActionsStore.getState().load();
@@ -193,11 +213,7 @@ function App() {
         <ThemeController />
         <TitleBar />
         <div className="flex flex-1 items-center justify-center">
-          {arrivedFrom ? (
-            <ProfileSwitchPanel profile={arrivedFrom} />
-          ) : (
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          )}
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
       </div>
     );
@@ -222,6 +238,8 @@ function App() {
             } />
             <Route path="music/moods" element={<MusicMoodsPage />} />
             <Route path="music/browse" element={<MusicBrowsePage />} />
+            <Route path="music/search" element={<MusicSearchPage />} />
+            <Route path="music/recognition" element={<MusicRecognitionPage />} />
             <Route path="music/artist/:artistId" element={
               <ArtistPage />
             } />
@@ -346,6 +364,7 @@ function App() {
       <KeyboardHelpHost />
       <ConfirmHost />
       <ToastHost />
+      {showIntro && <LaunchIntro batterySaver={batterySaver} onDone={() => setShowIntro(false)} />}
     </div>
   );
 }

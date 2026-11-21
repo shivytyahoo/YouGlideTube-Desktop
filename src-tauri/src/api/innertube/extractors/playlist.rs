@@ -75,27 +75,58 @@ fn first_page_item_lists(val: &Value) -> Vec<&Vec<Value>> {
 /// A first page carries its items under `contents`; later pages carry them only in
 /// a continuation action, with `contents` left as an empty shell. A list's token
 /// only counts when that list held videos, so a stray token in another section is
-/// not mistaken for the playlist's next page.
-fn extract_videos_from_playlist_browse(val: &Value) -> (Vec<VideoSummary>, Option<String>) {
+/// not mistaken for the playlist's next page. The set-video id rides alongside
+/// each video: the server needs it to remove that entry (`ACTION_REMOVE_VIDEO`).
+pub(crate) fn extract_playlist_browse_parts(
+    val: &Value,
+) -> (Vec<VideoSummary>, Vec<Option<String>>, Option<String>) {
     let mut items = Vec::new();
+    let mut set_ids = Vec::new();
     let mut next_page_token = None;
     let lists = continuation_item_lists(val)
         .into_iter()
         .chain(first_page_item_lists(val));
     for list in lists {
         let before = items.len();
-        items.extend(list.iter().filter_map(video_from_playlist_item));
+        for item in list {
+            if let Some(video) = video_from_playlist_item(item) {
+                set_ids.push(set_video_id_of(item));
+                items.push(video);
+            }
+        }
         if items.len() > before
             && let Some(token) = last_continuation_token(list)
         {
             next_page_token = Some(token);
         }
     }
-    (items, next_page_token)
+    (items, set_ids, next_page_token)
+}
+
+fn extract_videos_from_playlist_browse(val: &Value) -> (Vec<VideoSummary>, Option<String>) {
+    let (videos, _, token) = extract_playlist_browse_parts(val);
+    (videos, token)
+}
+
+/// The entry id of one playlist row: the classic row's `setVideoId`, else the
+/// lockup tap target's `playlistSetVideoId` when the server sent one.
+fn set_video_id_of(item: &Value) -> Option<String> {
+    let item = item.get("richItemRenderer").map_or(item, |r| &r["content"]);
+    item["playlistVideoRenderer"]["setVideoId"]
+        .as_str()
+        .filter(|id| !id.is_empty())
+        .map(ToOwned::to_owned)
+        .or_else(|| {
+            item["lockupViewModel"]["rendererContext"]["commandContext"]["onTap"]
+                ["innertubeCommand"]["watchEndpoint"]["playlistSetVideoId"]
+                .as_str()
+                .filter(|id| !id.is_empty())
+                .map(ToOwned::to_owned)
+        })
 }
 
 /// Neither Shorts layout carries a channel, duration, or publish date.
-fn video_summary_from_short(short: ShortVideoSummary) -> VideoSummary {
+pub(crate) fn video_summary_from_short(short: ShortVideoSummary) -> VideoSummary {
     VideoSummary {
         thumbnail_url: short
             .thumbnail_url
@@ -126,7 +157,7 @@ fn extract_text_from_runs_or_simple(value: &Value) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
-fn extract_playlist_title(res: &Value) -> String {
+pub(crate) fn extract_playlist_title(res: &Value) -> String {
     let header = &res["header"];
 
     let title_candidates = [

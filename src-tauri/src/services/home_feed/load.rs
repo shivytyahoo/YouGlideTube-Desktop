@@ -1,4 +1,4 @@
-//! One Home load, from the Android app's `HomeViewModel.loadFlowFeed`: wave 1 (three discovery
+//! One Home load, from the Android app's home-feed loader: wave 1 (three discovery
 //! searches and the related lane), the first page from local stores and those, then after paint
 //! the remaining searches, saved-interest related videos, a subscription top-up, channel memory
 //! and neighbour refreshes, each slipped in below what the viewer sees.
@@ -21,11 +21,12 @@ use super::sources::{
     channel_uploads, refresh_subscription_store, rotating_window, subscription_window_size,
 };
 use super::{HomeFeedService, cache, channel_memory, kind_checks, neighbours, now_ms};
+use crate::api::innertube::extractors::server_feed::ServerFeedPage;
 use crate::services::youtube_service::YoutubeService;
 
 const WAVE1_QUERIES: usize = 3;
-/// The discovery searches, in order: a fixed starter list (the engine's own empty-brain fallback).
-/// There is no server-browse home feed in this codebase.
+/// The discovery searches, in order: the fallback when the server home feed answers with
+/// nothing (the engine's own empty-brain fallback before it).
 pub(super) const STARTER_QUERIES: [&str; 5] = ["Music", "Science", "Technology", "Education", "Nature"];
 const MAX_RELATED_SEEDS: usize = 4;
 const MAX_SAVED_SEEDS: usize = 5;
@@ -145,7 +146,10 @@ impl HomeFeedService {
         let yt = app.state::<YoutubeService>();
         let pool = app.state::<SqlitePool>();
         let now = now_ms();
-        let wave1 = self.start_discovery();
+        // The server home feed is the discovery lane's primary source; the
+        // starter searches only run when it answers with nothing.
+        let server_home = self.server_home_page(&yt).await;
+        let wave1 = self.start_discovery(server_home.is_some());
         let Ok(inputs) = Inputs::load(&pool, now).await else {
             self.settle_without_feed(app, generation, Some(LOCAL_DATA_FAILED));
             return;
@@ -163,7 +167,7 @@ impl HomeFeedService {
             self.search_all(&yt, &wave1, now),
             self.related_lane(&yt, &pool, &inputs, now)
         );
-        let nothing_reached = searches_failed && related.is_empty();
+        let nothing_reached = searches_failed && related.is_empty() && server_home.is_none();
 
         let taste = TasteProfile::default();
         let followed = inputs.boosted_channels();
@@ -177,13 +181,44 @@ impl HomeFeedService {
             raw_neighbours,
         } = local_sources(&pool, &inputs, &followed, now).await;
         let query_of = queries_by_id(&searches);
+        let server_cards: Vec<Card> = server_home
+            .as_ref()
+            .map(|page| {
+                page.videos
+                    .iter()
+                    .chain(&page.shorts)
+                    .map(|video| Card::from_summary(video.clone(), now))
+                    .collect()
+            })
+            .unwrap_or_default();
         let lanes = lanes::build(
-            Raw::new(&store, &searches, raw_memory, related, raw_neighbours, now),
+            Raw::new(
+                &store,
+                server_cards,
+                &searches,
+                raw_memory,
+                related,
+                raw_neighbours,
+                now,
+            ),
             &inputs,
             &inputs.seen,
             &taste,
             now,
         );
+        // New neighbours arrive from this load's server feed and related
+        // lane; the lane itself reads the store, so they show from the
+        // next load on.
+        self.seed_neighbours(
+            &pool,
+            &inputs,
+            &neighbour_store,
+            &remembered,
+            &server_home,
+            &lanes.related,
+            now,
+        )
+        .await;
         let on_screen: HashSet<String> = self
             .snapshot()
             .cards
@@ -209,6 +244,7 @@ impl HomeFeedService {
             &neighbour_list,
             seed_titles_of(&lanes.related, &related_seeds, &mix),
             query_of,
+            &mix.server_ids,
         );
         // Shorts run to three minutes, so a card this long that no source called a Short is the
         // one place a Short could still get through.
@@ -251,9 +287,65 @@ impl HomeFeedService {
         );
     }
 
+    /// One page of the server home feed, when it answers with videos:
+    /// the signed-in account's personal feed, or the generic feed when
+    /// signed out. Records its chips and continuation for the chips row
+    /// and load-more. `None` on any failure or an empty page — the load
+    /// falls back to the starter searches then.
+    async fn server_home_page(&self, yt: &YoutubeService) -> Option<ServerFeedPage> {
+        let page = yt.browse_home_feed(None, None).await.ok()?;
+        if page.videos.is_empty() && page.shorts.is_empty() {
+            return None;
+        }
+        self.store_server_page(&page);
+        Some(page)
+    }
+
+    /// Channels from this load's server feed and related lane worth
+    /// seeding as neighbours, with their feed videos as uploads: the
+    /// neighbour lane only ever served rows already in the store, so
+    /// without this it slowly empties. Only channels the viewer does not
+    /// already follow, remember or have stored — and never a blocked or
+    /// suppressed one — with recent, playable uploads.
+    #[allow(clippy::too_many_arguments)]
+    async fn seed_neighbours(
+        &self,
+        pool: &SqlitePool,
+        inputs: &Inputs,
+        neighbour_store: &HashMap<String, neighbours::Stored>,
+        remembered: &[channel_memory::Remembered],
+        server_home: &Option<ServerFeedPage>,
+        related: &[GraphCandidate],
+        now: u64,
+    ) {
+        let followed_all = inputs.subscriptions.ids();
+        let mut excluded: HashSet<&str> = followed_all.iter().map(String::as_str).collect();
+        excluded.extend(inputs.blocked_channels.iter().map(String::as_str));
+        excluded.extend(inputs.suppressed_channels.keys().map(String::as_str));
+        excluded.extend(remembered.iter().map(|r| r.channel_id.as_str()));
+        excluded.extend(neighbour_store.keys().map(String::as_str));
+        let seeds = neighbours::pick_new_neighbours(
+            server_home.as_ref(),
+            related,
+            &excluded,
+            now,
+        );
+        for (channel_id, name, uploads) in seeds {
+            let _ = neighbours::save_uploads(pool, &channel_id, &name, &uploads, now).await;
+        }
+    }
+
     /// A refresh starts the discovery tree at its roots; returns the searches of wave 1.
-    fn start_discovery(&self) -> Vec<String> {
+    /// When the server feed answered, there are no searches to start: the
+    /// discovery lane is the server page, and load-more pages it.
+    fn start_discovery(&self, server_first: bool) -> Vec<String> {
         self.inner.search_pages.reset();
+        if server_first {
+            let mut discovery = self.inner.discovery.lock().unwrap();
+            discovery.queries = Vec::new();
+            discovery.next = 0;
+            return Vec::new();
+        }
         let queries: Vec<String> = STARTER_QUERIES.iter().map(|q| (*q).to_string()).collect();
         let wave1: Vec<String> = queries.iter().take(WAVE1_QUERIES).cloned().collect();
         let mut discovery = self.inner.discovery.lock().unwrap();
@@ -972,6 +1064,7 @@ fn layout(
     neighbour_list: &[neighbours::Neighbour],
     seed_titles: HashMap<String, String>,
     query_of: HashMap<String, String>,
+    server_ids: &HashSet<String>,
 ) -> (Vec<Card>, HashMap<String, Origin>, HashSet<String>) {
     let source_of = &mix.source_of;
     let laid_out = space_by_channel(
@@ -1012,6 +1105,7 @@ fn layout(
         queries: query_of,
         followed: Some(followed),
         neighbour_pointers: pointers,
+        server: server_ids.clone(),
     }
     .origins(&laid_out);
     (laid_out, origins, related_picks)

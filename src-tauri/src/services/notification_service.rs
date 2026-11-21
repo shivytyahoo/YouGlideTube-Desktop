@@ -22,6 +22,7 @@ const MAX_NATIVE_TOASTS: usize = 8;
 const KEY_SUBSCRIPTIONS: &str = "subscriptions";
 const KEY_CHANNEL_NOTIFICATIONS: &str = "subscription_notifications";
 const KEY_MASTER_ENABLED: &str = "notifications_enabled";
+const KEY_NOTIFY_NEW_VIDEOS: &str = "notif_new_videos_enabled";
 const KEY_INTERVAL_MINUTES: &str = "notif_check_interval_minutes";
 const KEY_SHORTS_CONTENT: &str = "shorts_content_enabled";
 const KEY_SUBSCRIPTION_SHORTS: &str = "subscription_show_shorts";
@@ -274,6 +275,12 @@ pub async fn poll_subscriptions(app: &AppHandle, pool: &sqlx::SqlitePool) -> App
                 Err(error) => tracing::warn!(%error, "Subscription channel check failed"),
             }
         }
+    }
+
+    // New-video alerts off: the watermarks above already moved, so nothing is
+    // announced now and re-enabling does not flood the inbox with the backlog.
+    if !setting_is_on(pool, KEY_NOTIFY_NEW_VIDEOS).await {
+        return Ok(0);
     }
 
     deliver(app, pool, &pending).await

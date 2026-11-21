@@ -1,6 +1,7 @@
 //! The lyrics disk cache, one `lyrics/<videoId>.json` file per song in app data as on Android,
 //! and the synced lyrics written next to a downloaded song.
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use sqlx::SqlitePool;
@@ -137,6 +138,17 @@ pub async fn save_download_lyrics(
     if tokio::fs::metadata(&record.file_path).await.is_err() {
         return Ok(false);
     }
+    // A clipped song's lyrics are the clip's lyrics: timed lines shift to the
+    // clip start, lines before it are dropped, and a clip with no timed lines
+    // left saves nothing. Plain (unsynced) lyrics pass through untouched —
+    // they carry no timing to shift.
+    let lrc = match (record.clip_start_ms, record.clip_end_ms) {
+        (Some(start_ms), Some(end_ms)) => match shift_lrc(&lrc, start_ms, end_ms) {
+            Some(shifted) => shifted,
+            None => return Ok(false),
+        },
+        _ => lrc,
+    };
     let media_path = Path::new(&record.file_path);
     let wants_file = crate::db::settings::get_setting(&pool, LYRICS_FILE_KEY)
         .await
@@ -152,6 +164,93 @@ pub async fn save_download_lyrics(
         tracing::warn!(video_id = %video_id, %error, "Could not embed lyrics into a download");
     }
     Ok(true)
+}
+
+/// Shifts synced `[mm:ss.xx]` lyric lines into a clip: lines before the clip
+/// are dropped, the rest move so the clip starts at zero. Metadata tags
+/// (`[ti:…]`, `[ar:…]`) and untimed lines pass through. `None` when the lyrics
+/// had timed lines and none survived the clip; plain lyrics (no timed lines at
+/// all) come back unchanged.
+fn shift_lrc(lrc: &str, clip_start_ms: i64, clip_end_ms: i64) -> Option<String> {
+    let mut out = String::new();
+    let mut timed = 0_usize;
+    let mut kept = 0_usize;
+    for line in lrc.lines() {
+        let trimmed = line.trim_start();
+        let Some(tag) = trimmed.strip_prefix('[') else {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        };
+        let Some(close) = tag.find(']') else {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        };
+        let Some(ms) = lrc_time_ms(&tag[..close]) else {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        };
+        timed += 1;
+        if ms < clip_start_ms || ms >= clip_end_ms {
+            continue;
+        }
+        kept += 1;
+        let _ = write!(
+            out,
+            "[{}]{}",
+            format_lrc_time(ms - clip_start_ms),
+            &trimmed[close + 2..]
+        );
+        out.push('\n');
+    }
+    if timed > 0 && kept == 0 {
+        return None;
+    }
+    Some(out)
+}
+
+/// `[mm:ss.xx]` / `[mm:ss]` / `[hh:mm:ss.xx]` → milliseconds. `None` for
+/// metadata tags like `[ti:…]`.
+fn lrc_time_ms(content: &str) -> Option<i64> {
+    let parts: Vec<&str> = content.split(':').collect();
+    match parts.as_slice() {
+        [minutes, seconds] => Some(
+            minutes.parse::<i64>().ok()? * 60_000 + parse_lrc_seconds(seconds)?,
+        ),
+        [hours, minutes, seconds] => Some(
+            hours.parse::<i64>().ok()? * 3_600_000
+                + minutes.parse::<i64>().ok()? * 60_000
+                + parse_lrc_seconds(seconds)?,
+        ),
+        _ => None,
+    }
+}
+
+fn parse_lrc_seconds(value: &str) -> Option<i64> {
+    match value.split_once('.') {
+        Some((seconds, fraction)) => {
+            let seconds = seconds.parse::<i64>().ok()?;
+            let mut fraction = fraction.to_string();
+            while fraction.len() < 3 {
+                fraction.push('0');
+            }
+            let millis = fraction[..3].parse::<i64>().ok()?;
+            Some(seconds * 1000 + millis)
+        }
+        None => value.parse::<i64>().ok().map(|seconds| seconds * 1000),
+    }
+}
+
+fn format_lrc_time(ms: i64) -> String {
+    let total_seconds = ms / 1000;
+    format!(
+        "{:02}:{:02}.{:02}",
+        total_seconds / 60,
+        total_seconds % 60,
+        (ms % 1000) / 10
+    )
 }
 
 /// True when the text has at least one `[mm:ss…]` time tag.
@@ -182,7 +281,7 @@ mod tests {
 
     #[tokio::test]
     async fn the_cache_size_counts_every_file() {
-        let dir = std::env::temp_dir().join(format!("flow-lyrics-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("youglidetube-lyrics-test-{}", std::process::id()));
         let _ = tokio::fs::remove_dir_all(&dir).await;
         assert_eq!(dir_size(&dir).await, 0);
         write_atomically(&dir.join("aaaaaaaaaaa.json"), "[1]")
@@ -200,5 +299,27 @@ mod tests {
     fn oversized_lyrics_are_refused() {
         assert!(check_size("x").is_ok());
         assert!(check_size(&"x".repeat(MAX_LYRICS_BYTES + 1)).is_err());
+    }
+
+    #[test]
+    fn clip_shifts_synced_lyrics_to_the_clip_start() {
+        let lrc = "[ti:Song]\n[ar:M83]\n[00:12.30]Waiting in a car\n[01:05.00]Inside the clip\n[02:00.00]After the clip\n";
+        let shifted = shift_lrc(lrc, 60_000, 70_000).expect("a line survives");
+        assert!(shifted.contains("[ti:Song]\n[ar:M83]\n"));
+        assert!(shifted.contains("[00:05.00]Inside the clip\n"));
+        assert!(!shifted.contains("Waiting in a car"));
+        assert!(!shifted.contains("After the clip"));
+    }
+
+    #[test]
+    fn a_clip_with_no_timed_lines_saves_nothing() {
+        let lrc = "[00:12.30]Waiting in a car\n";
+        assert!(shift_lrc(lrc, 60_000, 70_000).is_none());
+    }
+
+    #[test]
+    fn plain_lyrics_have_no_timing_to_shift() {
+        let lrc = "[ar:M83]\nWaiting in a car\n";
+        assert_eq!(shift_lrc(lrc, 60_000, 70_000).as_deref(), Some(lrc));
     }
 }

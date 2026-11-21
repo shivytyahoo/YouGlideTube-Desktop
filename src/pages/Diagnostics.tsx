@@ -46,7 +46,7 @@ export const Diagnostics: React.FC = () => {
   const handleSave = async () => {
     if (!hasLogs) return;
     try {
-      const defaultName = `flow_logs_${new Date().toISOString().slice(0, 10)}.log`;
+      const defaultName = `youglidetube_logs_${new Date().toISOString().slice(0, 10)}.log`;
       const savePath = await pickSaveFile(getString("diagnostics_save"), defaultName, [
         { name: "Log", extensions: ["log", "txt"] },
       ]);

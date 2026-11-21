@@ -1,5 +1,5 @@
 {
-  "name": "flow-desktop-updater-signing",
+  "name": "youglidetube-desktop-updater-signing",
   "private": true,
   "description": "The only tool the updater signing jobs install.",
   "dependencies": {

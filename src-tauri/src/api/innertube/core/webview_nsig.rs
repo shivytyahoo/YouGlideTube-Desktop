@@ -67,12 +67,12 @@ pub const SOLVE_PAGE_HTML: &str = r#"<!doctype html>
     var name = urlClass(source);
     if (!name) { fail('n-solving URL class not found'); return; }
     try {
-      (0, eval)(source + '\n;window.__flowPlayer = _yt_player;');
+      (0, eval)(source + '\n;window.__youglidePlayer = _yt_player;');
     } catch (e) {
       // A late initializer can throw after every class is defined; only a
       // missing class below is fatal.
     }
-    var UrlClass = window.__flowPlayer && window.__flowPlayer[name];
+    var UrlClass = window.__youglidePlayer && window.__youglidePlayer[name];
     if (typeof UrlClass !== 'function') { fail('player class unavailable'); return; }
     var results = {};
     try {

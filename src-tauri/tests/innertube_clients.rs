@@ -33,7 +33,7 @@ fn web_family_does_carry_a_botguard_token() {
     let body = WEB.player_body("vid", Some("visitor"), Some("a-botguard-token"));
     assert_eq!(
         body["serviceIntegrityDimensions"]["poToken"], "a-botguard-token",
-        "WEB is the one family Flow can attest, so it must send the token"
+        "WEB is the one family this client can attest, so it must send the token"
     );
     assert!(
         body["context"].get("serviceIntegrityDimensions").is_none(),
@@ -146,7 +146,7 @@ fn signature_timestamp_is_sent_only_where_the_client_asks_for_it() {
     assert!(ANDROID_VR.signature_timestamp().is_none());
     assert!(
         IOS.signature_timestamp().is_none(),
-        "Flow for Android's IOS sends none either"
+        "the iOS client sends none either"
     );
     assert_eq!(
         WEB.signature_timestamp(),

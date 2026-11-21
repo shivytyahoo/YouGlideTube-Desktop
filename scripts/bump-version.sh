@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # macOS/Linux port of bump-version.ps1: sets the app version in package.json,
-# src-tauri/tauri.conf.json, src-tauri/Cargo.toml and the "flow" entry of
+# src-tauri/tauri.conf.json, src-tauri/Cargo.toml and the "youglidetube" entry of
 # src-tauri/Cargo.lock, which scripts/verify-release-version.mjs requires to match.
 # Usage: scripts/bump-version.sh [VERSION] [--dry-run] [--yes]
 set -euo pipefail
@@ -36,7 +36,7 @@ patterns=(
     '("version"\s*:\s*")([^"]+)(")'
     '("version"\s*:\s*")([^"]+)(")'
     '^(version = ")([^"]+)(")'
-    '(name = "flow"\r?\nversion = ")([^"]+)(")'
+    '(name = "youglidetube"\r?\nversion = ")([^"]+)(")'
 )
 
 read_version() {
@@ -47,7 +47,7 @@ write_version() {
     PATTERN="$2" VERSION="$3" perl -0pi -e 's/$ENV{PATTERN}/$1$ENV{VERSION}$3/m' "$repo_root/$1"
 }
 
-echo "Flow Desktop - version bump"
+echo "YouGlideTube - version bump"
 echo
 
 current_version=""

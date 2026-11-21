@@ -1,5 +1,5 @@
-// Builds Tauri updater manifests from signed packages. The nightly and release
-// manifests share this; they differ only in file names, versions and URLs.
+// Builds Tauri updater manifests from signed packages for the release
+// updater. Manifests differ only in file names, versions and URLs.
 
 export const ARCH = { x64: "x86_64", amd64: "x86_64", x86_64: "x86_64", arm64: "aarch64", aarch64: "aarch64" };
 export const BUNDLE = {

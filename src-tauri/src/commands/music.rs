@@ -20,8 +20,9 @@ use crate::models::music::{
     MoodAndGenreItem, SongItem,
 };
 use crate::models::music_pages::{
-    AlbumPage, CachedMusicHomePage, MoodGenrePage, MusicHomePage, MusicPlaylistPage,
-    MusicSearchResponse, MusicSearchSuggestions, QueuePage, RelatedPage, SearchSummaryPage,
+    AlbumPage, CachedMusicHomePage, MoodGenrePage, MusicHomePage, MusicLibraryPage,
+    MusicPlaylistPage, MusicSearchResponse, MusicSearchSuggestions, QueuePage, RelatedPage,
+    SearchSummaryPage,
 };
 use crate::models::music_stream::{MusicAudioQuality, MusicStreamInfo};
 use crate::security::validation::{validate_search_query, validate_video_id};
@@ -262,6 +263,51 @@ pub async fn get_music_playlist_continuation(
         .playlist_continuation(&continuation)
         .await
         .map_err(ErrorResponse::from)
+}
+
+// --- Library (account) ----------------------------------------------------
+///
+/// The account's YouTube Music library, as Android's `MusicSessionLibrary`
+/// seeds it: the saved playlists and albums from `FEmusic_library_landing`,
+/// the Liked Music (`LM`) playlist, and the server like writes behind the
+/// local like/save toggles. All four require sign-in; signed out, the
+/// frontend falls back to the local library.
+
+#[tauri::command]
+pub async fn get_music_library(
+    continuation: Option<String>,
+    music: State<'_, MusicService>,
+) -> CmdResult<MusicLibraryPage> {
+    music.library(continuation.as_deref()).await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn get_liked_music(music: State<'_, MusicService>) -> CmdResult<MusicPlaylistPage> {
+    music.liked_music().await.map_err(ErrorResponse::from)
+}
+
+#[tauri::command]
+pub async fn set_music_liked(
+    video_id: String,
+    liked: bool,
+    music: State<'_, MusicService>,
+) -> CmdResult<bool> {
+    validate_video_id(&video_id).map_err(ErrorResponse::from)?;
+    music.set_liked(&video_id, liked).await.map_err(ErrorResponse::from)?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn set_music_playlist_saved(
+    playlist_id: String,
+    saved: bool,
+    music: State<'_, MusicService>,
+) -> CmdResult<bool> {
+    music
+        .set_playlist_saved(&playlist_id, saved)
+        .await
+        .map_err(ErrorResponse::from)?;
+    Ok(true)
 }
 
 // --- Watch / queue / lyrics ----------------------------------------------

@@ -9,7 +9,6 @@ import { pickFolder } from '../../../lib/dialogs';
 import { getString } from '../../../lib/i18n/index';
 import { usePreference } from '../../../lib/usePreference';
 import { SETTINGS } from '../../../lib/settings/schema';
-import { useProfilesStore } from '../../../store/useProfilesStore';
 import { useUiStore } from '../../../store/useUiStore';
 
 const OUTCOME_MESSAGES: Record<BackUpOutcome, { message: Parameters<typeof getString>[0]; variant: 'success' | 'error' }> = {
@@ -21,7 +20,6 @@ const OUTCOME_MESSAGES: Record<BackUpOutcome, { message: Parameters<typeof getSt
 
 export function AutoBackupGroup() {
   const showToast = useUiStore((state) => state.showToast);
-  const profileCount = useProfilesStore((state) => state.view?.profiles.length ?? 1);
   const [frequency, setFrequency] = usePreference(SETTINGS.AUTO_BACKUP_FREQUENCY, 'NONE');
   const [backupType, setBackupType] = usePreference(SETTINGS.AUTO_BACKUP_TYPE, 'APP_DATA');
   const [folder, setFolder] = usePreference(SETTINGS.AUTO_BACKUP_FOLDER, '');
@@ -55,7 +53,7 @@ export function AutoBackupGroup() {
       </SettingItem>
       <SettingItem
         title={getString('settings_backup_scope')}
-        description={profileCount > 1 ? getString('settings_backup_all_profiles') : scopeDescriptions[backupType] ?? getString('settings_backup_scope_desc')}
+        description={scopeDescriptions[backupType] ?? getString('settings_backup_scope_desc')}
       >
         <Select value={backupType} onChange={setBackupType} options={[
           { value: 'APP_DATA', label: getString('settings_backup_scope_app_data') }, { value: 'BRAIN', label: getString('settings_backup_scope_brain') }, { value: 'MASTER', label: getString('settings_backup_scope_master') },

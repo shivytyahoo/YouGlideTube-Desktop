@@ -15,16 +15,16 @@ describe("volumeCurve", () => {
   it("converts an old saved gain once, so the level does not change", () => {
     localStorage.setItem("flow_music_player", JSON.stringify({ volume: 0.25, isMuted: false }));
     migrateSavedMusicVolume();
-    expect(JSON.parse(localStorage.getItem("flow_music_player")!)).toEqual({ volume: 0.5, isMuted: false });
+    expect(JSON.parse(localStorage.getItem("youglidetube_music_player")!)).toEqual({ volume: 0.5, isMuted: false });
 
     migrateSavedMusicVolume();
-    expect(JSON.parse(localStorage.getItem("flow_music_player")!).volume).toBe(0.5);
+    expect(JSON.parse(localStorage.getItem("youglidetube_music_player")!).volume).toBe(0.5);
   });
 
   it("marks a fresh install as converted", () => {
     migrateSavedMusicVolume();
-    localStorage.setItem("flow_music_player", JSON.stringify({ volume: 0.25 }));
+    localStorage.setItem("youglidetube_music_player", JSON.stringify({ volume: 0.25 }));
     migrateSavedMusicVolume();
-    expect(JSON.parse(localStorage.getItem("flow_music_player")!).volume).toBe(0.25);
+    expect(JSON.parse(localStorage.getItem("youglidetube_music_player")!).volume).toBe(0.25);
   });
 });

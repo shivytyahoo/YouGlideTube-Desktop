@@ -211,7 +211,7 @@ fn rewrite_moov(
         0
     };
     let shifted = shift_chunk_offsets(&new_moov, delta)?;
-    let staged = path.with_extension("retag.flowpart");
+    let staged = path.with_extension("retag.youglidetube-part");
     let result = rebuild(
         path,
         &staged,

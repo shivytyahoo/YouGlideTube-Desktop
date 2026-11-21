@@ -6,9 +6,15 @@ vi.mock("../lib/api/db", () => ({
   getSetting: async (key: string) => settings.get(key) ?? null,
   setSetting: (key: string, value: string) => setSetting(key, value),
 }));
-vi.mock("../lib/api/music", () => ({ getMusicQueue: vi.fn() }));
+vi.mock("../lib/api/music", () => ({ getMusicQueue: vi.fn(), setMusicLiked: (...args: [string, boolean]) => setMusicLiked(...args) }));
+const getAccountSignedIn = vi.fn(async () => false);
+const setMusicLiked = vi.fn(async (_videoId: string, _liked: boolean) => true);
+vi.mock("../lib/api/account", () => ({
+  getAccountSignedIn: () => getAccountSignedIn(),
+}));
 
 import { useLikesStore, type LikedItem } from "./useLikesStore";
+import type { SongItem } from "../types/music";
 
 const like = (id: string, likedAt: string): LikedItem => ({ kind: "video", id, likedAt, video: { id, title: id, channelName: "c" } });
 const newer = like("newer", "2026-02-01T00:00:00.000Z");
@@ -39,5 +45,51 @@ describe("useLikesStore many at once", () => {
   it("does not duplicate on restore", async () => {
     await useLikesStore.getState().restore([older]);
     expect(ids()).toEqual(["newer", "older"]);
+  });
+});
+
+describe("useLikesStore toggleSong", () => {
+  const song: SongItem = {
+    id: "vid00000001",
+    videoId: "vid00000001",
+    title: "Test Song",
+    artists: [],
+    album: null,
+    duration: null,
+    musicVideoType: "MUSIC_VIDEO_TYPE_ATV",
+    thumbnail: "",
+    explicit: false,
+    playlistId: null,
+    params: null,
+    viewsText: null,
+  };
+
+  beforeEach(() => {
+    setSetting.mockClear();
+    settings.clear();
+    getAccountSignedIn.mockResolvedValue(false);
+    setMusicLiked.mockClear();
+    useLikesStore.setState({ items: [], loaded: true });
+  });
+
+  it("writes the like to the account when signed in", async () => {
+    getAccountSignedIn.mockResolvedValue(true);
+    const nowLiked = await useLikesStore.getState().toggleSong(song);
+    expect(nowLiked).toBe(true);
+    expect(useLikesStore.getState().isLikedSong(song)).toBe(true);
+    expect(setMusicLiked).toHaveBeenCalledWith("vid00000001", true);
+  });
+
+  it("keeps the local like when the account refuses it", async () => {
+    getAccountSignedIn.mockResolvedValue(true);
+    setMusicLiked.mockRejectedValueOnce(new Error("nope"));
+    const nowLiked = await useLikesStore.getState().toggleSong(song);
+    expect(nowLiked).toBe(true);
+    expect(useLikesStore.getState().isLikedSong(song)).toBe(true);
+  });
+
+  it("never calls the account when signed out", async () => {
+    await useLikesStore.getState().toggleSong(song);
+    expect(setMusicLiked).not.toHaveBeenCalled();
   });
 });

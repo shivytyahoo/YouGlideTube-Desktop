@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { onBeforeProfileSwitch } from "./profiles/beforeSwitch";
 
 import { useLocalMediaStore } from "../store/useLocalMediaStore";
 import { useMusicPlayerStore } from "../store/useMusicPlayerStore";
@@ -42,10 +41,8 @@ export function useMusicListenHistory() {
   useEffect(() => {
     const flush = () => musicListens.flush();
     window.addEventListener("beforeunload", flush);
-    const offSwitch = onBeforeProfileSwitch(flush);
     return () => {
       window.removeEventListener("beforeunload", flush);
-      offSwitch();
     };
   }, []);
 }

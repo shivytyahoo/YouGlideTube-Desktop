@@ -7,20 +7,23 @@ import {
   RECENT_CHIP,
   WATCHED_CHIP,
   chipToRestore,
-  interestChipLabel,
+  serverChipKey,
   visibleChipKeys,
   visibleHomeMixes,
 } from "./useHomeChips";
 
-const chess = { key: "chess", label: "Chess", topics: ["chess"], category: null, parts: [] };
+const serverChips = [
+  { label: "All", params: null },
+  { label: "Music", params: "EgZtdXNpYw%3D%3D" },
+  { label: "Gaming", params: null },
+];
 
-const chips = (overrides = {}) => ({ interests: [chess], hasMixes: true, hasWatched: true, empty: [], ...overrides });
+const chips = (overrides = {}) => ({ hasMixes: true, hasWatched: true, empty: [], serverChips: [], ...overrides });
 
 describe("visibleChipKeys", () => {
   it("keeps Android's order", () => {
     expect(visibleChipKeys(chips(), ALL_CHIP)).toEqual([
       ALL_CHIP,
-      "interest:chess",
       NEW_TO_YOU_CHIP,
       RECENT_CHIP,
       MIXES_CHIP,
@@ -31,33 +34,43 @@ describe("visibleChipKeys", () => {
 
   it("leaves out Mixes and Watched until they can be filled, and chips that came back empty", () => {
     const keys = visibleChipKeys(chips({ hasMixes: false, hasWatched: false, empty: [LIVE_CHIP] }), ALL_CHIP);
-    expect(keys).toEqual([ALL_CHIP, "interest:chess", NEW_TO_YOU_CHIP, RECENT_CHIP]);
+    expect(keys).toEqual([ALL_CHIP, NEW_TO_YOU_CHIP, RECENT_CHIP]);
   });
 
   it("never takes away the chosen chip", () => {
     expect(visibleChipKeys(chips({ empty: [LIVE_CHIP] }), LIVE_CHIP)).toContain(LIVE_CHIP);
     expect(visibleChipKeys(chips({ hasWatched: false }), WATCHED_CHIP)).toContain(WATCHED_CHIP);
   });
+
+  it("puts the server chips after All, without a second All", () => {
+    expect(visibleChipKeys(chips({ serverChips }), ALL_CHIP)).toEqual([
+      ALL_CHIP,
+      "server:Music",
+      "server:Gaming",
+      NEW_TO_YOU_CHIP,
+      RECENT_CHIP,
+      MIXES_CHIP,
+      LIVE_CHIP,
+      WATCHED_CHIP,
+    ]);
+  });
+
+  it("never takes away the chosen server chip, even when it came back empty", () => {
+    const key = serverChipKey("Music");
+    expect(visibleChipKeys(chips({ serverChips, empty: [key] }), key)).toContain(key);
+  });
 });
 
 describe("chipToRestore", () => {
-  it("keeps a fixed chip and an interest that is still a chip", () => {
+  it("keeps a fixed chip", () => {
     expect(chipToRestore(RECENT_CHIP, chips())).toBe(RECENT_CHIP);
-    expect(chipToRestore("interest:chess", chips())).toBe("interest:chess");
     expect(chipToRestore(MIXES_CHIP, chips())).toBe(MIXES_CHIP);
   });
 
   it("falls back to All when the chip left", () => {
-    expect(chipToRestore("interest:bread", chips())).toBe(ALL_CHIP);
     expect(chipToRestore(WATCHED_CHIP, chips({ hasWatched: false }))).toBe(ALL_CHIP);
-  });
-});
-
-describe("interestChipLabel", () => {
-  it("names a theme after its category and any other chip after its topic", () => {
-    expect(interestChipLabel(chess)).toBe("Chess");
-    expect(interestChipLabel({ ...chess, key: "theme:gaming", category: "gaming" })).toBe("Gaming");
-    expect(interestChipLabel({ ...chess, key: "theme:science", category: "science" })).toBe("Science & tech");
+    expect(chipToRestore(serverChipKey("Music"), chips())).toBe(ALL_CHIP);
+    expect(chipToRestore(serverChipKey("Music"), chips({ serverChips }))).toBe(serverChipKey("Music"));
   });
 });
 

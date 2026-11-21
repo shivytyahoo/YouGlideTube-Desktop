@@ -20,7 +20,7 @@ const ENDPOINT = "https://artwork.boidu.dev/";
 const CATALOG_SEARCH = "https://itunes.apple.com/search";
 const CATALOG_RESULTS = 25;
 // Misses saved before other releases were searched are left behind, so those albums are asked again.
-const CACHE_KEY = "flow_animated_artwork_v2";
+const CACHE_KEY = "youglidetube_animated_artwork_v2";
 const OLD_CACHE_KEY = "flow_animated_artwork";
 const CACHE_LIMIT = 300;
 const FOUND_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -148,13 +148,13 @@ function readCache(): Record<string, CachedLoop> {
   if (!oldCacheDropped) {
     oldCacheDropped = true;
     try {
-      profileStorage.removeItem(OLD_CACHE_KEY, "device");
+      profileStorage.removeItem(OLD_CACHE_KEY);
     } catch {
       // Only space; nothing reads it.
     }
   }
   try {
-    const parsed: unknown = JSON.parse(profileStorage.getItem(CACHE_KEY, "device") ?? "{}");
+    const parsed: unknown = JSON.parse(profileStorage.getItem(CACHE_KEY) ?? "{}");
     return parsed && typeof parsed === "object" ? (parsed as Record<string, CachedLoop>) : {};
   } catch {
     return {};
@@ -165,7 +165,7 @@ function writeCache(key: string, url: string | null, now: number): void {
   try {
     const entries = Object.entries({ ...readCache(), [key]: { url, at: now } });
     const kept = entries.sort(([, a], [, b]) => b.at - a.at).slice(0, CACHE_LIMIT);
-    profileStorage.setItem(CACHE_KEY, JSON.stringify(Object.fromEntries(kept)), "device");
+    profileStorage.setItem(CACHE_KEY, JSON.stringify(Object.fromEntries(kept)));
   } catch (error) {
     console.warn("Failed to remember animated artwork", error);
   }
@@ -175,7 +175,7 @@ function writeCache(key: string, url: string | null, now: number): void {
 export function forgetArtworkLoop(song: SongItem): void {
   try {
     const { [artworkKey(song)]: _dropped, ...rest } = readCache();
-    profileStorage.setItem(CACHE_KEY, JSON.stringify(rest), "device");
+    profileStorage.setItem(CACHE_KEY, JSON.stringify(rest));
   } catch (error) {
     console.warn("Failed to forget animated artwork", error);
   }

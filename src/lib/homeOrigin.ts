@@ -13,6 +13,8 @@ export function homeOriginLabel(origin: HomeOrigin): string {
       return detail ? getString("home_origin_search", detail) : getString("home_origin_search_unnamed");
     case "channelMemory":
       return getString("home_origin_channel_memory");
+    case "server":
+      return getString("home_origin_server");
     case "neighbour": {
       const names = (detail ?? "").split("|").filter(Boolean);
       if (names.length === 0) return getString("home_origin_neighbour_unnamed");

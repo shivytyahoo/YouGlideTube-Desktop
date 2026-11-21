@@ -29,8 +29,8 @@ describe("changelog", () => {
 
   it("bundles the real changelog files", async () => {
     const releases = await loadChangelog();
-    expect(releases.length).toBeGreaterThanOrEqual(4);
-    expect(releases.map((item) => item.version)).toContain("0.1.0-beta3");
+    expect(releases.length).toBe(1);
+    expect(releases.map((item) => item.version)).toContain("1.0.0");
     expect(releases.every((item) => item.sections.length > 0)).toBe(true);
   });
 });

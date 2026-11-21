@@ -235,6 +235,7 @@ fn write_clusters(
     let mut cluster_start: Option<i64> = None;
     let mut cluster_offset = 0_u64;
     let mut last_ms = vec![(0_i64, 0_i64); inputs.len()];
+    let mut packet_counts = vec![0_usize; inputs.len()];
 
     loop {
         if cancelled.load(Ordering::Relaxed) {
@@ -250,6 +251,7 @@ fn write_clusters(
             break;
         };
         let packet = next[index].take().expect("the chosen packet is present");
+        packet_counts[index] += 1;
         let track = index as u64 + 1;
         let timestamp_ms = i64::try_from(packet.timestamp_ns / 1_000_000)
             .map_err(|_| "Matroska timestamp is outside the supported range".to_string())?
@@ -298,6 +300,12 @@ fn write_clusters(
         next[index] = inputs[index].packets.next_packet()?;
     }
     flush_cluster(output, &mut cluster)?;
+
+    // A track that yielded nothing would leave a file with an empty track,
+    // which plays as a broken download; the MP4 writer refuses the same.
+    if packet_counts.iter().any(|count| *count == 0) {
+        return Err("The finished file has a track with no frames".into());
+    }
 
     // The length runs to the end of the latest frame: its start plus the gap before it.
     let duration_ms = last_ms
@@ -452,7 +460,7 @@ const TAIL_BYTES: u64 = 4 * 1024 * 1024;
 
 /// The `YOUGLIDETUBE_*` tags of a Matroska file, by lowercased name without the prefix. Only the end
 /// of the file is read, since the clusters before it can be gigabytes.
-pub fn read_flow_tags(path: &Path) -> Result<HashMap<String, String>, String> {
+pub fn read_youglidetube_tags(path: &Path) -> Result<HashMap<String, String>, String> {
     let io = |error: std::io::Error| format!("Could not read the file: {error}");
     let mut file = File::open(path).map_err(io)?;
     let len = file.seek(SeekFrom::End(0)).map_err(io)?;
@@ -460,16 +468,16 @@ pub fn read_flow_tags(path: &Path) -> Result<HashMap<String, String>, String> {
         .map_err(io)?;
     let mut tail = Vec::new();
     file.read_to_end(&mut tail).map_err(io)?;
-    Ok(flow_tags_in_tail(&tail))
+    Ok(youglidetube_tags_in_tail(&tail))
 }
 
-fn flow_tags_in_tail(tail: &[u8]) -> HashMap<String, String> {
+fn youglidetube_tags_in_tail(tail: &[u8]) -> HashMap<String, String> {
     // A cover's bytes can happen to look like the Tags id, so the last match holding tags wins.
     for at in (0..tail.len().saturating_sub(TAGS_ID.len())).rev() {
         if tail[at..].starts_with(&TAGS_ID) {
             let mut fields = HashMap::new();
             if let Some((body, _)) = ebml_body(&tail[at + TAGS_ID.len()..]) {
-                collect_flow_tags(body, &mut fields);
+                collect_youglidetube_tags(body, &mut fields);
             }
             if !fields.is_empty() {
                 return fields;
@@ -495,7 +503,7 @@ fn ebml_body(bytes: &[u8]) -> Option<(&[u8], &[u8])> {
     (size <= rest.len()).then(|| rest.split_at(size))
 }
 
-fn collect_flow_tags(mut bytes: &[u8], fields: &mut HashMap<String, String>) {
+fn collect_youglidetube_tags(mut bytes: &[u8], fields: &mut HashMap<String, String>) {
     let (mut name, mut value) = (None, None);
     while let Some(first) = bytes.first() {
         let id_len = usize::try_from(first.leading_zeros()).unwrap_or(8) + 1;
@@ -506,7 +514,7 @@ fn collect_flow_tags(mut bytes: &[u8], fields: &mut HashMap<String, String>) {
             return;
         };
         if id == TAG_ID || id == SIMPLE_TAG_ID {
-            collect_flow_tags(body, fields);
+            collect_youglidetube_tags(body, fields);
         } else if id == TAG_NAME_ID {
             name = Some(String::from_utf8_lossy(body).into_owned());
         } else if id == TAG_STRING_ID {
@@ -535,11 +543,11 @@ fn attachments_element(cover: &[u8]) -> MatroskaSpec {
 
 #[cfg(test)]
 mod tests {
-    use super::{EmbeddedMetadata, TAGS_ID, encode, flow_tags_in_tail, tags_element};
+    use super::{EmbeddedMetadata, TAGS_ID, encode, youglidetube_tags_in_tail, tags_element};
     use super::{HEAD_BYTES, sized_header, void_element};
 
     #[test]
-    fn the_flow_tags_read_back_from_the_tail() {
+    fn the_youglidetube_tags_read_back_from_the_tail() {
         let metadata = EmbeddedMetadata {
             tags: crate::commands::downloads::tags::DownloadTags {
                 video_id: "dQw4w9WgXcQ".into(),
@@ -552,7 +560,7 @@ mod tests {
         let mut tail = vec![0xAB; 64];
         tail.extend(encode(&tags_element(&metadata)).expect("encodes"));
         tail.extend([0xFF; 32]);
-        let fields = flow_tags_in_tail(&tail);
+        let fields = youglidetube_tags_in_tail(&tail);
         assert_eq!(
             fields.get("videoid").map(String::as_str),
             Some("dQw4w9WgXcQ")
@@ -564,10 +572,10 @@ mod tests {
 
     #[test]
     fn a_tail_without_tags_or_with_a_broken_size_reads_as_nothing() {
-        assert!(flow_tags_in_tail(&[0xAB; 128]).is_empty());
+        assert!(youglidetube_tags_in_tail(&[0xAB; 128]).is_empty());
         let mut broken = TAGS_ID.to_vec();
         broken.extend([0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
-        assert!(flow_tags_in_tail(&broken).is_empty());
+        assert!(youglidetube_tags_in_tail(&broken).is_empty());
     }
 
     #[test]

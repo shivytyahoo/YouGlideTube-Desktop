@@ -1,16 +1,13 @@
 # Maintainer: shivyt
 
 pkgname=youglidetube-desktop
-pkgver=0.1.0beta3
+pkgver=1.0.0
 pkgrel=1
-# Release tags are v0.1.0-beta3 or v0.1.0; pkgver can't hold a "-".
+# Release tags are v1.0.0 (or v1.0.0-beta1 for a beta); pkgver can't hold a "-".
 _tag=${pkgver/beta/-beta}
 _tag=${_tag/rc/-rc}
 pkgdesc='YouTube and YouTube Music desktop client with Google sign-in'
 arch=('x86_64' 'aarch64')
-# TODO(step 4): the fork's GitHub repo does not exist yet. When the user
-# creates it, set _github_repo to "owner/repo" — every URL and directory
-# below derives from it.
 _github_repo='shivytyahoo/YouGlideTube-Desktop'
 _repo="${_github_repo##*/}"
 url="https://github.com/$_github_repo"

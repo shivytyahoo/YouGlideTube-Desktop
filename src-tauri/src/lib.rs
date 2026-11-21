@@ -25,7 +25,6 @@ mod macos_dock;
 #[cfg(target_os = "macos")]
 mod macos_window;
 pub mod models;
-pub mod profiles;
 mod recap;
 mod relaunch;
 mod scrobble;
@@ -39,18 +38,21 @@ mod web_process;
 #[cfg(any(windows, test))]
 mod webview2;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::Manager;
 
 use api::innertube::InnertubeClient;
 use commands::auth::{
-    cancel_google_sign_in, get_account_info, get_auth_status, sign_in_with_cookie, sign_out,
-    start_google_sign_in,
+    add_account, cancel_google_sign_in, get_account_info, get_auth_status, list_accounts,
+    remove_account, sign_in_with_cookie, sign_out, start_google_sign_in, switch_account,
+};
+use commands::account::{
+    clear_server_history, get_server_history, get_server_home_feed, get_server_subscriptions,
+    get_watch_later, merge_watch_history, set_channel_subscribed, set_video_watch_later,
 };
 use commands::app_window::{AppWindowSession, AppWindowState, app_window_session, open_app_window};
-use commands::backup::{
-    export_backup_data, import_backup_data, import_profile_backup, profiles_restore_master,
-};
+use commands::backup::{export_backup_data, import_backup_data};
 use commands::db::{
     add_watch_record, add_watch_records_bulk, block_channel, clear_watch_history,
     delete_short_watch_records, delete_watch_record, get_music_history, get_setting,
@@ -83,16 +85,16 @@ use commands::media_keys::{
     global_media_keys_set, global_media_keys_supported, system_output_watch,
 };
 use commands::music::{
-    get_cached_music_home_page, get_music_album_continuation, get_music_album_page,
-    get_music_artist_items, get_music_artist_page, get_music_captions_lrc, get_music_charts_page,
-    get_music_explore_page, get_music_home_page,
+    get_cached_music_home_page, get_liked_music, get_music_album_continuation,
+    get_music_album_page, get_music_artist_items, get_music_artist_page, get_music_captions_lrc,
+    get_music_charts_page, get_music_explore_page, get_music_home_page, get_music_library,
     get_music_lyrics_typed, get_music_mood_genre, get_music_mood_groups, get_music_moods,
     get_music_new_releases, get_music_playlist_continuation, get_music_playlist_page,
     get_music_queue, get_music_queue_continuation, get_music_related_typed,
     get_music_request_diagnostics, get_music_search_suggestions, get_music_search_summary,
     get_music_stream, get_music_trending_songs, get_music_watch_queue, image_proxy_base,
     lyrics_http_get, proxy_artwork_loop, proxy_image_url, romanize_lyrics,
-    search_music_continuation, search_music_typed,
+    search_music_continuation, search_music_typed, set_music_liked, set_music_playlist_saved,
 };
 use commands::music_queue::{
     clear_music_queue_state, get_music_resume_position, load_music_queue_state,
@@ -113,11 +115,7 @@ use commands::pip::{
     pip_session, pip_window_ready, set_pip_always_on_top,
 };
 use commands::process::relaunch_app;
-use commands::profiles::{
-    profiles_cancel_switch, profiles_create, profiles_delete, profiles_hold_link, profiles_list,
-    profiles_prepare_switch, profiles_rename, profiles_set_ask_whos_watching, profiles_set_look,
-    profiles_set_photo, profiles_switch, profiles_take_held_link, profiles_take_launch_question,
-};
+use commands::recognition::recognize_song;
 use commands::scrobble::{
     scrobble_flush, scrobble_listened, scrobble_love, scrobble_now_playing,
     scrobble_retry_keychain, scrobble_set_own_key, scrobble_sign_in, scrobble_sign_out,
@@ -208,6 +206,11 @@ fn init_tracing(
     guard
 }
 
+/// Tauri's `app_data_dir()` rule, available before the app is built.
+fn app_data_dir(identifier: &str) -> Option<PathBuf> {
+    dirs::data_dir().map(|dir| dir.join(identifier))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Resolve the embedded config up front so the Linux startup workarounds can
@@ -215,7 +218,7 @@ pub fn run() {
     // GTK/WebKitGTK init (which happens in `.build()` below).
     let context = tauri::generate_context!();
     relaunch::capture_launch_env();
-    let crash_folder = profiles::app_data_dir(context.config().identifier.as_str())
+    let crash_folder = app_data_dir(context.config().identifier.as_str())
         .map(|dir| services::crash_report::folder(&dir));
     if let Some(folder) = &crash_folder {
         services::crash_report::install_hook(
@@ -224,18 +227,8 @@ pub fn run() {
         );
     }
 
-    // The profile must be known before the builder registers anything that opens a store.
-    let (active_profile, profile_warning) =
-        match profiles::app_data_dir(context.config().identifier.as_str()) {
-            Some(dir) => profiles::load_for_process(&dir),
-            None => (
-                profiles::ActiveProfile::fallback_default(),
-                Some("no app data folder for the profile registry".to_string()),
-            ),
-        };
-
     // Before any window opens, since the web view holds its cache while it runs.
-    if let Some(dir) = profiles::app_data_dir(context.config().identifier.as_str()) {
+    if let Some(dir) = app_data_dir(context.config().identifier.as_str()) {
         let cache_dirs = cache_usage::artwork_cache_dirs(
             context.config().identifier.as_str(),
             context.config().product_name.as_deref().unwrap_or_default(),
@@ -339,12 +332,22 @@ pub fn run() {
     }
 
     builder
-        .plugin(profiles::webview_plugin(&active_profile))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        // Microphone for Shazam-style music recognition: the recognition page
+        // records 12s from the mic through getUserMedia, as Android's
+        // AudioRecorder does. The webviews only ever load this app's own
+        // frontend (the Google sign-in window never asks for the mic), so
+        // allowing the request here only ever serves that one user action.
+        .on_permission_request(|_, kind| match kind {
+            tauri::webview::PermissionKind::Microphone => {
+                tauri::webview::PermissionResponse::Allow
+            }
+            _ => tauri::webview::PermissionResponse::Default,
+        })
         .setup(move |app| {
             // Resolve the app data dir first so file logging is live before any
             // other setup step can fail — otherwise an early failure would leave
@@ -362,35 +365,11 @@ pub fn run() {
                 app.manage(std::sync::Mutex::new(guard));
             }
 
-            tracing::info!(
-                profile = %active_profile.id,
-                default = active_profile.is_default,
-                after_switch = active_profile.after_switch,
-                "profile"
-            );
-            if let Some(warning) = &profile_warning {
-                tracing::warn!("{warning}");
-            }
-            if profiles::app_data_dir(&app.config().identifier).as_ref() != Some(&app_data_dir) {
-                tracing::warn!(
-                    "profile registry folder differs from the app data folder {}",
-                    app_data_dir.display()
-                );
-            }
             app.manage(services::crash_report::CrashReports::new(
                 crash_folder
                     .clone()
                     .unwrap_or_else(|| services::crash_report::folder(&app_data_dir)),
             ));
-            app.manage(active_profile.clone());
-            app.manage(services::profile_service::ProfileService::new(
-                app_data_dir.clone(),
-                active_profile.clone(),
-            ));
-            let retry_dir = app_data_dir.clone();
-            tauri::async_runtime::spawn_blocking(move || {
-                services::profile_service::retry_keychain_deletes(&retry_dir);
-            });
 
             // Report which Linux GPU/Wayland workaround tier this launch applied,
             // so it appears in bug reports. `prior_failed_boots > 0` means the
@@ -442,10 +421,10 @@ pub fn run() {
             let mut extractor_client = InnertubeClient::new();
             extractor_client.set_auth(google_auth.clone());
             let extractor = Arc::new(extractor_client);
-            // Each profile has its own YouTube visitor identity; a new one is fetched on first open.
-            let profile_root = active_profile.root(&app_data_dir);
-            std::fs::create_dir_all(&profile_root)?;
-            extractor.keep_identity_in(profile_root.join("visitor_identity.json"));
+            // The YouTube visitor identity lives in the app data folder; a new one is
+            // fetched on first open.
+            std::fs::create_dir_all(&app_data_dir)?;
+            extractor.keep_identity_in(app_data_dir.join("visitor_identity.json"));
             let youtube_service = YoutubeService::new(extractor.clone());
             let link_resolver = commands::youtube::link_resolver(youtube_service.clone());
             app.manage(youtube_service);
@@ -460,11 +439,15 @@ pub fn run() {
             });
 
             // Initialize SQLite database
-            let pool = tauri::async_runtime::block_on(profiles::open_database(
-                &app_data_dir,
-                &active_profile,
+            let pool = tauri::async_runtime::block_on(db::initialize_database(
+                app_data_dir.clone(),
             ))
-            .map_err(|error| Box::new(std::io::Error::new(std::io::ErrorKind::Other, error)))?;
+            .map_err(|error| {
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    error.to_string(),
+                ))
+            })?;
 
             for key in commands::db::BACKEND_SETTINGS {
                 let value = tauri::async_runtime::block_on(db::settings::get_setting(&pool, key))
@@ -477,10 +460,7 @@ pub fn run() {
             app.manage(pool.clone());
             let scrobbler = Arc::new(scrobble::scrobbler::Scrobbler::new(
                 pool.clone(),
-                Arc::new(scrobble::credentials::ProfileScoped::new(
-                    scrobble::credentials::keychain(),
-                    &active_profile,
-                )),
+                Arc::new(scrobble::credentials::keychain()),
             ));
             scrobble::worker::spawn(Arc::clone(&scrobbler));
             app.manage(scrobbler);
@@ -512,7 +492,7 @@ pub fn run() {
             local_media::scanner::scan_at_launch(
                 local_media_scanner,
                 app.handle().clone(),
-                db::device::pool(&pool).clone(),
+                pool.clone(),
             );
             app.manage(PlayerFullscreenState::default());
             app.manage(PipState::default());
@@ -654,23 +634,22 @@ pub fn run() {
             set_setting,
             get_auth_status,
             get_account_info,
+            get_server_subscriptions,
+            get_server_home_feed,
+            set_channel_subscribed,
+            get_server_history,
+            merge_watch_history,
+            clear_server_history,
+            get_watch_later,
+            set_video_watch_later,
             start_google_sign_in,
             cancel_google_sign_in,
             sign_in_with_cookie,
             sign_out,
-            profiles_list,
-            profiles_create,
-            profiles_rename,
-            profiles_set_look,
-            profiles_set_photo,
-            profiles_delete,
-            profiles_prepare_switch,
-            profiles_cancel_switch,
-            profiles_switch,
-            profiles_hold_link,
-            profiles_take_held_link,
-            profiles_take_launch_question,
-            profiles_set_ask_whos_watching,
+            list_accounts,
+            switch_account,
+            add_account,
+            remove_account,
             relaunch_app,
             write_backup_file,
             save_recap_poster,
@@ -691,8 +670,6 @@ pub fn run() {
             commands::backup_files::auto_backup_register,
             commands::backup_files::auto_backup_status,
             commands::backup_files::auto_backup_run_now,
-            import_profile_backup,
-            profiles_restore_master,
             import_backup_data,
             get_download_formats,
             start_download,
@@ -817,6 +794,11 @@ pub fn run() {
             get_music_search_suggestions,
             get_music_album_page,
             get_music_album_continuation,
+            get_music_library,
+            get_liked_music,
+            set_music_liked,
+            set_music_playlist_saved,
+            recognize_song,
             get_music_artist_page,
             get_music_playlist_page,
             get_music_playlist_continuation,

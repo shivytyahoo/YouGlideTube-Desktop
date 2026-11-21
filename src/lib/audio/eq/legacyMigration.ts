@@ -4,7 +4,7 @@ import { defaultEqState, sanitizeState } from "./stateOps";
 import { profileStorage } from "../../storage/profileStorage";
 
 /** Where the first desktop equalizer kept its switch and ten gains, beside the music volume. */
-export const LEGACY_MUSIC_CONFIG_KEY = "flow_music_player";
+export const LEGACY_MUSIC_CONFIG_KEY = "youglidetube_music_player";
 
 export interface LegacyEqConfig {
   eqEnabled?: unknown;

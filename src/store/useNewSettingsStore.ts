@@ -4,7 +4,7 @@ import { NO_NEW_SETTINGS, newSettings, recordKnownSettings, settingKeys, type Ne
 import { SETTINGS_INDEX } from "../lib/settings/settingsIndex";
 import { profileStorage } from "../lib/storage/profileStorage";
 
-const STORAGE_KEY = "flow_settings_first_seen";
+const STORAGE_KEY = "youglidetube_settings_first_seen";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function loadFirstSeen(): Record<string, number> | null {

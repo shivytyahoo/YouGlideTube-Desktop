@@ -11,8 +11,8 @@ export function useAppLanguage(): [string, (tag: string) => void] {
   const [language] = usePreference(SETTINGS.APP_LANGUAGE, "");
   const choose = useCallback((tag: string) => {
     void setSettingValue(SETTINGS.APP_LANGUAGE, tag).finally(() => {
-      if (tag) profileStorage.setItem(APP_LANGUAGE_STORAGE_KEY, tag, "device");
-      else profileStorage.removeItem(APP_LANGUAGE_STORAGE_KEY, "device");
+      if (tag) profileStorage.setItem(APP_LANGUAGE_STORAGE_KEY, tag);
+      else profileStorage.removeItem(APP_LANGUAGE_STORAGE_KEY);
       window.location.reload();
     });
   }, []);

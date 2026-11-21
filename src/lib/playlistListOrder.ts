@@ -4,8 +4,8 @@ import { profileStorage } from "./storage/profileStorage";
 
 // Mirrors the Android app's PlaylistListOrder.
 
-const ORDER_STORAGE_KEY = "flow_playlist_list_order";
-const CUSTOM_ORDER_STORAGE_KEY = "flow_playlist_custom_order";
+const ORDER_STORAGE_KEY = "youglidetube_playlist_list_order";
+const CUSTOM_ORDER_STORAGE_KEY = "youglidetube_playlist_custom_order";
 
 export const PLAYLIST_LIST_ORDERS = ["newest", "oldest", "name", "custom"] as const;
 

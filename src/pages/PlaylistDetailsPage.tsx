@@ -31,7 +31,8 @@ import { filterVideosBySearch } from "../lib/playlistSearch";
 import { savePlaylistWhenLoaded } from "../lib/playlistTransfer";
 import { useDebounce } from "../lib/useDebounce";
 import { useMultiSelect } from "../lib/useMultiSelect";
-import { usePlaylistDetails } from "../lib/usePlaylistDetails";
+import { usePlaylistDetails, type PlaylistDetailsMeta } from "../lib/usePlaylistDetails";
+import { useServerWatchLater } from "../lib/useServerWatchLater";
 import { usePublishTitle } from "../lib/usePublishTitle";
 import { useCollectionDownloadState } from "../lib/useCollectionDownloads";
 import { youtubePlaylistUrl } from "../lib/youtubeUrl";
@@ -47,6 +48,9 @@ interface PlaylistDetailsPageProps {
   playlistIdOverride?: string;
   onAddToQueue?: (video: VideoSummary) => void;
 }
+
+/** No rows are ever picked in the server Watch Later list (no selection bar). */
+const EMPTY_SELECTION: ReadonlySet<string> = new Set();
 
 export function PlaylistDetailsPage({
   playlistIdOverride,
@@ -74,6 +78,12 @@ export function PlaylistDetailsPage({
     hidesUnavailable,
   } = usePlaylistDetails(playlistId);
   usePublishTitle(meta?.title);
+
+  // Signed in, Watch Later is the account's server list (`VLWL`); signed
+  // out, the local saved copy is the fallback.
+  const isWatchLater = playlistId === WATCH_LATER_PLAYLIST_ID;
+  const serverWatchLater = useServerWatchLater(isWatchLater);
+  const showServerWatchLater = isWatchLater && serverWatchLater.status === "signed-in";
 
   const [storedSortOrder, setStoredSortOrder] = useState<string | null>(() =>
     playlistId ? loadPlaylistSortOrder(playlistId) : null,
@@ -107,9 +117,21 @@ export function PlaylistDetailsPage({
 
   // Sorting by date or popularity and searching are only right over the whole playlist.
   const needsWholePlaylist = sortOrder !== "manual" || appliedSearch.trim() !== "";
+  // A server search runs once per search; a failed walk must not retry in a loop.
+  const serverLoadAllAttemptedRef = useRef(false);
   useEffect(() => {
-    if (needsWholePlaylist && hasMore) void loadAllVideos().catch(() => undefined);
-  }, [needsWholePlaylist, hasMore, loadAllVideos]);
+    if (!needsWholePlaylist) {
+      serverLoadAllAttemptedRef.current = false;
+      return;
+    }
+    if (showServerWatchLater) {
+      if (!serverWatchLater.hasMore || serverLoadAllAttemptedRef.current) return;
+      serverLoadAllAttemptedRef.current = true;
+      void serverWatchLater.loadAll().catch(() => undefined);
+      return;
+    }
+    if (hasMore) void loadAllVideos().catch(() => undefined);
+  }, [needsWholePlaylist, hasMore, loadAllVideos, showServerWatchLater, serverWatchLater]);
 
   const displayVideos = useMemo(
     () => sortPlaylistVideos(videos, sortOrder, isProtected),
@@ -147,14 +169,15 @@ export function PlaylistDetailsPage({
     });
   };
 
-  // Watched elsewhere since this list was last open.
+  // Watched elsewhere since this list was last open. The server list has no
+  // local sweep: the account's list is the truth, watched or not.
   const swept = useRef(false);
   useEffect(() => {
-    if (playlistId !== WATCH_LATER_PLAYLIST_ID || loading || swept.current) return;
+    if (showServerWatchLater || playlistId !== WATCH_LATER_PLAYLIST_ID || loading || swept.current) return;
     swept.current = true;
     void sweepWatchedFromWatchLater(videos, handleTracksChanged);
     // Once per visit, over what the page first loaded.
-  }, [playlistId, loading]);
+  }, [playlistId, loading, showServerWatchLater]);
 
   const handleExport = async () => {
     if (!meta) return;
@@ -275,6 +298,145 @@ export function PlaylistDetailsPage({
     setQueue(displayVideos, safeIndex, playlistContext);
     navigate(`/watch/${video.id}`);
   };
+
+  // --- The server Watch Later list, while signed in. Its order is the
+  // account's own, so there is no reordering, no selection bar and no
+  // save-to-library: the list itself lives on the account. ---
+  const serverMeta: PlaylistDetailsMeta = {
+    id: WATCH_LATER_PLAYLIST_ID,
+    title: serverWatchLater.title,
+    description: null,
+    channelName: "YouTube",
+    viewCountText: null,
+    videoCount: serverWatchLater.videos.length,
+    videoCountText: formatVideoCountText(serverWatchLater.videos.length),
+    thumbnailUrl: serverWatchLater.videos[0]?.thumbnailUrl ?? null,
+    updatedLabel: "Built-in playlist",
+  };
+  const serverShownVideos = useMemo(
+    () => filterVideosBySearch(serverWatchLater.videos, appliedSearch),
+    [serverWatchLater.videos, appliedSearch],
+  );
+  const serverPlaylistContext = {
+    id: WATCH_LATER_PLAYLIST_ID,
+    title: serverWatchLater.title,
+    editable: false,
+    reorderable: false,
+  };
+  const serverPlayQueue = (shuffle: boolean) => {
+    const list = serverWatchLater.videos;
+    if (list.length === 0) return;
+    const queue = shuffle ? fisherYates(list) : list;
+    const first = queue[0];
+    if (!first) return;
+    setQueue(queue, 0, serverPlaylistContext, shuffle ? list : null);
+    navigate(`/watch/${first.id}`);
+  };
+  const serverPlayFromPlaylist = (video: VideoSummary) => {
+    const list = serverWatchLater.videos;
+    const startIndex = list.findIndex((item) => item.id === video.id);
+    const safeIndex = startIndex >= 0 ? startIndex : 0;
+    setQueue(list, safeIndex, serverPlaylistContext);
+    navigate(`/watch/${video.id}`);
+  };
+  const handleServerDownload = () => {
+    if (serverWatchLater.videos.length === 0) return;
+    openCollectionDownload({
+      kind: "playlist",
+      meta: {
+        collectionId: WATCH_LATER_PLAYLIST_ID,
+        title: serverWatchLater.title,
+        author: "YouTube",
+        thumbnailUrl: serverWatchLater.videos[0]?.thumbnailUrl ?? undefined,
+      },
+      load: () =>
+        serverWatchLater.hasMore
+          ? serverWatchLater.loadAll().catch(() => serverWatchLater.videos)
+          : Promise.resolve(serverWatchLater.videos),
+    });
+  };
+  const handleServerCopyLink = async () => {
+    // The account's Watch Later, addressed as the WL playlist.
+    if (await copyText(youtubePlaylistUrl("WL"))) {
+      showToast({ variant: "success", message: getString("playlist_playlist_link_copied") });
+    } else {
+      showToast({ variant: "error", message: getString("playlist_could_not_copy_link") });
+    }
+  };
+
+  if (showServerWatchLater) {
+    if (serverWatchLater.loading) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-4">
+          <Loader2 className="animate-spin text-[var(--color-primary)]" size={36} />
+          <p className="text-sm font-medium text-chrome-neutral-500">{getString('playlist_loading_playlist')}</p>
+        </div>
+      );
+    }
+
+    if (serverWatchLater.error) {
+      return (
+        <div className="mx-auto flex h-full max-w-3xl flex-col items-center justify-center px-6 text-center">
+          <p className="text-sm text-chrome-neutral-400">{serverWatchLater.error}</p>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="mt-4 text-sm font-medium text-[var(--color-primary)] transition-colors hover:opacity-90"
+          >
+            Go back
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="mx-auto grid h-full min-h-0 w-full max-w-[1600px] grid-cols-1 gap-8 p-6 lg:grid-cols-[360px_1fr]">
+          <PlaylistAmbientHeader
+            meta={serverMeta}
+            heroVideoId={serverWatchLater.videos[0]?.id}
+            heroThumbnailUrl={serverWatchLater.videos[0]?.thumbnailUrl ?? null}
+            canPlay={serverWatchLater.videos.length > 0}
+            onPlayAll={() => serverPlayQueue(false)}
+            onShuffle={() => serverPlayQueue(true)}
+            onDownload={() => void handleServerDownload()}
+            downloadActive={downloadState.active}
+            downloadComplete={downloadState.isComplete}
+            onAddToQueue={() => addVideosToQueueWithToast(serverWatchLater.videos)}
+            onCopyLink={() => void handleServerCopyLink()}
+            isSaved
+            isProtected
+          />
+
+          <PlaylistSortableList
+            videos={serverWatchLater.videos}
+            displayVideos={serverShownVideos}
+            sortOrder="manual"
+            sortOptions={["manual"]}
+            onSortChange={() => undefined}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            reorderable={false}
+            onReorder={() => undefined}
+            onPlay={serverPlayFromPlaylist}
+            onAddToQueue={onAddToQueue}
+            selecting={false}
+            selectedIds={EMPTY_SELECTION}
+            onToggleSelected={() => undefined}
+            onStartSelecting={() => undefined}
+            footer={
+              <PlaylistLoadMore
+                hasMore={serverWatchLater.hasMore}
+                loading={serverWatchLater.loadingMore}
+                failed={serverWatchLater.loadMoreFailed}
+                onLoadMore={() => void serverWatchLater.loadMore()}
+              />
+            }
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

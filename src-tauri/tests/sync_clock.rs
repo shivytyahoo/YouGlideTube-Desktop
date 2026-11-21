@@ -8,7 +8,6 @@ use common::local_edits;
 use serde_json::json;
 use sqlx::SqlitePool;
 
-use youglidetube_desktop_lib::profiles::{ActiveProfile, open_database};
 use youglidetube_desktop_lib::data_model::apply::apply_payload;
 use youglidetube_desktop_lib::data_model::canonical::Collection;
 use youglidetube_desktop_lib::data_model::clock;
@@ -16,13 +15,19 @@ use youglidetube_desktop_lib::data_model::collection::StagedCollection;
 
 const DAY_MS: u64 = 24 * 60 * 60 * 1000;
 
-fn default_profile() -> ActiveProfile {
-    ActiveProfile {
-        id: "default".into(),
-        is_default: true,
-        after_switch: false,
-        default_name: String::new(),
-    }
+/// A file-backed database in `dir`, migrated, as the app opens it.
+async fn open_test_db(dir: &std::path::Path) -> SqlitePool {
+    std::fs::create_dir_all(dir).unwrap();
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect(&format!(
+            "sqlite://{}",
+            dir.join("youglidetube.sqlite").display()
+        ))
+        .await
+        .unwrap();
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+    pool
 }
 
 /// Applies a like stamped a day ahead of this device's clock, and returns that stamp's time.
@@ -49,7 +54,7 @@ async fn apply_like_from_the_future(pool: &SqlitePool) -> u64 {
 #[tokio::test]
 async fn an_edit_after_a_record_from_a_clock_ahead_is_stamped_later() {
     let dir = std::env::temp_dir().join(format!("youglidetube-clock-{}", uuid::Uuid::new_v4()));
-    let pool = open_database(&dir, &default_profile()).await.unwrap();
+    let pool = open_test_db(&dir).await;
     let ahead = apply_like_from_the_future(&pool).await;
 
     local_edits::record_blob_write(&pool, "liked_items", "[]")
@@ -69,11 +74,11 @@ async fn an_edit_after_a_record_from_a_clock_ahead_is_stamped_later() {
 #[tokio::test]
 async fn the_clock_keeps_what_it_saw_across_a_restart() {
     let dir = std::env::temp_dir().join(format!("youglidetube-clock-{}", uuid::Uuid::new_v4()));
-    let pool = open_database(&dir, &default_profile()).await.unwrap();
+    let pool = open_test_db(&dir).await;
     let ahead = apply_like_from_the_future(&pool).await;
     pool.close().await;
 
-    let reopened = open_database(&dir, &default_profile()).await.unwrap();
+    let reopened = open_test_db(&dir).await;
     assert_eq!(clock::edit_ms(&reopened).await.unwrap(), ahead + 1);
     reopened.close().await;
     std::fs::remove_dir_all(dir).unwrap();
@@ -82,7 +87,7 @@ async fn the_clock_keeps_what_it_saw_across_a_restart() {
 #[tokio::test]
 async fn a_stamp_at_the_end_of_time_still_lets_this_device_edit() {
     let dir = std::env::temp_dir().join(format!("youglidetube-clock-{}", uuid::Uuid::new_v4()));
-    let pool = open_database(&dir, &default_profile()).await.unwrap();
+    let pool = open_test_db(&dir).await;
     clock::observe(&mut pool.acquire().await.unwrap(), u64::MAX)
         .await
         .unwrap();

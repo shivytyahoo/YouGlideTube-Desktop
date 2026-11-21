@@ -1,5 +1,4 @@
 import { Maximize2, Pin, PinOff, X } from "lucide-react";
-import { useProfileSwitchListener } from "../../lib/profiles/useProfileSwitchListener";
 import { useOtherWindowSettings } from "../../lib/useOtherWindowSettings";
 
 import { IS_MACOS_RUNTIME } from "../../lib/platform";
@@ -29,7 +28,6 @@ export function PipWindowApp() {
     usePipSession();
   const canPin = useCanPinWindows();
   usePipWindowAspectLock();
-  useProfileSwitchListener();
   useOtherWindowSettings();
 
   const currentVideo = usePlayerStore((s) => s.currentVideo);

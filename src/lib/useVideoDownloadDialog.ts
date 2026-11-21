@@ -11,10 +11,12 @@ import {
 import { getBackendErrorMessage } from "./api/errors";
 import {
   defaultSubtitle,
+  clipTitle,
   musicDownloadRequest,
   preferredDownloadHeight,
   videoDownloadRequest,
   videoSelectionFor,
+  type DownloadClip,
 } from "./downloadActions";
 import {
   defaultRow,
@@ -25,6 +27,8 @@ import {
   type CodecChoice,
 } from "./downloadOptions";
 import { IS_MACOS_RUNTIME } from "./platform";
+import { getString } from "./i18n/index";
+import { formatTime } from "./musicFormat";
 import { recapVideoAction } from "./recap/recapQueue";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import type { SongItem } from "../types/music";
@@ -59,6 +63,35 @@ function audioOnlySong(video: VideoSummary): SongItem {
   };
 }
 
+/** "M:SS", "H:MM:SS" or bare seconds → milliseconds, as Android's clip
+ *  fields parse. Anything else (empty, negative, a component past 59) is not
+ *  a time. */
+export function parseClipTimestamp(text: string): number | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split(":");
+  if (parts.some((part) => !/^\d+$/.test(part))) return null;
+  const numbers = parts.map(Number);
+  let seconds: number;
+  if (numbers.length === 1) {
+    seconds = numbers[0] ?? 0;
+  } else if (numbers.length === 2) {
+    const minutes = numbers[0] ?? 0;
+    const secs = numbers[1] ?? 0;
+    if (secs >= 60) return null;
+    seconds = minutes * 60 + secs;
+  } else if (numbers.length === 3) {
+    const hours = numbers[0] ?? 0;
+    const minutes = numbers[1] ?? 0;
+    const secs = numbers[2] ?? 0;
+    if (minutes >= 60 || secs >= 60) return null;
+    seconds = hours * 3600 + minutes * 60 + secs;
+  } else {
+    return null;
+  }
+  return seconds * 1000;
+}
+
 export function useVideoDownloadDialog(video: VideoSummary | null) {
   const values = useAppSettingsStore((state) => state.values);
   const [formats, setFormats] = useState<DownloadableFormat[]>([]);
@@ -71,6 +104,10 @@ export function useVideoDownloadDialog(video: VideoSummary | null) {
   const [subtitle, setSubtitle] = useState("");
   const [title, setTitle] = useState("");
   const [folder, setFolder] = useState<string | null>(null);
+  const [clipEnabled, setClipEnabled] = useState(false);
+  const [clipStart, setClipStart] = useState("0:00");
+  const [clipEnd, setClipEnd] = useState("");
+  const [clipError, setClipError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -88,6 +125,10 @@ export function useVideoDownloadDialog(video: VideoSummary | null) {
     setAudioKey(null);
     setTitle(video?.title ?? "");
     setFolder(null);
+    setClipEnabled(false);
+    setClipStart("0:00");
+    setClipEnd(video?.durationSeconds ? formatTime(video.durationSeconds) : "");
+    setClipError(null);
     setError(null);
     if (!video) return;
     let cancelled = false;
@@ -139,14 +180,38 @@ export function useVideoDownloadDialog(video: VideoSummary | null) {
     ? audioSize
     : selected?.estimatedSizeBytes ?? null;
 
+  // A clip is only offered for a video with a known length, as on Android.
+  const durationMs = (video?.durationSeconds ?? 0) * 1000;
+  const canClip = durationMs > 0;
+  /** The clip the user picked, or null when the toggle is off or the range
+   *  is invalid. */
+  const clipRange: DownloadClip | null = useMemo(() => {
+    if (!clipEnabled || !canClip) return null;
+    const startMs = parseClipTimestamp(clipStart);
+    const endMs = parseClipTimestamp(clipEnd);
+    if (startMs == null || endMs == null) return null;
+    if (startMs < 0 || endMs <= startMs || endMs > durationMs) return null;
+    return { startMs, endMs };
+  }, [clipEnabled, canClip, clipStart, clipEnd, durationMs]);
+  const clipInvalid = clipEnabled && canClip && clipRange == null;
+  /** The file name the dialog shows: the title with its range when clipped. */
+  const fileName = clipRange ? clipTitle(title, clipRange) : title;
+
   const submit = async (): Promise<DownloadStarted | null> => {
     if (!video) return null;
+    // An invalid clip never starts a download: Android shows a toast instead.
+    if (clipInvalid) {
+      setClipError(getString("download_clip_invalid"));
+      return null;
+    }
+    setClipError(null);
     setStarting(true);
     setError(null);
     try {
       const overrides = {
         title,
         destinationDirectory: folder ?? undefined,
+        clip: clipRange ?? undefined,
       };
       let started: DownloadStarted;
       if (mode === "audio") {
@@ -181,16 +246,35 @@ export function useVideoDownloadDialog(video: VideoSummary | null) {
     }
   };
 
+  // Editing the range clears the invalid message; the range re-validates
+  // on the next submit.
+  const changeClipStart = (value: string) => {
+    setClipStart(value);
+    setClipError(null);
+  };
+  const changeClipEnd = (value: string) => {
+    setClipEnd(value);
+    setClipError(null);
+  };
+
   return {
     audioKey,
     audioTrack,
     audioTracks,
     availableCodecs,
+    canClip,
     captions,
+    clipEnabled,
+    clipEnd,
+    clipError,
+    clipInvalid,
+    clipRange,
+    clipStart,
     codec,
     displayTitle: originalTitle || video?.title || "",
     error,
     errorMessage: error ? getBackendErrorMessage(error) : null,
+    fileName,
     folder,
     loading,
     mode,
@@ -201,6 +285,9 @@ export function useVideoDownloadDialog(video: VideoSummary | null) {
     selected,
     selectedId,
     setAudioKey,
+    setClipEnabled,
+    setClipEnd: changeClipEnd,
+    setClipStart: changeClipStart,
     setCodec,
     setFolder,
     setMode,

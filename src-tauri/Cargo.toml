@@ -1,7 +1,7 @@
 [package]
 name = "youglidetube"
-version = "0.1.0-beta4"
-description = "Privacy-first YouTube and YouTube Music desktop client"
+version = "1.0.0"
+description = "YouGlideTube Desktop — a YouTube and YouTube Music desktop client with Google sign-in and the YouGlideTube theme"
 authors = ["shivyt"]
 edition = "2024"
 default-run = "youglidetube"
@@ -21,7 +21,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-os = "2"
 tauri-plugin-notification = "2"
-# Deep linking: the flow:// scheme the browser extension hands off to.
+# Deep linking: the youglidetube:// scheme the browser extension hands off to.
 tauri-plugin-deep-link = "2"
 # In-app updates: signature-verified GitHub-releases updater + relaunch after install.
 tauri-plugin-updater = "2"
@@ -66,7 +66,7 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 # SABR streaming protocol (self-contained protobuf/UMP codec, no external toolchain)
 base64 = "0.23"
 
-# NLP Pipeline: FlowNeuro key spec 2, Android parity. Snowball 3.1.1 stems (rust-stemmers
+# NLP Pipeline: neuro key spec 2, Android parity. Snowball 3.1.1 stems (rust-stemmers
 # predates it), NFKC folding, Java-style character classes and the ICU dictionary word breaker.
 snowstem = "0.1"
 unicode-normalization = "0.1"
@@ -99,11 +99,11 @@ encoding_rs = "0.8"
 
 # Native Windows toast notifications: build the toast XML directly so we can attach
 # the app logo + a video thumbnail (hero image) and register a proper AppUserModelID,
-# so the system attributes notifications to "Flow" instead of PowerShell.
+# so the system attributes notifications to "YouGlideTube" instead of PowerShell.
 [target.'cfg(windows)'.dependencies]
 tauri-winrt-notification = "0.8"
 windows-registry = "0.100"
-# Core Audio and the process snapshot name Flow's WebView2 audio in the volume mixer.
+# Core Audio and the process snapshot name YouGlideTube's WebView2 audio in the volume mixer.
 windows = { version = "0.62", features = [
   "Win32_Foundation",
   "Win32_UI_Shell",
@@ -119,7 +119,7 @@ windows = { version = "0.62", features = [
 ] }
 windows-core = "0.62"
 
-# Single-instance: forward a second `flow://` launch to the running window
+# Single-instance: forward a second `youglidetube://` launch to the running window
 # instead of spawning a duplicate. The "deep-link" feature makes it hand the
 # argv URL to the deep-link plugin's on_open_url automatically.
 # The version wry uses, for WebKit preferences wry does not expose (src/macos_window.rs).
@@ -150,9 +150,9 @@ codegen-units = 1
 lto = true
 strip = "symbols"
 
-# CI nightlies and PR builds: thin LTO keeps most of the speed of the release
+# PR builds: thin LTO keeps most of the speed of the release
 # profile at a fraction of the link time. Tagged releases still use [profile.release].
-[profile.nightly]
+[profile.dist]
 inherits = "release"
 lto = "thin"
 codegen-units = 16

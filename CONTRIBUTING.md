@@ -1,6 +1,10 @@
-# Contributing to Flow Desktop
+# Contributing to YouGlideTube Desktop
 
-Thanks for your interest in improving Flow Desktop — a privacy-respecting YouTube and YouTube Music client with a native, fully local recommendation engine, built with Rust, Tauri, React, and TypeScript.
+Thanks for your interest in improving YouGlideTube Desktop — a YouTube and
+YouTube Music client for the desktop, built with Rust, Tauri, React, and
+TypeScript. It is the desktop version of the
+[YouGlideTube Android app](https://github.com/shivytyahoo/YouGlideTube),
+with the same look, feel and features.
 
 This guide explains how to set up the project, the standards we hold code to, and how to get your changes merged. Contributions of every size are welcome, from typo fixes to new subsystems.
 
@@ -19,9 +23,10 @@ This project is governed by our [Code of Conduct](CODE_OF_CONDUCT.md). By partic
 
 ## Before you start
 
-- Search [existing issues](https://github.com/Flow-Tube/Flow-Desktop/issues) and pull requests first to avoid duplicates.
+- Search [existing issues](https://github.com/shivytyahoo/YouGlideTube-Desktop/issues) and pull requests first to avoid duplicates.
 - For anything beyond a small fix, open an issue (or comment on an existing one) to discuss the approach **before** writing code. This avoids wasted effort on changes that may not be a good fit.
 - Keep pull requests focused. One logical change per PR is far easier to review and merge than a large, mixed one.
+- This app must look, feel and behave like the YouGlideTube Android app — settings, screens, features and naming. The upstream codebase this app was forked from contributes only its method (Tauri size and architecture), never its look, feel, branding or feature set.
 
 ## Development environment
 
@@ -64,24 +69,29 @@ src/                  React + TypeScript frontend
   locales/            Localization resources
   types/              Shared TypeScript types
 src-tauri/            Rust backend (Tauri 2)
+  src/api/            Native InnerTube client and media extraction
   src/commands/       Tauri command handlers exposed to the frontend
+  src/data_model/     Backup and library data shapes
   src/db/             SQLite access and migrations
-  src/flow_neuro/     Local video recommendation engine
-  src/music_brain/    Local music recommendation engine
+  src/services/       Business logic between commands and the API layer
   src/streaming/      Media extraction and the loopback media proxy
-  src/security/       Validation and integrity (BotGuard/PO-token) handling
   migrations/         SQL migrations
-Assets/               Brand and donation assets
-public/               Static assets served by Vite
+changelog/            Release notes (one .txt file per version)
+docs/                 Platform help (Linux, Flatpak)
+packaging/            AUR and Flatpak packaging
 ```
 
 ## Coding guidelines
 
 ### Frontend (React / TypeScript / Tailwind)
 
-The UI follows a strict design system. **Read [Design.md](Design.md) before writing or modifying any React or Tailwind code** — it is the source of truth for our look and feel. In short:
+The UI follows the YouGlideTube look: dark `#1A1C1E`, brand blue `#1E5AA8`,
+saffron `#E85D04`, coral `#FF3D68`. Follow the theme tokens in
+[`src/lib/themes.ts`](src/lib/themes.ts) and the shared `.glass` class in
+[`src/App.css`](src/App.css) (theme surface at 72% + `blur(16px)
+saturate(1.4)`). Use the CSS variables defined there — no arbitrary hex
+codes, no gradients, no drop shadows, no colored borders.
 
-- No gradients, glassmorphism/`backdrop-blur`, drop shadows, colored borders, or arbitrary hex codes. Use the CSS variables defined in [`src/App.css`](src/App.css) (e.g. `var(--color-primary)`, `bg-surface-container`).
 - Keep `components/ui/` primitives "dumb" — props in, events out, no data fetching. Put data-fetching containers in `components/[domain]/` and compose them in `pages/`.
 - Abstract all backend communication (`invoke(...)`, `fetch(...)`) into custom hooks or modules under `src/lib/` — never inside a component's `useEffect`.
 - Use Zustand (`src/store/`) for global state; local component state only for transient UI toggles.
@@ -93,12 +103,14 @@ The UI follows a strict design system. **Read [Design.md](Design.md) before writ
 - Validate all untrusted input (search terms, video/channel/browse IDs, continuation tokens) before making network requests.
 - Keep media access behind the tokenized loopback proxy; do not expose public local servers.
 - Do not introduce new broad Tauri permissions, secrets, telemetry, or analytics.
+- Do not edit or renumber existing files in `src-tauri/migrations/` — schema changes are additive, in a new numbered migration.
+- Do not bump the app version (`package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`) — version bumps are done by the project owner.
 - Run `cargo fmt` and address `cargo clippy` warnings before submitting.
 
 ### General
 
 - Match the style, naming, and comment density of the surrounding code.
-- Keep privacy and security front of mind — Flow contains no advertising or analytics SDK, requires no account, and stores user data locally. Contributions must preserve these guarantees.
+- Keep privacy and security front of mind — YouGlideTube contains no advertising or analytics SDK, requires no account, and stores user data locally. Contributions must preserve these guarantees.
 
 ## Commit messages
 
@@ -138,10 +150,6 @@ Add or update tests when you change behavior, and smoke-test the affected deskto
 
 Please confirm that your PR introduces no new secrets, private data, telemetry, or broad permissions, and that dependency/lockfile changes are intentional and minimal.
 
-## Supporting the project
-
-Flow is free and open-source software maintained by an independent developer. If you would like to support development financially, you can do so through [Patreon](https://patreon.com/A_EDev) or via cryptocurrency — see the **Support & donations** section of the [README](README.md#support--donations), or the in-app **Support Flow** page. Always verify any crypto address and network before sending.
-
 ## License
 
-Flow Desktop is licensed under the [GNU General Public License v3.0](LICENSE). By contributing, you agree that your contributions will be licensed under the same terms.
+YouGlideTube Desktop is licensed under the [GNU General Public License v3.0](LICENSE). By contributing, you agree that your contributions will be licensed under the same terms.

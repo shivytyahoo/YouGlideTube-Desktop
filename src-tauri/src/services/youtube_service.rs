@@ -33,6 +33,17 @@ impl YoutubeService {
         self.extractor.search_videos(request).await
     }
 
+    /// One page of the Home feed (`FEwhat_to_watch`): the signed-in
+    /// account's personal feed when a session exists, the generic feed
+    /// otherwise. `params` selects a server chip; `continuation` pages it.
+    pub async fn browse_home_feed(
+        &self,
+        continuation: Option<&str>,
+        params: Option<&str>,
+    ) -> AppResult<crate::api::innertube::extractors::server_feed::ServerFeedPage> {
+        self.extractor.browse_home_feed(continuation, params).await
+    }
+
     pub async fn get_video_details(&self, video_id: &str) -> AppResult<VideoDetails> {
         self.extractor.get_video_details(video_id).await
     }

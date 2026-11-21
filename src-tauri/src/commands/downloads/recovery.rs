@@ -1,5 +1,5 @@
 //! Finding files YouGlideTube saved that this library no longer lists, by the tags in them, and tagging
-//! older downloads saved before YouGlideTube wrote tags. Field names match Android's `FlowTagFields`.
+//! older downloads saved before YouGlideTube wrote tags. Field names match Android's `GlideTagFields`.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -65,7 +65,7 @@ fn read_file_tags(path: &Path) -> Option<(HashMap<String, String>, Option<i64>)>
         let read = muxer::retag::read_mp4_youglidetube_tags(path).ok()?;
         (read.fields, read.duration_seconds)
     } else {
-        (muxer::matroska::read_flow_tags(path).ok()?, None)
+        (muxer::matroska::read_youglidetube_tags(path).ok()?, None)
     };
     (!fields.is_empty()).then_some((fields, duration))
 }

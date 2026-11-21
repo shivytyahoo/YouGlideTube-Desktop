@@ -1,6 +1,6 @@
 pkgbase = youglidetube-desktop-bin
 	pkgdesc = YouTube and YouTube Music desktop client with Google sign-in (binary release)
-	pkgver = 0.1.0beta3
+	pkgver = 1.0.0
 	pkgrel = 1
 	url = https://github.com/shivytyahoo/YouGlideTube-Desktop
 	arch = x86_64
@@ -27,9 +27,9 @@ pkgbase = youglidetube-desktop-bin
 	conflicts = youglidetube-desktop
 	options = !strip
 	options = !debug
-	source_x86_64 = youglidetube-desktop-bin-0.1.0beta3-x86_64.deb::https://github.com/shivytyahoo/YouGlideTube-Desktop/releases/download/v0.1.0-beta3/YouGlideTube_0.1.0-beta3_linux_amd64.deb
+	source_x86_64 = youglidetube-desktop-bin-1.0.0-x86_64.deb::https://github.com/shivytyahoo/YouGlideTube-Desktop/releases/download/v1.0.0/YouGlideTube_1.0.0_linux_amd64.deb
 	sha256sums_x86_64 = 9590693b8c4862a0e55ec2d71a56b3685b8b27fc2cafcbd2cee7b2c64660dfcc
-	source_aarch64 = youglidetube-desktop-bin-0.1.0beta3-aarch64.deb::https://github.com/shivytyahoo/YouGlideTube-Desktop/releases/download/v0.1.0-beta3/YouGlideTube_0.1.0-beta3_linux_arm64.deb
+	source_aarch64 = youglidetube-desktop-bin-1.0.0-aarch64.deb::https://github.com/shivytyahoo/YouGlideTube-Desktop/releases/download/v1.0.0/YouGlideTube_1.0.0_linux_arm64.deb
 	sha256sums_aarch64 = 8b50812b8b5102aefe0670cb0731dc4695e2823e92528cb36778e89caa059568
 
 pkgname = youglidetube-desktop-bin

@@ -6,4 +6,5 @@ pub mod ip_family;
 pub mod lyrics_http;
 pub mod lyrics_romanize;
 pub mod original_title;
+pub mod recognition;
 pub mod ryd;

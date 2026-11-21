@@ -1,6 +1,6 @@
 pkgbase = youglidetube-desktop-git
 	pkgdesc = YouTube and YouTube Music desktop client with Google sign-in (development version)
-	pkgver = 0.1.0beta3.r315.g6960897
+	pkgver = 1.0.0
 	pkgrel = 1
 	url = https://github.com/shivytyahoo/YouGlideTube-Desktop
 	arch = x86_64

@@ -16,7 +16,6 @@ vi.mock("../api/recap", () => ({
   },
 }));
 vi.mock("../deepGlide", () => ({ isDeepGlideCurrentlyActive: () => deepGlide }));
-vi.mock("../profiles/beforeSwitch", () => ({ onBeforeProfileSwitch: () => () => {} }));
 
 const {
   flushRecapQueue,

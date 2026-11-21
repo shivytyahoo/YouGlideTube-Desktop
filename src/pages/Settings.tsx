@@ -1,3 +1,4 @@
+import { BatterySaverRow } from '../components/settings/BatterySaverRow';
 import { SettingsLayout, type SettingsCategory } from '../components/settings/SettingsLayout';
 import { PlayerTab } from '../components/settings/tabs/PlayerTab';
 import { MusicTab } from '../components/settings/tabs/MusicTab';
@@ -12,6 +13,7 @@ import { AccountTab } from '../components/settings/tabs/AccountTab';
 import { KeyboardTab } from '../components/settings/tabs/KeyboardTab';
 import { LyricsTab } from '../components/settings/tabs/LyricsTab';
 import { SubscriptionsTab } from '../components/settings/tabs/SubscriptionsTab';
+import { NotificationsTab } from '../components/settings/tabs/NotificationsTab';
 import { PrivacyTab } from '../components/settings/tabs/PrivacyTab';
 import { WellbeingTab } from '../components/settings/tabs/WellbeingTab';
 import { LanguageTab } from '../components/settings/tabs/LanguageTab';
@@ -25,6 +27,7 @@ const tabComponents: Record<SettingsCategory, React.FC> = {
   lyrics: LyricsTab,
   content: ContentTab,
   subscriptions: SubscriptionsTab,
+  notifications: NotificationsTab,
   privacy: PrivacyTab,
   wellbeing: WellbeingTab,
   quality: QualityTab,
@@ -40,7 +43,13 @@ export const Settings: React.FC = () => {
     <SettingsLayout>
       {(activeTab) => {
         const TabComponent = tabComponents[activeTab];
-        return <TabComponent />;
+        return (
+          <>
+            {/* Battery saver first, as on Android — pinned above every tab. */}
+            <BatterySaverRow />
+            <TabComponent />
+          </>
+        );
       }}
     </SettingsLayout>
   );

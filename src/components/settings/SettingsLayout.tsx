@@ -13,12 +13,13 @@ import {
   Keyboard,
   MicVocal,
   Bell,
+  BellRing,
   ShieldCheck,
   Hourglass,
   Languages,
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
-import { getString } from '../../lib/i18n/index';
+import { getString, type StringKey } from '../../lib/i18n/index';
 import { SETTINGS_CATEGORY_LABELS, SETTINGS_INDEX, type SettingEntry, type SettingsCategory } from '../../lib/settings/settingsIndex';
 import { searchSettings } from '../../lib/settings/settingsSearch';
 import { useDebounce } from '../../lib/useDebounce';
@@ -38,25 +39,60 @@ interface CategoryDef {
   icon: ReactNode;
 }
 
-const categories: CategoryDef[] = [
-  // First, like Android's settings home (Google account sits right at the top).
-  { id: 'account', icon: <UserRound size={18} /> },
-  { id: 'appearance', icon: <Palette size={18} /> },
-  { id: 'player', icon: <PlayCircle size={18} /> },
-  { id: 'keyboard', icon: <Keyboard size={18} /> },
-  { id: 'music', icon: <Music2 size={18} /> },
-  { id: 'lyrics', icon: <MicVocal size={18} /> },
-  { id: 'content', icon: <LayoutGrid size={18} /> },
-  { id: 'subscriptions', icon: <Bell size={18} /> },
-  { id: 'privacy', icon: <ShieldCheck size={18} /> },
-  { id: 'wellbeing', icon: <Hourglass size={18} /> },
-  { id: 'quality', icon: <Gauge size={18} /> },
-  { id: 'network', icon: <Wifi size={18} /> },
-  { id: 'language', icon: <Languages size={18} /> },
-  { id: 'downloads', icon: <Download size={18} /> },
-  { id: 'data', icon: <Database size={18} /> },
-  { id: 'about', icon: <Info size={18} /> },
+interface CategoryGroup {
+  labelKey: StringKey;
+  categories: CategoryDef[];
+}
+
+// Android's settings home, in its group order: Google account first, then
+// Watch & listen, Interface, Library & data, System, YouGlideTube. Battery
+// saver is pinned above every tab (Settings.tsx), as on Android. The
+// desktop-only tabs sit in the group they belong to: music, lyrics and the
+// subscriptions feed under Watch & listen; keyboard shortcuts under
+// Interface; the database tab under Library & data. Two Android groups have
+// no tab of their own here: Widgets (no desktop widgets) and the Engine
+// group, whose Deep Glide rows live inside the History & privacy tab.
+const categoryGroups: CategoryGroup[] = [
+  { labelKey: 'account_title', categories: [{ id: 'account', icon: <UserRound size={18} /> }] },
+  {
+    labelKey: 'settings_group_watching',
+    categories: [
+      { id: 'content', icon: <LayoutGrid size={18} /> },
+      { id: 'player', icon: <PlayCircle size={18} /> },
+      { id: 'quality', icon: <Gauge size={18} /> },
+      { id: 'music', icon: <Music2 size={18} /> },
+      { id: 'lyrics', icon: <MicVocal size={18} /> },
+      { id: 'subscriptions', icon: <Bell size={18} /> },
+    ],
+  },
+  {
+    labelKey: 'settings_group_look',
+    categories: [
+      { id: 'appearance', icon: <Palette size={18} /> },
+      { id: 'language', icon: <Languages size={18} /> },
+      { id: 'keyboard', icon: <Keyboard size={18} /> },
+    ],
+  },
+  {
+    labelKey: 'settings_group_data',
+    categories: [
+      { id: 'downloads', icon: <Download size={18} /> },
+      { id: 'privacy', icon: <ShieldCheck size={18} /> },
+      { id: 'data', icon: <Database size={18} /> },
+    ],
+  },
+  {
+    labelKey: 'settings_group_system',
+    categories: [
+      { id: 'notifications', icon: <BellRing size={18} /> },
+      { id: 'network', icon: <Wifi size={18} /> },
+      { id: 'wellbeing', icon: <Hourglass size={18} /> },
+    ],
+  },
+  { labelKey: 'settings_header_about', categories: [{ id: 'about', icon: <Info size={18} /> }] },
 ];
+
+const categories: CategoryDef[] = categoryGroups.flatMap((group) => group.categories);
 
 interface SettingsLayoutProps {
   children: (activeTab: SettingsCategory) => ReactNode;
@@ -112,25 +148,32 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
     <div className="mx-auto w-full h-[calc(100vh-64px)] flex">
       <nav className="w-56 shrink-0 border-e border-chrome-neutral-800 overflow-y-auto py-6 px-3 flex flex-col gap-1">
         <h2 className="text-lg font-bold text-chrome-neutral-100 px-3 mb-4">{getString('settings_title')}</h2>
-        {categories.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => {
-              setActiveTab(cat.id);
-              clearQuery();
-            }}
-            className={`px-4 py-2.5 rounded-full flex items-center gap-3 text-sm font-medium transition-colors cursor-pointer ${
-              !searching && activeTab === cat.id
-                ? 'bg-surface-container-high text-[var(--color-primary)]'
-                : 'text-chrome-neutral-400 hover:bg-surface-container-low hover:text-chrome-neutral-200'
-            }`}
-          >
-            <span className="shrink-0">{cat.icon}</span>
-            <span className="min-w-0 truncate text-start">{getString(SETTINGS_CATEGORY_LABELS[cat.id])}</span>
-            {newCategories.has(cat.id) && (
-              <span role="img" aria-label={getString('settings_new_badge')} className="ms-auto h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-            )}
-          </button>
+        {categoryGroups.map((group) => (
+          <div key={group.labelKey} className="flex flex-col gap-1 pt-3 first:pt-0">
+            <p className="px-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-chrome-neutral-500">
+              {getString(group.labelKey)}
+            </p>
+            {group.categories.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => {
+                  setActiveTab(cat.id);
+                  clearQuery();
+                }}
+                className={`px-4 py-2.5 rounded-full flex items-center gap-3 text-sm font-medium transition-colors cursor-pointer ${
+                  !searching && activeTab === cat.id
+                    ? 'bg-surface-container-high text-[var(--color-primary)]'
+                    : 'text-chrome-neutral-400 hover:bg-surface-container-low hover:text-chrome-neutral-200'
+                }`}
+              >
+                <span className="shrink-0">{cat.icon}</span>
+                <span className="min-w-0 truncate text-start">{getString(SETTINGS_CATEGORY_LABELS[cat.id])}</span>
+                {newCategories.has(cat.id) && (
+                  <span role="img" aria-label={getString('settings_new_badge')} className="ms-auto h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                )}
+              </button>
+            ))}
+          </div>
         ))}
       </nav>
 

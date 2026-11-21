@@ -197,7 +197,7 @@ mod tests {
     }
 
     #[test]
-    fn freeform_atoms_carry_the_flow_namespace() {
+    fn freeform_atoms_carry_the_youglidetube_namespace() {
         let metadata = EmbeddedMetadata {
             tags: DownloadTags {
                 kind: TagKind::Music,

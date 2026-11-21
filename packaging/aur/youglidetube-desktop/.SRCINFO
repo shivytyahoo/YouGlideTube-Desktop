@@ -1,6 +1,6 @@
 pkgbase = youglidetube-desktop
 	pkgdesc = YouTube and YouTube Music desktop client with Google sign-in
-	pkgver = 0.1.0beta3
+	pkgver = 1.0.0
 	pkgrel = 1
 	url = https://github.com/shivytyahoo/YouGlideTube-Desktop
 	arch = x86_64
@@ -28,7 +28,7 @@ pkgbase = youglidetube-desktop
 	optdepends = libayatana-appindicator: music controls in the system tray
 	conflicts = youglidetube-desktop-bin
 	options = !debug
-	source = youglidetube-desktop-0.1.0beta3.tar.gz::https://github.com/shivytyahoo/YouGlideTube-Desktop/archive/refs/tags/v0.1.0-beta3.tar.gz
+	source = youglidetube-desktop-1.0.0.tar.gz::https://github.com/shivytyahoo/YouGlideTube-Desktop/archive/refs/tags/v1.0.0.tar.gz
 	sha256sums = 96bf1ee079042b181102f8f32a866aef6546d99d03cbb49850abb50f376f431a
 
 pkgname = youglidetube-desktop

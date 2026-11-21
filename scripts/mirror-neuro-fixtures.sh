@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Copies the FlowNeuro tables and golden files Flow for Android writes into this repo, so both apps
-# read titles and learn from the same source. Regenerate them on the Android side first:
+# Copies the neuro tables and golden files the YouGlideTube Android app writes into this repo,
+# so both apps read titles and learn from the same source. Regenerate them on the Android side first:
 #   NEURO_WRITE_TABLES=1 NEURO_WRITE_GOLDEN=1 NEURO_WRITE_UNSTEMMED=1 \
-#     ./gradlew :app:testGithubDebugUnitTest --tests 'io.github.aedev.flow.data.recommendation.*'
-# Usage: scripts/mirror-neuro-fixtures.sh /path/to/Flow
+#     ./gradlew :app:testGithubDebugUnitTest --tests 'io.github.shivytyahoo.glidetube.data.recommendation.*'
+# Usage: scripts/mirror-neuro-fixtures.sh /path/to/YouGlideTube
 set -euo pipefail
 
-android="${1:?usage: scripts/mirror-neuro-fixtures.sh /path/to/Flow}"
+android="${1:?usage: scripts/mirror-neuro-fixtures.sh /path/to/YouGlideTube}"
 here="$(cd "$(dirname "$0")/.." && pwd)"
 resources="$android/app/src/main/resources/neuro"
 fixtures="$android/app/src/test/resources/neuro"
@@ -17,7 +17,7 @@ for dir in fold freq keys runbreak stop topical; do
 done
 
 # NeuroTokenizer keeps the English words that make a channel name topical in code, not a file.
-tokenizer="$android/app/src/main/java/io/github/aedev/flow/data/recommendation/NeuroTokenizer.kt"
+tokenizer="$android/app/src/main/java/io/github/shivytyahoo/glidetube/data/recommendation/NeuroTokenizer.kt"
 {
   echo "# English words that make a channel name topical: NeuroTokenizer.alwaysTopical, extracted by"
   echo "# scripts/mirror-neuro-fixtures.sh. Do not edit by hand."
@@ -33,4 +33,4 @@ for file in key_spec_tables.json key_spec_golden.json stem_golden.tsv language_t
   cp "$fixtures/$file" "$here/src-tauri/tests/fixtures/neuro/$file"
 done
 
-echo "Mirrored FlowNeuro tables and golden files from $android"
+echo "Mirrored neuro tables and golden files from $android"

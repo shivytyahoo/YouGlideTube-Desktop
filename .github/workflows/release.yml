@@ -112,7 +112,7 @@ jobs:
           # NOTE (step 4, verified 2026-11-21): the .rpm job fails on prerelease
           # versions with CLI 2.12.4 — `tauri bundle --bundles rpm` rejects
           # `0.1.0-beta4` ("invalid version ... contains invalid character",
-          # the `-` is not in the rpm version charset). Flow's beta4 .rpm was
+          # the `-` is not in the rpm version charset). The beta4 .rpm was
           # built with an older CLI that didn't validate. A stable `x.y.z`
           # version builds fine; a prerelease needs a CLI version that handles
           # `-` or a version-sanitizing step before the rpm job. AppImage was
@@ -572,12 +572,12 @@ jobs:
   # Publishes youglidetube-desktop and youglidetube-desktop-bin for every tag, betas included,
   # since the AUR packages follow the betas until 0.1.0. The pkgver is the tag
   # without its dash: v0.1.0-beta3 is 0.1.0beta3, which sorts before 0.1.0.
-  # Nightly tags are skipped, and youglidetube-desktop-git is never published from CI:
+  # youglidetube-desktop-git is never published from CI:
   # the AUR rules don't want commits that only bump a VCS package's pkgver.
   aur:
     name: Publish ${{ matrix.package }} to the AUR
     needs: [prepare, publish]
-    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, 'nightly')
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:

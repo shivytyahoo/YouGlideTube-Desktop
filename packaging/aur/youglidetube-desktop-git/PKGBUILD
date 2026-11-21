@@ -2,13 +2,10 @@
 
 pkgname=youglidetube-desktop-git
 _pkgname=youglidetube-desktop
-pkgver=0.1.0beta3.r315.g6960897
+pkgver=1.0.0
 pkgrel=1
 pkgdesc='YouTube and YouTube Music desktop client with Google sign-in (development version)'
 arch=('x86_64' 'aarch64')
-# TODO(step 4): the fork's GitHub repo does not exist yet. When the user
-# creates it, set _github_repo to "owner/repo" — every URL and directory
-# below derives from it.
 _github_repo='shivytyahoo/YouGlideTube-Desktop'
 _repo="${_github_repo##*/}"
 url="https://github.com/$_github_repo"
@@ -103,8 +100,8 @@ _youglidetube_version() {
 
 pkgver() {
   cd "$_repo"
-  # v0.1.0-beta3-42-gabc1234 becomes 0.1.0beta3.r42.gabc1234, which sorts
-  # after youglidetube-desktop's 0.1.0beta3 and before its 0.1.0.
+  # v1.0.0-42-gabc1234 becomes 1.0.0.r42.gabc1234, which sorts
+  # after youglidetube-desktop's 1.0.0.
   git describe --long --tags --abbrev=7 --match 'v[0-9]*' |
     sed -E 's/^v//; s/-(alpha|beta|rc)/\1/; s/([^-]*-g)/r\1/; s/-/./g'
 }

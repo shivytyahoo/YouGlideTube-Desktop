@@ -10,7 +10,6 @@ import {
   type RecapViewEvent,
 } from "../api/recap";
 import { isDeepGlideCurrentlyActive } from "../deepGlide";
-import { onBeforeProfileSwitch } from "../profiles/beforeSwitch";
 import { isMusicVideo } from "../utils";
 
 const FLUSH_DELAY_MS = 2_000;
@@ -36,7 +35,6 @@ function install() {
   installed = true;
   const flush = () => flushRecapQueue();
   window.addEventListener("beforeunload", flush);
-  onBeforeProfileSwitch(flush);
 }
 
 function enqueue(entry: RecapEntry) {

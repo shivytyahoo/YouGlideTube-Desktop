@@ -26,6 +26,8 @@ import { IS_LINUX_RUNTIME } from "../../../lib/platform";
 import { GraphicsCompatibilitySection } from "../GraphicsCompatibilitySection";
 import { MAX_FONT_MB, fontImportMessage, importCustomFont } from "../../../lib/appFont";
 import { useUiStore } from "../../../store/useUiStore";
+import { useDateDisplaySettings } from "../../../lib/useDateDisplaySettings";
+import { formatExactDate, formatUploadDate, type DateContext } from "../../../lib/publishedDate";
 
 export function AppearanceTab() {
   const {
@@ -49,6 +51,48 @@ export function AppearanceTab() {
   const [expressiveSliders, setExpressiveSliders] = useBoolPref(SETTINGS.EXPRESSIVE_SLIDERS_ENABLED, true);
   const [highlightNew, setHighlightNew] = useBoolPref(SETTINGS.HIGHLIGHT_NEW_SETTINGS, false);
   const [highlightDays, setHighlightDays] = usePreference(SETTINGS.HIGHLIGHT_NEW_SETTINGS_DAYS, "7");
+  const dateSettings = useDateDisplaySettings();
+  const [dateMode, setDateMode] = usePreference(SETTINGS.DATE_DISPLAY_MODE, "relative");
+  const [dateFormat, setDateFormat] = usePreference(SETTINGS.DATE_FORMAT_STYLE, "system");
+  const [dateLists, setDateLists] = usePreference(SETTINGS.DATE_MODE_LISTS, "default");
+  const [dateWatch, setDateWatch] = usePreference(SETTINGS.DATE_MODE_WATCH, "default");
+  const [dateDescription, setDateDescription] = usePreference(SETTINGS.DATE_MODE_DESCRIPTION, "default");
+  // Android's preview sample: an upload from 215 days ago, shown as it reads in each place.
+  const dateSampleMs = Date.now() - 215 * 24 * 60 * 60 * 1000;
+  const dateContexts: { context: DateContext; title: string }[] = [
+    { context: "lists", title: getString("datetime_context_lists") },
+    { context: "watch", title: getString("datetime_context_watch") },
+    { context: "description", title: getString("datetime_context_description") },
+  ];
+  const datePreviews = dateContexts.map(({ context, title }) => ({
+    title,
+    value: formatUploadDate(getString("datetime_sample_relative"), dateSettings, context, {
+      timestampMs: dateSampleMs,
+      timestampIsExact: true,
+    }),
+  }));
+  const dateFormatOptions = (["system", "mmm_d_yyyy", "d_mmm_yyyy", "iso", "dmy_slash", "mdy_slash"] as const).map(
+    (style) => ({
+      value: style,
+      label:
+        style === "system"
+          ? getString("datetime_format_system")
+          : style === "iso"
+            ? `${formatExactDate(dateSampleMs, style)} (${getString("datetime_format_iso_hint")})`
+            : formatExactDate(dateSampleMs, style),
+    }),
+  );
+  const dateModeOptions = [
+    { value: "relative", label: getString("datetime_mode_relative") },
+    { value: "exact", label: getString("datetime_mode_exact") },
+    { value: "both", label: getString("datetime_mode_both") },
+  ];
+  const dateOverrideOptions = [
+    { value: "default", label: getString("datetime_override_default") },
+    { value: "relative", label: getString("datetime_override_relative") },
+    { value: "exact", label: getString("datetime_override_exact") },
+    { value: "both", label: getString("datetime_override_both") },
+  ];
   const { exportThemes, importThemes } = useThemeTransfer();
   const importInputRef = useRef<HTMLInputElement>(null);
   const usingThemeFile = themeId === THEME_FILE_ID;
@@ -126,15 +170,39 @@ export function AppearanceTab() {
         <div>
           <h2 className="text-base font-medium text-chrome-neutral-200">{getString("theme_variant")}</h2>
           <p className="mt-1 text-sm text-chrome-neutral-400">
-            {getString(usingThemeFile ? "theme_variant_from_file" : "theme_variant_description")}
+            {getString(
+              usingThemeFile
+                ? "theme_variant_from_file"
+                : followSystem
+                  ? "settings_theme_follow_system_desc"
+                  : "theme_variant_description",
+            )}
           </p>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          {THEME_VARIANTS.map((item) => (
-            <Button key={item} variant={variant === item ? "primary" : "secondary"} onClick={() => void setVariant(item)} disabled={usingThemeFile || followSystem}>
-              {getString(`theme_variant_${item}` as Parameters<typeof getString>[0])}
-            </Button>
-          ))}
+          {(["system", ...THEME_VARIANTS] as const).map((item) => {
+            // System is a mode, not a palette: it follows the OS light/dark
+            // preference (Android's "System Default" theme), while a palette
+            // pick turns following off again.
+            const selected = item === "system" ? followSystem : !followSystem && variant === item;
+            return (
+              <Button
+                key={item}
+                variant={selected ? "primary" : "secondary"}
+                onClick={() => {
+                  if (item === "system") {
+                    setFollowSystem(true);
+                  } else {
+                    setFollowSystem(false);
+                    void setVariant(item);
+                  }
+                }}
+                disabled={usingThemeFile}
+              >
+                {getString(`theme_variant_${item}` as Parameters<typeof getString>[0])}
+              </Button>
+            );
+          })}
         </div>
       </section>
 
@@ -201,6 +269,40 @@ export function AppearanceTab() {
       </div>
 
       {IS_LINUX_RUNTIME && <GraphicsCompatibilitySection />}
+
+      <div className="mt-8">
+        <div className="mb-4 rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-chrome-neutral-400">
+            {getString("datetime_preview_header")}
+          </p>
+          <div className="mt-2 space-y-1">
+            {datePreviews.map((preview) => (
+              <div key={preview.title} className="flex items-center justify-between gap-4 text-sm">
+                <span className="text-chrome-neutral-400">{preview.title}</span>
+                <span className="font-medium text-chrome-neutral-100">{preview.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <SettingsGroup title={getString("datetime_title")}>
+          <SettingItem title={getString("datetime_mode_header")}>
+            <Select value={dateMode} onChange={setDateMode} options={dateModeOptions} />
+          </SettingItem>
+          <SettingItem title={getString("datetime_format_header")}>
+            <Select value={dateFormat} onChange={setDateFormat} options={dateFormatOptions} />
+          </SettingItem>
+          <SettingItem title={getString("datetime_context_lists")}>
+            <Select value={dateLists} onChange={setDateLists} options={dateOverrideOptions} />
+          </SettingItem>
+          <SettingItem title={getString("datetime_context_watch")}>
+            <Select value={dateWatch} onChange={setDateWatch} options={dateOverrideOptions} />
+          </SettingItem>
+          <SettingItem title={getString("datetime_context_description")}>
+            <Select value={dateDescription} onChange={setDateDescription} options={dateOverrideOptions} />
+          </SettingItem>
+        </SettingsGroup>
+        <p className="mt-2 px-1 text-xs text-chrome-neutral-500">{getString("datetime_overrides_note")}</p>
+      </div>
 
       <ThemeFileSection />
 

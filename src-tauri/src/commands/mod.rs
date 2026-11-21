@@ -1,3 +1,4 @@
+pub mod account;
 pub mod app_font;
 pub mod app_window;
 pub mod auth;
@@ -20,8 +21,8 @@ pub mod notes;
 pub mod notifications;
 pub mod pip;
 pub mod process;
-pub mod profiles;
 pub mod recap;
+pub mod recognition;
 pub mod scrobble;
 pub mod shorts;
 pub mod subscription_posts;

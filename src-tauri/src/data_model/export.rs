@@ -1,4 +1,4 @@
-//! The **send** side of Flow Local Sync: project the local desktop database into the canonical
+//! The **send** side of local sync: project the local desktop database into the canonical
 //! NDJSON payloads ([`OutgoingCollection`]) that the protocol streams to a peer.
 //!
 //! This is the mirror of [`apply`](crate::data_model::apply): `apply` folds a received payload *into* the

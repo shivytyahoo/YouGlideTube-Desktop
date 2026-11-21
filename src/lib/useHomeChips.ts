@@ -3,12 +3,11 @@ import {
   NO_HOME_CHIPS,
   getHomeChipFeed,
   getHomeChips,
+  onHomeFeedChanged,
   type HomeCard,
   type HomeChips,
   type HomeMix,
-  type InterestChip,
 } from "./api/homeFeed";
-import { getString, type StringKey } from "./i18n/index";
 import type { VideoSummary } from "../types/video";
 
 export const ALL_CHIP = "all";
@@ -18,29 +17,8 @@ export const MIXES_CHIP = "mixes";
 export const LIVE_CHIP = "live";
 export const WATCHED_CHIP = "watched";
 
-export const interestChipKey = (chip: InterestChip) => `interest:${chip.key}`;
-
-const THEME_LABELS: Record<string, StringKey> = {
-  music: "home_theme_music",
-  gaming: "home_theme_gaming",
-  sports: "home_theme_sports",
-  education: "home_theme_education",
-  news: "home_theme_news",
-  science: "home_theme_science",
-  comedy: "home_theme_comedy",
-  film: "home_theme_film",
-  autos: "home_theme_autos",
-  pets: "home_theme_pets",
-  travel: "home_theme_travel",
-  howto: "home_theme_howto",
-  nonprofits: "home_theme_nonprofits",
-};
-
-/** A chip's name: a theme reads as its category ("Gaming"), any other as its strongest topic. */
-export function interestChipLabel(chip: InterestChip): string {
-  const theme = chip.category ? THEME_LABELS[chip.category] : undefined;
-  return theme ? getString(theme) : chip.label;
-}
+/** A server home-feed chip, by label: the backend browses the feed with the chip's params. */
+export const serverChipKey = (label: string) => `server:${label}`;
 
 /** The backend's shortest mix, which a hidden video can take a mix below. */
 const MIX_MIN_VIDEOS = 5;
@@ -65,7 +43,10 @@ export function visibleChipKeys(chips: HomeChips, selected: string): string[] {
   const offered = (key: string, available = true) => key === selected || (available && !empty.has(key));
   return [
     ALL_CHIP,
-    ...chips.interests.map(interestChipKey).filter((key) => offered(key)),
+    ...chips.serverChips
+      .filter((chip) => chip.label.trim().toLowerCase() !== "all")
+      .map((chip) => serverChipKey(chip.label))
+      .filter((key) => offered(key)),
     ...[NEW_TO_YOU_CHIP, RECENT_CHIP].filter((key) => offered(key)),
     ...(offered(MIXES_CHIP, chips.hasMixes) ? [MIXES_CHIP] : []),
     ...(offered(LIVE_CHIP) ? [LIVE_CHIP] : []),
@@ -81,7 +62,7 @@ export function chipToRestore(remembered: string, chips: HomeChips): string {
 // The chosen chip outlives the page, as Home itself does, so coming back finds it still chosen.
 let rememberedChip = ALL_CHIP;
 
-/** Home's chips: the interest chips the backend picks, the chosen one and its videos. */
+/** Home's chips: the chosen one and its videos. */
 export function useHomeChips(enabled: boolean) {
   const [chips, setChips] = useState<HomeChips>(NO_HOME_CHIPS);
   const [selected, setSelected] = useState(rememberedChip);
@@ -111,7 +92,8 @@ export function useHomeChips(enabled: boolean) {
     void getHomeChips()
       .then((next) => {
         if (disposed) return;
-        setChips(next);
+        // A settled feed may already have brought newer server chips; keep those.
+        setChips((current) => (current.serverChips.length > 0 ? { ...next, serverChips: current.serverChips } : next));
         const key = chipToRestore(rememberedChip, next);
         rememberedChip = key;
         setSelected(key);
@@ -120,6 +102,36 @@ export function useHomeChips(enabled: boolean) {
       .catch((error) => console.error("Home chips failed to load", error));
     return () => {
       disposed = true;
+    };
+  }, [enabled, load]);
+
+  // The server chips arrive with the first feed page, after the chips
+  // above were fetched: refresh the row when a feed settles, and fall
+  // back to All when the chosen chip has left the row.
+  useEffect(() => {
+    if (!enabled) return;
+    let disposed = false;
+    let stop: (() => void) | undefined;
+    void onHomeFeedChanged((snapshot) => {
+      if (disposed || snapshot.loading) return;
+      void getHomeChips()
+        .then((next) => {
+          if (disposed) return;
+          setChips(next);
+          const key = chipToRestore(rememberedChip, next);
+          if (key === rememberedChip) return;
+          rememberedChip = key;
+          setSelected(key);
+          void load(key, false);
+        })
+        .catch((error) => console.error("Home chips failed to load", error));
+    }).then((unlisten) => {
+      if (disposed) unlisten();
+      else stop = unlisten;
+    });
+    return () => {
+      disposed = true;
+      stop?.();
     };
   }, [enabled, load]);
 

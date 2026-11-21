@@ -23,13 +23,13 @@ describe("clearWatchProgress", () => {
 
   it("zeroes the history row, keeps the entry and drops the resume point", async () => {
     db.getWatchHistory.mockResolvedValue([record]);
-    profileStorage.setItem("flow_watch_progress:v", "{}");
+    profileStorage.setItem("youglidetube_watch_progress:v", "{}");
     const heard = vi.fn();
     window.addEventListener("history-updated", heard);
     await clearWatchProgress("v");
     window.removeEventListener("history-updated", heard);
     expect(db.addWatchRecord).toHaveBeenCalledWith({ ...record, watchDurationSeconds: 0 });
-    expect(profileStorage.getItem("flow_watch_progress:v")).toBeNull();
+    expect(profileStorage.getItem("youglidetube_watch_progress:v")).toBeNull();
     expect(heard).toHaveBeenCalledOnce();
   });
 

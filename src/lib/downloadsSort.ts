@@ -1,9 +1,10 @@
 import { formatBytes } from "./downloadOptions";
 import { getString, type StringKey } from "./i18n/index";
+import { formatTime } from "./musicFormat";
 import { profileStorage } from "./storage/profileStorage";
 import type { DownloadRecord } from "./api/downloads";
 
-const SORT_STORAGE_KEY = "flow_downloads_sort";
+const SORT_STORAGE_KEY = "youglidetube_downloads_sort";
 
 export const DOWNLOAD_SORTS = ["newest", "oldest", "largest", "title", "channel"] as const;
 
@@ -48,10 +49,16 @@ export function sortDownloadRecords(records: DownloadRecord[], sort: DownloadSor
   }
 }
 
-/** A saved download's size and date, whichever of them are known. */
+/** A saved download's size and date, whichever of them are known. A clip also
+ *  names its range, so the list shows it even when the file was renamed. */
 export function downloadDetail(record: DownloadRecord): string {
   const at = savedAt(record);
+  const clip =
+    record.clipStartMs != null && record.clipEndMs != null
+      ? `Clip ${formatTime(record.clipStartMs / 1000)}–${formatTime(record.clipEndMs / 1000)}`
+      : null;
   return [
+    clip,
     formatBytes(record.fileSizeBytes ?? null),
     at > 0 ? new Date(at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : null,
   ].filter(Boolean).join(" • ");

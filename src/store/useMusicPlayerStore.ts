@@ -57,7 +57,7 @@ const videoIdOf = (track: SongItem): string => track.videoId ?? track.id;
 
 // --- persistence ---
 
-const PERSIST_KEY = "flow_music_player";
+const PERSIST_KEY = "youglidetube_music_player";
 
 interface PersistedMusicConfig {
   volume: number;

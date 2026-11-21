@@ -150,12 +150,12 @@ jobs:
           grep -qx "StartupWMClass=$bin" "$desktop"
           if grep '^Exec=' "$desktop" | grep -Ev "^Exec=$bin( |$)"; then exit 1; fi
 
-          # flow:// links reach YouGlideTube only through the %u in Exec. Main must
+          # youglidetube:// links reach YouGlideTube only through the %u in Exec. Main must
           # have it; releases up to 0.1.0-beta3 don't.
           if ! grep -m1 '^Exec=' "$desktop" | grep -q ' %u'; then
             if [[ $PKG == *-git ]]; then
               echo "::error::$product.desktop from main has no %u in Exec."
               exit 1
             fi
-            echo "::warning::$product.desktop has no %u in Exec, so flow:// links open YouGlideTube without the link."
+            echo "::warning::$product.desktop has no %u in Exec, so youglidetube:// links open YouGlideTube without the link."
           fi

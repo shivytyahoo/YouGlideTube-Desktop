@@ -1,45 +1,38 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { profileStorage, storageKey } from "./profileStorage";
+import { profileStorage } from "./profileStorage";
 
 afterEach(() => {
-  delete window.__FLOW_PROFILE__;
   localStorage.clear();
 });
 
 describe("profileStorage", () => {
-  it("keeps Default on today's bare keys", () => {
-    window.__FLOW_PROFILE__ = { id: "d", isDefault: true };
-    profileStorage.setItem("flow_search_history", "[1]");
-    expect(localStorage.getItem("flow_search_history")).toBe("[1]");
+  it("stores keys bare", () => {
+    profileStorage.setItem("youglidetube_search_history", "[1]");
+    expect(localStorage.getItem("youglidetube_search_history")).toBe("[1]");
+    expect(profileStorage.getItem("youglidetube_search_history")).toBe("[1]");
+    profileStorage.removeItem("youglidetube_search_history");
+    expect(localStorage.getItem("youglidetube_search_history")).toBeNull();
   });
 
-  it("falls back to Default when no profile was injected", () => {
-    expect(storageKey("flow_theater_mode")).toBe("flow_theater_mode");
+  it("reads a key an earlier build wrote under the old name, then moves it", () => {
+    localStorage.setItem("flow_search_history", "[1]");
+    expect(profileStorage.getItem("youglidetube_search_history")).toBe("[1]");
+    expect(localStorage.getItem("youglidetube_search_history")).toBe("[1]");
+    expect(localStorage.getItem("flow_search_history")).toBeNull();
+
+    localStorage.setItem("flow_search_history", "[2]");
+    profileStorage.setItem("youglidetube_search_history", "[2]");
+    expect(localStorage.getItem("flow_search_history")).toBeNull();
+
+    localStorage.setItem("flow_search_history", "[3]");
+    profileStorage.removeItem("youglidetube_search_history");
+    expect(localStorage.getItem("flow_search_history")).toBeNull();
+    expect(localStorage.getItem("youglidetube_search_history")).toBeNull();
   });
 
-  it("prefixes another profile's keys and keeps the two apart", () => {
-    localStorage.setItem("flow_search_history", "default");
-    window.__FLOW_PROFILE__ = { id: "study", isDefault: false };
-    expect(profileStorage.getItem("flow_search_history")).toBeNull();
-    profileStorage.setItem("flow_search_history", "study");
-    expect(localStorage.getItem("p:study:flow_search_history")).toBe("study");
-    expect(localStorage.getItem("flow_search_history")).toBe("default");
-    profileStorage.removeItem("flow_search_history");
-    expect(localStorage.getItem("p:study:flow_search_history")).toBeNull();
-  });
-
-  it("shares device keys between profiles", () => {
-    window.__FLOW_PROFILE__ = { id: "study", isDefault: false };
-    profileStorage.setItem("flow_boot_theme", "dark", "device");
-    expect(localStorage.getItem("flow_boot_theme")).toBe("dark");
-  });
-
-  it("lists only the active profile's keys", () => {
+  it("hides keys left over from removed profiles", () => {
     localStorage.setItem("flow_lyrics_a", "1");
     localStorage.setItem("p:study:flow_lyrics_b", "2");
-    localStorage.setItem("p:gaming:flow_lyrics_c", "3");
     expect(profileStorage.keys()).toEqual(["flow_lyrics_a"]);
-    window.__FLOW_PROFILE__ = { id: "study", isDefault: false };
-    expect(profileStorage.keys()).toEqual(["flow_lyrics_b"]);
   });
 });

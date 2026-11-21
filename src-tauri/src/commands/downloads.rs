@@ -19,7 +19,6 @@ use crate::db::downloads::DownloadRecord;
 use crate::errors::{AppError, ErrorResponse};
 use crate::models::music_stream::MusicAudioQuality;
 use crate::models::video::CaptionTrack;
-use crate::profiles::{ActiveProfile, collection_owners};
 use crate::security::validation::validate_video_id;
 use crate::services::youtube_service::YoutubeService;
 use crate::streaming::proxy::StreamingManager;
@@ -314,6 +313,43 @@ impl DownloadControl {
     }
 }
 
+/// A clip of a video: only `[start_ms, end_ms)` is kept, the rest is trimmed
+/// after the merge. Mirrors Android's `DownloadRequest.clipStartMs`/`clipEndMs`
+/// (both absent = the whole video).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClipRange {
+    pub start_ms: u64,
+    pub end_ms: u64,
+}
+
+impl ClipRange {
+    /// `None` when the end is not after the start.
+    pub fn new(start_ms: u64, end_ms: u64) -> Option<Self> {
+        (end_ms > start_ms).then_some(Self { start_ms, end_ms })
+    }
+
+    pub fn duration_ms(self) -> u64 {
+        self.end_ms - self.start_ms
+    }
+
+    pub fn duration_seconds(self) -> f64 {
+        self.duration_ms() as f64 / 1000.0
+    }
+
+    /// The range must sit inside the video when its length is known.
+    pub fn validate(self, duration_ms: Option<u64>) -> Result<(), String> {
+        if let Some(duration_ms) = duration_ms {
+            if self.start_ms >= duration_ms || self.end_ms > duration_ms {
+                return Err(
+                    "The clip must fit inside the video: its end is past the video's length"
+                        .to_string(),
+                );
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StartDownloadRequest {
@@ -327,6 +363,12 @@ pub struct StartDownloadRequest {
     pub thumbnail_url: Option<String>,
     pub author: Option<String>,
     pub duration_seconds: Option<u64>,
+    /// A clip of the video, in milliseconds. Both set or neither; a song clip
+    /// needs AAC, because only the AAC remux can trim (`run_single` enforces it).
+    #[serde(default)]
+    pub clip_start_ms: Option<u64>,
+    #[serde(default)]
+    pub clip_end_ms: Option<u64>,
     pub collection_db_id: Option<i64>,
     /// How much louder than the site's target the saved stream plays, so the offline copy is
     /// normalized like the streamed one.
@@ -344,6 +386,22 @@ pub struct StartDownloadRequest {
     /// A subtitle track to save with a video.
     #[serde(default)]
     pub subtitle: Option<subtitles::SubtitleChoice>,
+}
+
+impl StartDownloadRequest {
+    /// The requested clip, when both ends were sent and the end is after the start.
+    pub fn clip_range(&self) -> Option<ClipRange> {
+        match (self.clip_start_ms, self.clip_end_ms) {
+            (Some(start_ms), Some(end_ms)) => ClipRange::new(start_ms, end_ms),
+            _ => None,
+        }
+    }
+
+    /// A clip was asked for at all, valid or not — validation rejects the
+    /// half-filled and backwards cases instead of silently ignoring them.
+    pub fn is_clip(&self) -> bool {
+        self.clip_start_ms.is_some() || self.clip_end_ms.is_some()
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -429,6 +487,42 @@ pub async fn start_download(
         return Err(ErrorResponse::from(AppError::Validation(
             "A download needs one video quality or one music quality".into(),
         )));
+    }
+    // A clip needs both ends, the end after the start, and the range inside the
+    // video when its length is known. A song clip needs AAC: only the AAC remux
+    // can trim, and `run_single` refuses a non-AAC clip before fetching.
+    match (request.clip_start_ms, request.clip_end_ms) {
+        (None, None) => {}
+        (Some(start_ms), Some(end_ms)) => {
+            let clip = ClipRange::new(start_ms, end_ms).ok_or_else(|| {
+                ErrorResponse::from(AppError::Validation(
+                    "The clip end must be after its start".into(),
+                ))
+            })?;
+            clip.validate(
+                request
+                    .duration_seconds
+                    .map(|seconds| seconds.saturating_mul(1000)),
+            )
+            .map_err(|error| ErrorResponse::from(AppError::Validation(error)))?;
+            if matches!(
+                request.media_kind,
+                DownloadMediaKind::Music | DownloadMediaKind::Audio
+            ) && !request
+                .music
+                .as_ref()
+                .is_some_and(|music| music.prefer_aac)
+            {
+                return Err(ErrorResponse::from(AppError::Validation(
+                    "Only an AAC song can be clipped".into(),
+                )));
+            }
+        }
+        _ => {
+            return Err(ErrorResponse::from(AppError::Validation(
+                "A clip needs both a start and an end time".into(),
+            )));
+        }
     }
 
     let directory = naming::resolve_destination_directory(
@@ -695,10 +789,12 @@ async fn remove_orphaned_partials(app: &AppHandle, pool: &SqlitePool, rows: &[Do
 }
 
 fn is_orphaned_partial(name: &str, owned: &HashSet<&str>) -> bool {
-    if !name.contains(".flowpart") {
+    // Both the current `.youglidetube-part` extension and the old `.flowpart`
+    // one: a crash can leave either behind, and the sweep must clear both.
+    if !name.contains(".flowpart") && !name.contains(".youglidetube-part") {
         return false;
     }
-    if name.contains(".retag.flowpart") {
+    if name.contains(".retag.flowpart") || name.contains(".retag.youglidetube-part") {
         return true;
     }
     let Some(rest) = name.strip_prefix('.') else {
@@ -992,9 +1088,7 @@ pub async fn create_download_collection(
     request: CreateCollectionRequest,
     app: AppHandle,
     pool: State<'_, SqlitePool>,
-    profile: State<'_, ActiveProfile>,
 ) -> Result<CreatedCollection, ErrorResponse> {
-    let stored_id = collection_owners::stored_id(&profile, &request.collection_id);
     let title = request.title.trim().to_string();
     if title.is_empty() || title.chars().count() > 240 {
         return Err(ErrorResponse::from(AppError::Validation(
@@ -1012,7 +1106,7 @@ pub async fn create_download_collection(
     };
 
     if let Some(existing) =
-        crate::db::download_collections::find_collection(&pool, &stored_id, &request.kind)
+        crate::db::download_collections::find_collection(&pool, &request.collection_id, &request.kind)
             .await
             .map_err(ErrorResponse::from)?
     {
@@ -1054,7 +1148,7 @@ pub async fn create_download_collection(
 
     let record = DownloadCollectionRecord {
         id: None,
-        collection_id: stored_id,
+        collection_id: request.collection_id,
         kind: request.kind,
         title,
         author: request.author,
@@ -1079,18 +1173,10 @@ pub async fn create_download_collection(
 pub async fn list_download_collections(
     pool: State<'_, SqlitePool>,
     streaming_manager: State<'_, StreamingManager>,
-    profile: State<'_, ActiveProfile>,
 ) -> Result<Vec<DownloadCollectionRecord>, ErrorResponse> {
     let mut collections = crate::db::download_collections::list_collections(&pool)
         .await
         .map_err(ErrorResponse::from)?;
-    // Another profile's own playlists stay with it; the app sees the bare playlist id.
-    collections
-        .retain(|collection| collection_owners::visible_to(&collection.collection_id, &profile));
-    for collection in &mut collections {
-        collection.collection_id =
-            collection_owners::playlist_id(&collection.collection_id).to_string();
-    }
     let records = crate::db::downloads::list_downloads(&pool)
         .await
         .map_err(ErrorResponse::from)?;
@@ -1247,8 +1333,25 @@ fn offline_captions(
 
 #[cfg(test)]
 mod tests {
-    use super::{DownloadMediaKind, is_orphaned_partial, offline_content_type};
+    use super::{ClipRange, DownloadMediaKind, is_orphaned_partial, offline_content_type};
     use std::collections::HashSet;
+
+    #[test]
+    fn a_clip_needs_its_end_after_its_start() {
+        assert!(ClipRange::new(1000, 2000).is_some());
+        assert!(ClipRange::new(2000, 2000).is_none());
+        assert!(ClipRange::new(2000, 1000).is_none());
+    }
+
+    #[test]
+    fn a_clip_must_fit_inside_the_video() {
+        let clip = ClipRange::new(1000, 2000).unwrap();
+        assert_eq!(clip.duration_seconds(), 1.0);
+        assert!(clip.validate(Some(2000)).is_ok());
+        assert!(clip.validate(Some(1999)).is_err());
+        assert!(clip.validate(Some(1000)).is_err());
+        assert!(clip.validate(None).is_ok());
+    }
 
     #[test]
     fn only_unowned_partials_are_orphans() {
@@ -1266,6 +1369,17 @@ mod tests {
         assert!(is_orphaned_partial("Song.retag.flowpart", &owned));
         assert!(!is_orphaned_partial(".hidden.flowpart", &owned));
         assert!(!is_orphaned_partial("Song.m4a", &owned));
+        // The current extension behaves the same way.
+        assert!(!is_orphaned_partial(
+            ".0b8f8d1e-1c47-4e43-9a4c-2f0f3f6f1a10.video.youglidetube-part",
+            &owned
+        ));
+        assert!(is_orphaned_partial(
+            ".5d0c1f73-8b1a-4c4f-8e0f-1b2c3d4e5f60.youglidetube-part.part2",
+            &owned
+        ));
+        assert!(is_orphaned_partial("Song.retag.youglidetube-part", &owned));
+        assert!(!is_orphaned_partial(".hidden.youglidetube-part", &owned));
     }
 
     #[test]

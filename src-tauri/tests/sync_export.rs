@@ -145,7 +145,7 @@ async fn export_then_apply_round_trips_watch_likes_playlists_settings() {
     assert_eq!(get_setting(&b, "download_location").await, None);
 }
 
-fn flow_snapshot(
+fn sync_snapshot(
     device: &str,
     docs: u64,
     topic: &str,
@@ -173,8 +173,8 @@ fn flow_snapshot(
 fn flow_neuro_decompose_then_remerge_reconstructs_merged_state() {
     // Two devices' contributions merged.
     let merged = merge_flow_neuro(&[
-        flow_snapshot("dA", 100, "rust", 1.0),
-        flow_snapshot("dB", 300, "cooking", 1.0),
+        sync_snapshot("dA", 100, "rust", 1.0),
+        sync_snapshot("dB", 300, "cooking", 1.0),
     ]);
 
     // Decompose back into snapshots and re-merge them.

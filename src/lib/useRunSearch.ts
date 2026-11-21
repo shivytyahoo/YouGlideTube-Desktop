@@ -13,7 +13,13 @@ export function useRunSearch() {
     (query: string, searchFilters?: SearchFilterState, scope?: SearchHistoryScope) => {
       record(query, scope);
       setSearchQuery(query);
-      navigate(`/search?q=${encodeURIComponent(query)}`, searchFilters ? { state: { searchFilters } } : undefined);
+      // A search run from a music page opens the dedicated music search,
+      // as Android's music tab does; everywhere else opens the main search.
+      const destination =
+        scope === "music"
+          ? `/music/search?q=${encodeURIComponent(query)}`
+          : `/search?q=${encodeURIComponent(query)}`;
+      navigate(destination, searchFilters ? { state: { searchFilters } } : undefined);
     },
     [navigate, record, setSearchQuery],
   );

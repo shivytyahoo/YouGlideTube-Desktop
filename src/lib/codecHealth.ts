@@ -126,7 +126,7 @@ export function codecToLeaveWhenNoPicture(
 
 export function loadDecodeFailures(): DecodeFailures {
   try {
-    const parsed = JSON.parse(profileStorage.getItem(STORAGE_KEY, "device") ?? "{}");
+    const parsed = JSON.parse(profileStorage.getItem(STORAGE_KEY) ?? "{}");
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
@@ -135,7 +135,7 @@ export function loadDecodeFailures(): DecodeFailures {
 
 export function saveDecodeFailures(failures: DecodeFailures): void {
   try {
-    profileStorage.setItem(STORAGE_KEY, JSON.stringify(failures), "device");
+    profileStorage.setItem(STORAGE_KEY, JSON.stringify(failures));
   } catch {
     // Without storage, the failure is only remembered until the app closes.
   }

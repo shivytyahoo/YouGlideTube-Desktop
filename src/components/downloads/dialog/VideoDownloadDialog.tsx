@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { getString } from "../../../lib/i18n/index";
+import { formatTime } from "../../../lib/musicFormat";
 import { pickFolder } from "../../../lib/dialogs";
 import { CODEC_CHOICES, displayHeight, formatBytes, formatDuration, resolutionBadge, type CodecChoice } from "../../../lib/downloadOptions";
 import { IS_MACOS_RUNTIME } from "../../../lib/platform";
@@ -22,6 +23,8 @@ import type { VideoSummary } from "../../../types/video";
 import { PlayerErrorState } from "../../ui/PlayerErrorState";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Select } from "../../ui/Select";
+import { TextInput } from "../../ui/TextInput";
+import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { DialogFooter, DialogFrame, DialogHeader, SectionLabel, SkeletonRows } from "./DownloadDialogShell";
 
 function SavedInFile({ chapters }: { chapters: boolean }) {
@@ -239,10 +242,45 @@ export function VideoDownloadDialog({ video, onClose }: { video: VideoSummary; o
           </div>
         ) : null}
 
+        {state.canClip ? (
+          <div className="rounded-xl border border-chrome-neutral-800 bg-surface-container px-3 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <SectionLabel>{getString("download_clip_title")}</SectionLabel>
+                <p className="mt-0.5 text-xs text-chrome-neutral-400">{getString("download_clip_subtitle")}</p>
+              </div>
+              <ToggleSwitch checked={state.clipEnabled} onChange={state.setClipEnabled} />
+            </div>
+            {state.clipEnabled ? (
+              <div className="mt-3 grid gap-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <label className="grid gap-1.5">
+                    <SectionLabel>{getString("download_clip_start")}</SectionLabel>
+                    <TextInput value={state.clipStart} onChange={state.setClipStart} inputMode="numeric" placeholder="0:00" />
+                  </label>
+                  <label className="grid gap-1.5">
+                    <SectionLabel>{getString("download_clip_end")}</SectionLabel>
+                    <TextInput
+                      value={state.clipEnd}
+                      onChange={state.setClipEnd}
+                      inputMode="numeric"
+                      placeholder={video.durationSeconds ? formatTime(video.durationSeconds) : ""}
+                    />
+                  </label>
+                </div>
+                <p className="text-xs text-chrome-neutral-400">
+                  {getString("download_clip_length", video.durationSeconds ? formatTime(video.durationSeconds) : "0:00")}
+                </p>
+                <p className="text-xs text-chrome-neutral-400">{getString("download_clip_keyframe_note")}</p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <SavedInFile chapters={!audioMode} />
       </div>
       <DialogFooter
-        fileName={state.title}
+        fileName={state.fileName}
         extension={extension}
         onRename={state.setTitle}
         folder={state.folder ?? (audioMode ? musicFolder : defaultFolder)}
@@ -253,8 +291,8 @@ export function VideoDownloadDialog({ video, onClose }: { video: VideoSummary; o
         onCancel={onClose}
         onSubmit={() => void start()}
       />
-      {state.errorMessage && !failure ? (
-        <p role="alert" className="px-5 pb-3 text-sm text-chrome-red-300">{state.errorMessage}</p>
+      {(state.errorMessage || state.clipError) && !failure ? (
+        <p role="alert" className="px-5 pb-3 text-sm text-chrome-red-300">{state.clipError ?? state.errorMessage}</p>
       ) : null}
     </DialogFrame>
   );

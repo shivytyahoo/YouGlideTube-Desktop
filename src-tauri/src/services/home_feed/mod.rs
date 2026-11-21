@@ -32,6 +32,8 @@ use card::Card;
 use origin::{Origin, OriginKind};
 use sources::{RelatedLists, SearchPages};
 
+use crate::api::innertube::extractors::server_feed::{ServerChip, ServerFeedPage};
+
 /// Keeps a fetched subscription feed in the store Home reads; `published` holds each video's RSS
 /// publish time in seconds.
 pub async fn remember_subscription_feed(
@@ -118,6 +120,13 @@ struct Inner {
     priority_asked: Mutex<HashMap<String, u64>>,
     /// Each chip's result with when it was fetched.
     chip_results: Mutex<HashMap<String, (chips::ChipFeed, u64)>>,
+    /// The server home feed's topic chips, from its latest page.
+    server_chips: Mutex<Vec<ServerChip>>,
+    /// The server home feed's next page, when it offered one.
+    server_continuation: Mutex<Option<String>>,
+    /// Video ids the server home feed placed, so the reserve and
+    /// load-more keep their server origin instead of a search one.
+    server_ids: Mutex<HashSet<String>>,
 }
 
 /// The Home feed service; cheap to clone into background work.
@@ -146,6 +155,29 @@ impl HomeFeedService {
 
     fn generation(&self) -> u64 {
         self.inner.feed.lock().unwrap().snapshot.generation
+    }
+
+    /// Records a server home page: its topic chips for the chips row, its
+    /// continuation for load-more, and its video ids so the reserve and
+    /// load-more keep their server origin. A continuation page carries no
+    /// chips, so the row keeps the first page's.
+    fn store_server_page(&self, page: &ServerFeedPage) {
+        if !page.chips.is_empty() {
+            *self.inner.server_chips.lock().unwrap() = page.chips.clone();
+        }
+        *self.inner.server_continuation.lock().unwrap() = page.continuation.clone();
+        let mut ids = self.inner.server_ids.lock().unwrap();
+        ids.extend(page.videos.iter().map(|video| video.id.clone()));
+        ids.extend(page.shorts.iter().map(|video| video.id.clone()));
+    }
+
+    /// Whether a video id came from the server home feed.
+    fn is_server_video(&self, video_id: &str) -> bool {
+        self.inner
+            .server_ids
+            .lock()
+            .unwrap()
+            .contains(video_id)
     }
 
     /// Changes the feed if `generation` is still the current one, then tells the page.
@@ -381,6 +413,9 @@ impl HomeFeedService {
         self.inner.search_pages.reset();
         self.inner.related.clear();
         self.inner.chip_results.lock().unwrap().clear();
+        self.inner.server_chips.lock().unwrap().clear();
+        *self.inner.server_continuation.lock().unwrap() = None;
+        self.inner.server_ids.lock().unwrap().clear();
         let pool = app.state::<sqlx::SqlitePool>();
         let _ = cache::clear(&pool).await;
         self.emit(app);

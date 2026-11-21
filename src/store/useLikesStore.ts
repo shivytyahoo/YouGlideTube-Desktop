@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { isLocalMediaId } from "../lib/localMediaId";
 import { getSetting, setSetting } from "../lib/api/db";
-import { getMusicQueue } from "../lib/api/music";
+import { getAccountSignedIn } from "../lib/api/account";
+import { getMusicQueue, setMusicLiked } from "../lib/api/music";
 import { autoDownloadLikedSong } from "../lib/autoDownload";
 import { recapLikedSong } from "../lib/recap/musicSession";
 import type { SongItem } from "../types/music";
@@ -178,6 +179,14 @@ export const useLikesStore = create<LikesState>((set, get) => ({
     if (!exists) {
       void autoDownloadLikedSong(song);
       recapLikedSong(song);
+    }
+    // The account like is a best-effort write behind the local toggle, as
+    // Android's addToFavorites/removeFromFavorites does: a refused like
+    // leaves the local state as it is.
+    if (await getAccountSignedIn().catch(() => false)) {
+      void setMusicLiked(id, !exists).catch((error) => {
+        console.warn("Failed to save the like on the account", error);
+      });
     }
     return !exists;
   },

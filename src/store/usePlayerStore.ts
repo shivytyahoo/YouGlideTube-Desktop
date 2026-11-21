@@ -81,7 +81,7 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
 
 const getSavedSubtitleStyle = (): SubtitleStyle => {
   try {
-    const saved = profileStorage.getItem("flow_subtitle_style");
+    const saved = profileStorage.getItem("youglidetube_subtitle_style");
     if (saved) {
       // A style saved by an older build lacks the newer fields; they take the defaults.
       return { ...DEFAULT_SUBTITLE_STYLE, ...JSON.parse(saved) };
@@ -94,7 +94,7 @@ const getSavedSubtitleStyle = (): SubtitleStyle => {
 
 const getSavedTheaterMode = (): boolean => {
   try {
-    return profileStorage.getItem("flow_theater_mode") === "true";
+    return profileStorage.getItem("youglidetube_theater_mode") === "true";
   } catch (e) {
     console.error("Failed to load saved theater mode", e);
   }
@@ -810,7 +810,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   setVideoFit: (videoFit) => set({ videoFit }),
   setIsTheaterMode: (isTheaterMode) => {
-    profileStorage.setItem("flow_theater_mode", String(isTheaterMode));
+    profileStorage.setItem("youglidetube_theater_mode", String(isTheaterMode));
     set({ isTheaterMode });
   },
   setSponsorBlockSegments: (sponsorBlockSegments) => set({ sponsorBlockSegments }),
@@ -844,7 +844,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   })),
   subtitleStyle: getSavedSubtitleStyle(),
   setSubtitleStyle: (style) => {
-    profileStorage.setItem("flow_subtitle_style", JSON.stringify(style));
+    profileStorage.setItem("youglidetube_subtitle_style", JSON.stringify(style));
     set({ subtitleStyle: style });
   },
 }));

@@ -1,6 +1,5 @@
-//! The folder library's rows. Folders and files are the same for every profile, so callers pass
-//! `db::device::pool`; plays belong to the profile and use its own pool. None of these rows is
-//! read by sync.
+//! The folder library's rows: folders, files and plays, all in the app's database.
+//! None of these rows is read by sync.
 
 use std::collections::HashMap;
 

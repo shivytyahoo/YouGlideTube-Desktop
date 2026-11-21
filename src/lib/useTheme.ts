@@ -12,6 +12,7 @@ import {
   resolveThemeChoice,
   themeCssVariables,
   type CustomThemeDefinition,
+  type ThemeColors,
   type ThemeVariant,
 } from "./themes";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
@@ -19,8 +20,23 @@ import { useThemeFileStore } from "../store/useThemeFileStore";
 import { THEME_FILE_ID } from "./themeFile";
 import { useSystemDarkMode } from "./useSystemDarkMode";
 import { useThemeFileSync } from "./useThemeFile";
-import { saveBootTheme } from "./profiles/bootTheme";
 import { useAppFont } from "./appFont";
+import { profileStorage } from "./storage/profileStorage";
+
+/** Read before the app loads by public/boot-theme.js. */
+const BOOT_THEME_KEY = "youglidetube_boot_theme";
+
+/** Remembers the theme this install shows, for its next first paint. */
+function saveBootTheme(themeId: string, colors: ThemeColors, variant: ThemeVariant): void {
+  try {
+    profileStorage.setItem(
+      BOOT_THEME_KEY,
+      JSON.stringify({ themeId, variant, variables: themeCssVariables(colors, variant) }),
+    );
+  } catch {
+    // Storage full or blocked: the next start just paints the stylesheet defaults first.
+  }
+}
 
 export function useTheme() {
   const pickedThemeId = useAppSettingsStore((state) => state.values[SETTINGS.THEME_ID] ?? "youglidetube");

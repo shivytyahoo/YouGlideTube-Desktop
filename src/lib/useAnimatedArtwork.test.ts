@@ -3,12 +3,19 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 
 const lookups = vi.hoisted(() => ({ answers: [] as Array<() => Promise<string | null>> }));
+const prefs = vi.hoisted(() => ({ batterySaver: false }));
 vi.mock("./animatedArtwork", () => ({
   artworkLoopFor: () => (lookups.answers.shift() ?? (() => Promise.resolve(null)))(),
   forgetArtworkLoop: () => {},
 }));
 vi.mock("./api/images", () => ({ proxyArtworkLoop: async (url: string) => `proxied:${url}` }));
-vi.mock("./usePreference", () => ({ useBoolPref: () => [true, () => {}] }));
+// Key-aware: the artwork switch is on; battery saver follows the test's flag.
+vi.mock("./usePreference", () => ({
+  useBoolPref: (key: string) => [
+    key === "animated_artwork" || (key === "battery_saver_enabled" && prefs.batterySaver),
+    () => {},
+  ],
+}));
 
 const { useAnimatedArtwork } = await import("./useAnimatedArtwork");
 import type { SongItem } from "../types/music";
@@ -23,7 +30,10 @@ function Probe() {
 }
 
 describe("animated cover lookups", () => {
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    prefs.batterySaver = false;
+  });
 
   it("asks again 20 s and 60 s after a failure while the song stays on screen", async () => {
     vi.useFakeTimers();
@@ -37,6 +47,18 @@ describe("animated cover lookups", () => {
     expect(shown).toBeNull();
     await act(async () => void (await vi.advanceTimersByTimeAsync(40_000)));
     expect(shown).toBe("proxied:loop");
+    await act(async () => root.unmount());
+  });
+
+  it("asks for nothing while battery saver is on", async () => {
+    prefs.batterySaver = true;
+    vi.useFakeTimers();
+    lookups.answers = [() => Promise.resolve("loop")];
+    const root = createRoot(document.createElement("div"));
+    await act(async () => root.render(createElement(Probe)));
+    await act(async () => void (await vi.advanceTimersByTimeAsync(60_000)));
+    expect(shown).toBeNull();
+    expect(lookups.answers).toHaveLength(1);
     await act(async () => root.unmount());
   });
 });

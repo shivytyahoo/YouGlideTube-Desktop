@@ -12,8 +12,8 @@ export const volumeGain = (position: number): number => {
 /** The slider position that plays at `gain`, for carrying an older saved gain over. */
 export const volumePosition = (gain: number): number => Math.sqrt(Math.max(0, Math.min(1, gain)));
 
-const CONFIG_KEY = "flow_music_player";
-const MARKER_KEY = "flow_music_volume_curve";
+const CONFIG_KEY = "youglidetube_music_player";
+const MARKER_KEY = "youglidetube_music_volume_curve";
 
 /**
  * Builds before this saved the music volume as a gain. Converting it once keeps the first launch

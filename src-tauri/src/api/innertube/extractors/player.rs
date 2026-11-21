@@ -1642,7 +1642,7 @@ impl InnertubeClient {
         let web_client = client.is_web_sabr();
         // Web clients are only served with a BotGuard token on the request, bound
         // to the video id as the Android app binds it. Every other family is
-        // attested by a runtime Flow cannot run, and a BotGuard token on those is
+        // attested by a runtime this app cannot run, and a BotGuard token on those is
         // a claim googlevideo validates and refuses.
         let po_token = if web_client {
             let Some(token) = generate_po_token(video_id).await else {
@@ -2232,7 +2232,7 @@ impl InnertubeClient {
 }
 
 // Live network smoke test for the SABR stack. Ignored by default; run with:
-//   FLOW_SABR_VIDEO=3RmOvxilbPM cargo test -p flow sabr_live_smoke -- --ignored --nocapture
+//   YOUGLIDETUBE_SABR_VIDEO=3RmOvxilbPM cargo test -p youglidetube sabr_live_smoke -- --ignored --nocapture
 #[cfg(test)]
 mod sabr_live_smoke {
     use super::*;
@@ -2254,7 +2254,7 @@ mod sabr_live_smoke {
             .with_test_writer()
             .try_init();
         let video_id =
-            std::env::var("FLOW_SABR_VIDEO").unwrap_or_else(|_| "3RmOvxilbPM".to_string());
+            std::env::var("YOUGLIDETUBE_SABR_VIDEO").unwrap_or_else(|_| "3RmOvxilbPM".to_string());
         let client = InnertubeClient::new();
 
         let visitor_data = client.fetch_visitor_data().await;
@@ -2419,7 +2419,7 @@ mod sabr_live_smoke {
 // This probe streams the WHOLE audio track under each candidate client and reports
 // which ones sustain vs. escalate to ATTESTATION_REQUIRED, so we can pick a
 // client whose attestation our (web BotGuard) PO token actually satisfies.
-//   cargo test -p flow sabr_client_probe -- --ignored --nocapture
+//   cargo test -p youglidetube sabr_client_probe -- --ignored --nocapture
 #[cfg(test)]
 mod walk_order_tests {
     use super::*;
@@ -2520,12 +2520,12 @@ mod sabr_client_probe {
             .with_test_writer()
             .try_init();
         let video_id =
-            std::env::var("FLOW_SABR_VIDEO").unwrap_or_else(|_| "3RmOvxilbPM".to_string());
+            std::env::var("YOUGLIDETUBE_SABR_VIDEO").unwrap_or_else(|_| "3RmOvxilbPM".to_string());
         let client = InnertubeClient::new();
         // Allow injecting an externally-minted pot+visitor (e.g. from bgutils-js)
         // to test whether a *fresh, valid* pot sustains where the stale sidecar's
-        // does not: FLOW_VISITOR=… FLOW_POT=… cargo test … sabr_client_probe …
-        let (visitor_data, pot) = match (std::env::var("FLOW_VISITOR"), std::env::var("FLOW_POT")) {
+        // does not: YOUGLIDETUBE_VISITOR=… YOUGLIDETUBE_POT=… cargo test … sabr_client_probe …
+        let (visitor_data, pot) = match (std::env::var("YOUGLIDETUBE_VISITOR"), std::env::var("YOUGLIDETUBE_POT")) {
             (Ok(v), Ok(p)) if !v.is_empty() && !p.is_empty() => {
                 println!("USING injected visitor+pot (bgutils-js)");
                 (Some(v), Some(p))
@@ -2812,7 +2812,7 @@ mod ladder_decisions {
 }
 
 // Live checks of the client ladder against YouTube. Ignored by default; run with:
-//   FLOW_LADDER_VIDEO=eWKY0OnPByg cargo test --lib ladder_live -- --ignored --nocapture
+//   YOUGLIDETUBE_LADDER_VIDEO=eWKY0OnPByg cargo test --lib ladder_live -- --ignored --nocapture
 #[cfg(test)]
 mod ladder_live {
     use super::*;
@@ -2821,7 +2821,7 @@ mod ladder_live {
     use std::sync::Arc;
 
     fn video_id() -> String {
-        std::env::var("FLOW_LADDER_VIDEO").unwrap_or_else(|_| "eWKY0OnPByg".to_string())
+        std::env::var("YOUGLIDETUBE_LADDER_VIDEO").unwrap_or_else(|_| "eWKY0OnPByg".to_string())
     }
 
     fn fresh_client() -> InnertubeClient {

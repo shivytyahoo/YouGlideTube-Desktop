@@ -17,7 +17,7 @@ static MENU: AtomicPtr<AnyObject> = AtomicPtr::new(std::ptr::null_mut());
 
 define_class!(
     #[unsafe(super(NSObject))]
-    #[name = "FlowDockMenuTarget"]
+    #[name = "YouGlideTubeDockMenuTarget"]
     struct DockMenuTarget;
 
     impl DockMenuTarget {

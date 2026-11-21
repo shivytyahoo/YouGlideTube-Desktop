@@ -51,7 +51,7 @@ export const ImportData: React.FC = () => {
   ];
 
   const formatItems = [
-    { label: getString("import_format_flow"), ext: ".zip / .json" },
+    { label: getString("import_format_youglidetube"), ext: ".zip / .json" },
     { label: getString("import_format_takeout"), ext: ".zip / .csv / .html / .json" },
     { label: getString("import_format_newpipe"), ext: ".zip / .db / .json" },
     { label: getString("import_format_libretube"), ext: ".json" },

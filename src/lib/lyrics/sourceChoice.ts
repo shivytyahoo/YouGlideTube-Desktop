@@ -6,7 +6,7 @@ import { profileStorage } from "../storage/profileStorage";
  */
 export type LyricsSourceChoice = "downloaded" | "online";
 
-const STORAGE_KEY = "flow_lyrics_source_choice";
+const STORAGE_KEY = "youglidetube_lyrics_source_choice";
 /** Oldest choices are dropped past this, so the map cannot grow without limit. */
 const MAX_CHOICES = 500;
 

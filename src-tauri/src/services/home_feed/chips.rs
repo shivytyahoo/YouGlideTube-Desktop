@@ -21,7 +21,7 @@ use super::lanes;
 use super::load::{STARTER_QUERIES, inputs_disliked, local_sources};
 use super::seeds::select_with_long_term;
 use super::{HomeFeedService, now_ms};
-use crate::data_model::interest_chips::InterestChip;
+use crate::api::innertube::extractors::server_feed::ServerChip;
 use crate::models::search::SearchVideosRequest;
 use crate::services::youtube_service::YoutubeService;
 
@@ -57,14 +57,15 @@ impl ChipFeed {
 
 /// The chips to offer beside the fixed ones. A chip whose latest result was empty stays away until
 /// that result expires, and Mixes and Watched only appear once there is enough to fill them.
-/// `interests` is always empty now: the interest chips were the engine's, and it is gone.
+/// `server_chips` are the server home feed's own topic chips, from its latest page.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HomeChips {
-    pub interests: Vec<InterestChip>,
     pub has_mixes: bool,
     pub has_watched: bool,
     pub empty: Vec<String>,
+    #[serde(default)]
+    pub server_chips: Vec<ServerChip>,
 }
 
 #[derive(Clone)]
@@ -74,6 +75,8 @@ enum Chip {
     Mixes,
     Live,
     Watched,
+    /// A server home-feed chip, by label; its browse params come from the stored chip row.
+    Server { label: String },
 }
 
 impl Chip {
@@ -84,6 +87,7 @@ impl Chip {
             Self::Mixes => 6 * HOUR_MS,
             Self::Live => 10 * MINUTE_MS,
             Self::Watched => 15 * MINUTE_MS,
+            Self::Server { .. } => 2 * HOUR_MS,
         }
     }
 }
@@ -184,10 +188,10 @@ impl HomeFeedService {
             .map(|(key, _, _)| key)
             .collect();
         HomeChips {
-            interests: Vec::new(),
             has_mixes,
             has_watched,
             empty,
+            server_chips: self.inner.server_chips.lock().unwrap().clone(),
         }
     }
 
@@ -218,6 +222,11 @@ impl HomeFeedService {
     }
 
     fn chip(&self, key: &str) -> Option<Chip> {
+        if let Some(label) = key.strip_prefix("server:") {
+            return Some(Chip::Server {
+                label: label.to_string(),
+            });
+        }
         match key {
             NEW_TO_YOU => Some(Chip::NewToYou),
             RECENTLY_UPLOADED => Some(Chip::RecentlyUploaded),
@@ -229,6 +238,13 @@ impl HomeFeedService {
     }
 
     async fn fetch_chip(&self, app: &AppHandle, chip: &Chip, now: u64) -> Option<ChipFeed> {
+        if let Chip::Server { label } = chip {
+            let cards = self.server_chip_videos(app, label, now).await?;
+            return Some(ChipFeed {
+                cards,
+                ..ChipFeed::default()
+            });
+        }
         let pool = app.state::<SqlitePool>();
         match chip {
             Chip::Mixes => {
@@ -254,6 +270,40 @@ impl HomeFeedService {
             cards,
             ..ChipFeed::default()
         })
+    }
+
+    /// One server chip's videos: the home feed browsed with the chip's
+    /// params (or plain, when the chip carries none). The fresh page
+    /// refreshes the stored chips and continuation with it.
+    async fn server_chip_videos(
+        &self,
+        app: &AppHandle,
+        label: &str,
+        now: u64,
+    ) -> Option<Vec<Card>> {
+        let params = self
+            .inner
+            .server_chips
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|chip| chip.label == label)
+            .and_then(|chip| chip.params.clone());
+        let yt = app.state::<YoutubeService>();
+        let page = yt
+            .browse_home_feed(None, params.as_deref())
+            .await
+            .ok()?;
+        self.store_server_page(&page);
+        let pool = app.state::<SqlitePool>();
+        let known = known(&pool, now).await?;
+        let cards: Vec<Card> = page
+            .videos
+            .into_iter()
+            .chain(page.shorts)
+            .map(|video| Card::from_summary(video, now))
+            .collect();
+        Some(ranked(&known, cards))
     }
 
     /// A mix for each seed: the seed, then what its related list offers. A mix too short to be one
@@ -296,6 +346,8 @@ impl HomeFeedService {
         let known = known(&pool, now).await?;
         match chip {
             Chip::Mixes | Chip::Watched => None,
+            // A server chip never reaches here: fetch_chip answers it first.
+            Chip::Server { .. } => None,
             Chip::Live => self.live_videos(&yt, &known, now).await,
             Chip::NewToYou => self.new_to_you_videos(&yt, &pool, &known, now).await,
             Chip::RecentlyUploaded => self.recent_videos(&yt, &known, now).await,

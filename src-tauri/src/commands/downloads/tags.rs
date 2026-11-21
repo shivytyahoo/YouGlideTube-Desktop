@@ -1,5 +1,5 @@
 //! What YouGlideTube writes into a downloaded file. Field names and the `io.github.shivytyahoo.glidetube`
-//! freeform keys match the Android app's `DownloadTags` and `FlowTagFields`, so either
+//! freeform keys match the Android app's `DownloadTags` and `GlideTagFields`, so either
 //! app can recognise a file the other saved.
 
 use serde::{Deserialize, Serialize};

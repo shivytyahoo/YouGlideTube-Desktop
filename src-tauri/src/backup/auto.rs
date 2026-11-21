@@ -16,7 +16,6 @@ use tokio::sync::Notify;
 
 use crate::backup::build::{now_ms, write_backup};
 use crate::db::settings::{get_setting, set_setting};
-use crate::services::profile_service::ProfileService;
 
 pub const FREQUENCY_KEY: &str = "auto_backup_frequency";
 pub const TYPE_KEY: &str = "auto_backup_type";
@@ -51,13 +50,6 @@ pub fn is_due(frequency: &str, last_run_ms: u64, now: u64) -> bool {
         return false;
     };
     last_run_ms == 0 || last_run_ms > now || now - last_run_ms >= days * DAY_MS
-}
-
-/// With two or more profiles only a master backup holds them all, so that is what the schedule
-/// writes, whatever was chosen.
-#[must_use]
-pub fn effective_type(chosen: &str, profile_count: usize) -> &str {
-    if profile_count >= 2 { "MASTER" } else { chosen }
 }
 
 /// The one file each kind keeps in the folder; a new run replaces it, as on Android.
@@ -141,13 +133,12 @@ async fn record(pool: &SqlitePool, error: Option<&str>) {
 pub async fn run_now(app: &AppHandle, pool: &SqlitePool) -> Option<Result<(), String>> {
     let state = app.state::<AutoBackupState>();
     let _running = state.running.try_lock().ok()?;
-    let outcome = write_to_folder(app, pool, &state).await;
+    let outcome = write_to_folder(pool, &state).await;
     record(pool, outcome.as_ref().err().map(String::as_str)).await;
     Some(outcome)
 }
 
 async fn write_to_folder(
-    app: &AppHandle,
     pool: &SqlitePool,
     state: &AutoBackupState,
 ) -> Result<(), String> {
@@ -156,20 +147,11 @@ async fn write_to_folder(
         .and_then(|folder| usable_folder(&folder))
         .ok_or_else(|| ERROR_NO_FOLDER.to_string())?;
     let (keys, _) = state.registration().unwrap_or_default();
-    let profiles = app.state::<ProfileService>();
-    let count = profiles.list().map_or(1, |view| view.profiles.len());
-    let chosen = setting(pool, TYPE_KEY)
+    let kind = setting(pool, TYPE_KEY)
         .await
         .unwrap_or_else(|| "APP_DATA".into());
-    let kind = effective_type(&chosen, count).to_string();
 
-    write_backup(
-        pool,
-        &profiles,
-        &kind,
-        &keys,
-        &folder.join(file_name(&kind)),
-    )
+    write_backup(pool, &kind, &keys, &folder.join(file_name(&kind)))
     .await
     .map_err(|error| {
         // The message can hold the folder's path, so it stays in the log.
@@ -248,13 +230,6 @@ mod tests {
     #[test]
     fn a_clock_set_back_does_not_stop_backups() {
         assert!(is_due("MONTHLY", 200 * DAY_MS, 100 * DAY_MS));
-    }
-
-    #[test]
-    fn several_profiles_always_back_up_as_master() {
-        assert_eq!(effective_type("APP_DATA", 1), "APP_DATA");
-        assert_eq!(effective_type("BRAIN", 1), "BRAIN");
-        assert_eq!(effective_type("BRAIN", 2), "MASTER");
     }
 
     #[test]

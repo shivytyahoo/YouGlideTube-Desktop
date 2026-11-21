@@ -14,7 +14,7 @@ export interface VideoSubtitleState {
 
 type Saved = Record<string, VideoSubtitleState>;
 
-const STORAGE_KEY = "flow_local_subtitles";
+const STORAGE_KEY = "youglidetube_local_subtitles";
 /** Kept per video, so the oldest entries go first once there are this many. */
 const MAX_VIDEOS = 200;
 export const MAX_SUBTITLE_OFFSET_MS = 10 * 60 * 1000;

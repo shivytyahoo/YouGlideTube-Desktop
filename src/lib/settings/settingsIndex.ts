@@ -10,6 +10,7 @@ export type SettingsCategory =
   | "lyrics"
   | "content"
   | "subscriptions"
+  | "notifications"
   | "privacy"
   | "wellbeing"
   | "quality"
@@ -28,6 +29,7 @@ export const SETTINGS_CATEGORY_LABELS: Record<SettingsCategory, StringKey> = {
   lyrics: "music_lyrics",
   content: "settings_content_ui",
   subscriptions: "settings_subscriptions_notifications",
+  notifications: "settings_notifications",
   privacy: "settings_history_privacy",
   wellbeing: "settings_digital_wellbeing",
   quality: "settings_quality_codecs",
@@ -52,6 +54,12 @@ const rows = (category: SettingsCategory, entries: Omit<SettingEntry, "category"
 
 /** Every option in Settings, in the order the tabs show them. `settingsIndex.test.ts` checks it covers them all. */
 export const SETTINGS_INDEX: SettingEntry[] = [
+  // Battery saver first, as on Android (SettingsHomeContent.kt: the
+  // `home.battery` group sits first). It is pinned at the top of the
+  // settings pane, so it opens on the first tab.
+  ...rows("account", [
+    { title: "settings_battery_saver_title", summary: "settings_battery_saver_subtitle", keywords: ["battery", "saver", "fast", "light", "animations off", "speed"] },
+  ]),
   // Android's Account page (AccountScreen.kt): status, account entry,
   // Sign in / Add account / Sign out, notice text.
   ...rows("account", [
@@ -66,6 +74,11 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     { title: "settings_theme_dark_style", keywords: ["amoled", "black"] },
     { title: "settings_app_font", summary: "settings_app_font_desc", keywords: ["typeface", "condensed", "serif", "inter"] },
     { title: "font_choose_file", keywords: ["custom font", "ttf", "otf", "typeface"] },
+    { title: "datetime_mode_header", keywords: ["date", "time", "upload date", "relative", "exact"] },
+    { title: "datetime_format_header", keywords: ["date", "format", "iso"] },
+    { title: "datetime_context_lists", keywords: ["date", "lists", "cards"] },
+    { title: "datetime_context_watch", keywords: ["date", "watch page"] },
+    { title: "datetime_context_description", keywords: ["date", "description"] },
     { title: "settings_highlight_new", summary: "settings_highlight_new_desc" },
     { title: "settings_highlight_new_days" },
     { title: "settings_expressive_sliders", summary: "settings_expressive_sliders_desc" },
@@ -239,9 +252,13 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     { title: "settings_subs_checked_count", summary: "settings_subs_checked_count_desc" },
     { title: "settings_subs_posts_chip", summary: "settings_subs_posts_chip_desc", keywords: ["community", "posts"] },
     { title: "settings_subs_collaborations", summary: "settings_subs_collaborations_desc" },
+  ]),
+  // Android's Notification Preferences page (NotificationSettingsScreen.kt).
+  ...rows("notifications", [
     { title: "settings_notifications_enabled", summary: "settings_notifications_enabled_desc" },
-    { title: "settings_notif_shorts", summary: "settings_notif_shorts_desc" },
     { title: "settings_notification_interval", summary: "settings_notification_interval_desc" },
+    { title: "settings_notif_new_videos", summary: "settings_notif_new_videos_desc" },
+    { title: "settings_notif_shorts", summary: "settings_notif_shorts_desc" },
   ]),
   ...rows("privacy", [
     { title: "deep_glide_mode_title" },

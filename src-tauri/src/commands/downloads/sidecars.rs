@@ -73,6 +73,42 @@ pub async fn sponsorblock_segments(
     }
 }
 
+/// Shifts `SponsorBlock` segments into a clip's time: segments outside the
+/// clip are dropped, the rest are clamped to it and shifted so the clip starts
+/// at zero. `None` when no segment survives, so nothing is recorded.
+pub fn shift_segments_for_clip(json: &str, clip: super::ClipRange) -> Option<String> {
+    let segments: Vec<serde_json::Value> = serde_json::from_str(json).ok()?;
+    let start = clip.start_ms as f64 / 1000.0;
+    let end = clip.end_ms as f64 / 1000.0;
+    let mut kept = Vec::new();
+    for mut segment in segments {
+        let Some(bounds) = segment.get("segment").and_then(|value| value.as_array()) else {
+            continue;
+        };
+        let (Some(from), Some(to)) = (
+            bounds.first().and_then(|value| value.as_f64()),
+            bounds.get(1).and_then(|value| value.as_f64()),
+        ) else {
+            continue;
+        };
+        if to <= start || from >= end {
+            continue;
+        }
+        let shifted = [from.max(start) - start, to.min(end) - start];
+        if shifted[1] <= shifted[0] {
+            continue;
+        }
+        if let Some(object) = segment.as_object_mut() {
+            object.insert("segment".to_string(), serde_json::json!(shifted));
+        }
+        kept.push(segment);
+    }
+    if kept.is_empty() {
+        return None;
+    }
+    serde_json::to_string(&kept).ok()
+}
+
 async fn write_cover(
     file: &FinishedFile<'_>,
     cover: &[u8],
@@ -153,4 +189,42 @@ async fn embed_cover(media_path: PathBuf, jpeg: Vec<u8>) -> Result<(), String> {
     })
     .await
     .map_err(|error| format!("embed task failed: {error}"))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::shift_segments_for_clip;
+    use super::super::ClipRange;
+
+    fn segments() -> String {
+        r#"[{"segment":[10.0,20.0],"category":"sponsor","UUID":"a"},{"segment":[65.0,75.0],"category":"intro","UUID":"b"},{"segment":[130.0,140.0],"category":"outro","UUID":"c"}]"#
+            .to_string()
+    }
+
+    #[test]
+    fn segments_shift_into_the_clip_and_keep_their_fields() {
+        let clip = ClipRange::new(60_000, 120_000).unwrap();
+        let shifted = shift_segments_for_clip(&segments(), clip).expect("one survives");
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&shifted).unwrap();
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0]["segment"], serde_json::json!([5.0, 15.0]));
+        assert_eq!(parsed[0]["category"], "intro");
+        assert_eq!(parsed[0]["UUID"], "b");
+    }
+
+    #[test]
+    fn a_segment_spanning_the_clip_start_is_trimmed_to_it() {
+        let clip = ClipRange::new(15_000, 120_000).unwrap();
+        let shifted = shift_segments_for_clip(&segments(), clip).expect("two survive");
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&shifted).unwrap();
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0]["segment"], serde_json::json!([0.0, 5.0]));
+        assert_eq!(parsed[1]["segment"], serde_json::json!([50.0, 60.0]));
+    }
+
+    #[test]
+    fn no_segment_in_the_clip_records_nothing() {
+        let clip = ClipRange::new(80_000, 90_000).unwrap();
+        assert!(shift_segments_for_clip(&segments(), clip).is_none());
+    }
 }

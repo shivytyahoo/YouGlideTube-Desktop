@@ -330,11 +330,11 @@ async fn an_unreadable_recap_entry_leaves_the_ledger_alone() {
 }
 
 async fn restore_through_a_zip(source: &SqlitePool, target: &SqlitePool) -> Vec<String> {
-    let dir = std::env::temp_dir().join(format!("flow-roundtrip-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("youglidetube-roundtrip-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("master.zip");
     let archive = Archive {
-        root: build_slice(source, "MASTER", &[], true, 1_000)
+        root: build_slice(source, "MASTER", &[], 1_000)
             .await
             .unwrap(),
         manifest: None,

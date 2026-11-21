@@ -3,10 +3,10 @@
 # break link handling or clash with another channel.
 #
 # Checks:
-# - the binary is /usr/bin/<expected-binary>, so Stable, Beta and Nightly
+# - the binary is /usr/bin/<expected-binary>, so Stable and Beta
 #   packages can be installed side by side;
 # - the desktop entry's main Exec passes the URL (%u), or GIO launchers drop
-#   flow:// links from the browser extension;
+#   youglidetube:// links from the browser extension;
 # - StartupWMClass names the same binary, so docks match the window.
 # Usage: check-linux-packages.sh <bundle-dir> <expected-binary>
 set -euo pipefail

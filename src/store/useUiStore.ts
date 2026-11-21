@@ -46,7 +46,7 @@ let nextToastId = 0;
 
 const getSavedSidebarExpanded = () => {
   try {
-    const saved = profileStorage.getItem("flow_sidebar_expanded");
+    const saved = profileStorage.getItem("youglidetube_sidebar_expanded");
     return saved === null ? true : saved === "true";
   } catch (error) {
     console.warn("Failed to load saved sidebar state", error);
@@ -56,7 +56,7 @@ const getSavedSidebarExpanded = () => {
 
 const saveSidebarExpanded = (expanded: boolean) => {
   try {
-    profileStorage.setItem("flow_sidebar_expanded", String(expanded));
+    profileStorage.setItem("youglidetube_sidebar_expanded", String(expanded));
   } catch (error) {
     console.warn("Failed to save sidebar state", error);
   }
@@ -64,7 +64,7 @@ const saveSidebarExpanded = (expanded: boolean) => {
 
 const getSavedSubsSectionCollapsed = () => {
   try {
-    return profileStorage.getItem("flow_sidebar_subs_collapsed") === "true";
+    return profileStorage.getItem("youglidetube_sidebar_subs_collapsed") === "true";
   } catch (error) {
     console.warn("Failed to load saved subscriptions section state", error);
     return false;
@@ -73,7 +73,7 @@ const getSavedSubsSectionCollapsed = () => {
 
 const saveSubsSectionCollapsed = (collapsed: boolean) => {
   try {
-    profileStorage.setItem("flow_sidebar_subs_collapsed", String(collapsed));
+    profileStorage.setItem("youglidetube_sidebar_subs_collapsed", String(collapsed));
   } catch (error) {
     console.warn("Failed to save subscriptions section state", error);
   }
@@ -87,6 +87,10 @@ interface UiState {
   isWatchSidebarOpen: boolean;
   isSubsSectionCollapsed: boolean;
   toast: ToastState | null;
+  /** The Google sign-in dialog, opened from anywhere (a subscribe gate, a guest state). */
+  signInDialogOpen: boolean;
+  openSignInDialog: () => void;
+  closeSignInDialog: () => void;
   setActiveTab: (tab: ActiveTab) => void;
   setSearchQuery: (query: string) => void;
   setIsSearching: (isSearching: boolean) => void;
@@ -107,6 +111,9 @@ export const useUiStore = create<UiState>((set) => ({
   isWatchSidebarOpen: false,
   isSubsSectionCollapsed: getSavedSubsSectionCollapsed(),
   toast: null,
+  signInDialogOpen: false,
+  openSignInDialog: () => set({ signInDialogOpen: true }),
+  closeSignInDialog: () => set({ signInDialogOpen: false }),
 
   setActiveTab: (activeTab) => set({ activeTab }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),

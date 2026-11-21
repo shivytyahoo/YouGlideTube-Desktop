@@ -4,6 +4,7 @@ import { proxyArtworkLoop } from "./api/images";
 import { artworkLoopFor, forgetArtworkLoop } from "./animatedArtwork";
 import { SETTINGS } from "./settings/schema";
 import { useBoolPref } from "./usePreference";
+import { useBatterySaver } from "./useBatterySaver";
 import type { SongItem } from "../types/music";
 
 /** Tried at once, then 20 s and 60 s after the first failure: the service often answers 503 well under its rate limit. */
@@ -16,12 +17,15 @@ export const ATTEMPT_WAITS_MS = [0, 20_000, 40_000];
  */
 export function useAnimatedArtwork(song: SongItem) {
   const [enabled] = useBoolPref(SETTINGS.MUSIC_ANIMATED_ARTWORK);
+  // Battery saver turns the animated cover off without changing the setting.
+  const batterySaver = useBatterySaver();
+  const active = enabled && !batterySaver;
   const [loopUrl, setLoopUrl] = useState<string | null>(null);
   const songId = song.videoId ?? song.id;
 
   useEffect(() => {
     setLoopUrl(null);
-    if (!enabled) return;
+    if (!active) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const attempt = (index: number) => {
@@ -44,7 +48,7 @@ export function useAnimatedArtwork(song: SongItem) {
       if (timer) clearTimeout(timer);
     };
     // A queue update gives the same song a new object, which must not restart its loop.
-  }, [enabled, songId]);
+  }, [active, songId]);
 
   const onFailed = useCallback(() => {
     forgetArtworkLoop(song);

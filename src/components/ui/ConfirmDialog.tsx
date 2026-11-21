@@ -19,7 +19,7 @@ export interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
-/** A yes/no question: Android's `FlowAlertDialog` slots (icon, title, text, Cancel before Confirm). */
+/** A yes/no question: Android's alert-dialog slots (icon, title, text, Cancel before Confirm). */
 export function ConfirmDialog({
   icon: Icon,
   title,

@@ -104,6 +104,25 @@ impl InnertubeClient {
         referer: Option<&str>,
         extra_query: Option<&str>,
     ) -> AppResult<Value> {
+        self.post_via_raw(http, host, endpoint, client, payload, referer, extra_query)
+            .await
+            .map_err(|error| to_app_error(endpoint, &error))
+    }
+
+    /// [`Self::post_via`], but the transport error comes back unconverted, so
+    /// a caller can tell a 4xx (safe to retry elsewhere) from a 5xx or a
+    /// transport failure (the request may have applied).
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) async fn post_via_raw(
+        &self,
+        http: &reqwest::Client,
+        host: Host,
+        endpoint: &str,
+        client: &YouTubeClient,
+        payload: &mut Value,
+        referer: Option<&str>,
+        extra_query: Option<&str>,
+    ) -> Result<Value, TransportError> {
         let spec = RequestSpec {
             host,
             endpoint,
@@ -143,9 +162,9 @@ impl InnertubeClient {
                         "visitor identity rejected; request succeeded without it"
                     );
                 }
-                retried.map_err(|error| to_app_error(endpoint, &error))
+                retried
             }
-            result => result.map_err(|error| to_app_error(endpoint, &error)),
+            result => result,
         }
     }
 }

@@ -32,7 +32,7 @@ import { profileStorage } from "./storage/profileStorage";
 
 export type SourceMode = "hls" | "dash-native" | "sabr-dash" | "direct" | "unavailable";
 
-const PROGRESS_PREFIX = "flow_watch_progress:";
+const PROGRESS_PREFIX = "youglidetube_watch_progress:";
 const getProgressKey = (videoId: string) => `${PROGRESS_PREFIX}${videoId}`;
 
 type SavedWatchProgress = { currentTime: number; duration: number; updatedAt: number };

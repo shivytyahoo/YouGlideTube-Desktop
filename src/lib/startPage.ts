@@ -1,5 +1,5 @@
 /**
- * Values of `default_nav_tab_index`, the Android app's tab ids (`FlowTab.id`), so the setting means
+ * Values of `default_nav_tab_index`, the Android app's tab ids, so the setting means
  * the same in both apps. Android's Search and Downloads tabs have no start page here.
  */
 export const START_PAGES = [
@@ -7,7 +7,7 @@ export const START_PAGES = [
   { value: "3", path: "/subscriptions", label: "sidebar_subscriptions" },
   { value: "1", path: "/shorts", label: "sidebar_shorts" },
   { value: "2", path: "/music", label: "sidebar_music" },
-  { value: "4", path: "/library", label: "sidebar_you" },
+  { value: "4", path: "/library", label: "sidebar_library" },
   { value: "6", path: "/explore", label: "sidebar_explore" },
 ] as const;
 

@@ -97,7 +97,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
         <div className="grid">
           <nav className="sidebar-when-collapsed flex flex-col gap-1.5 [grid-area:1/1]">
             <SidebarItem onOpenInNewTab={openInNewTab} to="/subscriptions" {...navIconPair('subscriptions')} label={getString('sidebar_subscriptions')} collapsed={collapsed} />
-            <SidebarItem onOpenInNewTab={openInNewTab} to="/library" {...navIconPair('you')} label={getString('sidebar_you')} collapsed={collapsed} />
+            <SidebarItem onOpenInNewTab={openInNewTab} to="/library" {...navIconPair('you')} label={getString('sidebar_library')} collapsed={collapsed} />
           </nav>
 
           <div className="sidebar-when-expanded [grid-area:1/1]">
@@ -123,7 +123,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
             {divider}
 
             <section>
-              <SectionHeader label={getString('sidebar_you')} to="/library" onClick={closeOverlay} />
+              <SectionHeader label={getString('sidebar_library')} to="/library" onClick={closeOverlay} />
               <nav className="mt-1 flex flex-col gap-1.5">
                 <SidebarItem onOpenInNewTab={openInNewTab} to="/history" {...navIconPair('history')} label={getString('library_history_label')} onClick={closeOverlay} />
                 <SidebarItem onOpenInNewTab={openInNewTab} to="/playlists" {...navIconPair('playlists')} label={getString('library_playlists_label')} onClick={closeOverlay} />

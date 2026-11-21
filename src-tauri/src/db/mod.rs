@@ -3,7 +3,6 @@ use std::str::FromStr;
 use std::time::Duration;
 
 pub mod cache;
-pub mod device;
 pub mod download_collections;
 pub mod download_jobs;
 pub mod downloads;
@@ -28,7 +27,7 @@ use sqlx::{
 
 use crate::errors::{AppError, AppResult};
 
-/// Opens the active profile's database in `dir` (Default's is the app data folder itself).
+/// Opens the app's database in `dir`, running any pending migrations.
 pub async fn initialize_database(dir: PathBuf) -> AppResult<SqlitePool> {
     let pool = open_migrated(dir, 10).await?;
 
@@ -44,12 +43,6 @@ pub async fn initialize_database(dir: PathBuf) -> AppResult<SqlitePool> {
     Ok(pool)
 }
 
-/// Opens Default's database for the rows every profile shares (see [`device`]), without
-/// touching Default's own data.
-pub async fn open_device_database(app_data_dir: PathBuf) -> AppResult<SqlitePool> {
-    open_migrated(app_data_dir, 2).await
-}
-
 /// A newer build's migrations don't stop this one from opening the database. That only works
 /// while migrations stay additive (new tables, nullable or defaulted columns), so an older build
 /// can keep using a database a newer one has migrated.
@@ -57,11 +50,6 @@ fn migrator() -> sqlx::migrate::Migrator {
     let mut migrator = sqlx::migrate!("./migrations");
     migrator.set_ignore_missing(true);
     migrator
-}
-
-/// Opens a profile that isn't running, such as for a master backup.
-pub async fn open_closed_profile(dir: PathBuf) -> AppResult<SqlitePool> {
-    open_migrated(dir, 2).await
 }
 
 async fn open_migrated(dir: PathBuf, max_connections: u32) -> AppResult<SqlitePool> {

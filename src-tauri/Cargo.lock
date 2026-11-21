@@ -7089,7 +7089,7 @@ dependencies = [
 
 [[package]]
 name = "youglidetube"
-version = "0.1.0-beta4"
+version = "1.0.0"
 dependencies = [
  "async-trait",
  "base64 0.23.1",

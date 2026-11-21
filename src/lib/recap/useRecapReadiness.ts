@@ -5,7 +5,7 @@ import { getRecapIndex } from "../api/recap";
 import { profileStorage } from "../storage/profileStorage";
 import { readyPeriod } from "./recapFormat";
 
-const LAST_SHOWN_KEY = "flow_recap_last_shown";
+const LAST_SHOWN_KEY = "youglidetube_recap_last_shown";
 
 /** Whether a month or year just closed with a recap worth offering; checked when Library opens. */
 export function useRecapReadiness() {

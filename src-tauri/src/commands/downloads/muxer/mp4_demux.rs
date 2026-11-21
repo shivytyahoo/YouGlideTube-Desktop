@@ -125,7 +125,7 @@ pub(super) struct ProgressiveSample {
 /// MP4. Carries the sample description and the full sample list in decode order;
 /// bytes are read on demand.
 pub(super) struct ProgressiveTrack {
-    file: File,
+    pub(super) file: File,
     pub(super) codec: Codec,
     pub(super) timescale: u32,
     pub(super) width: u16,

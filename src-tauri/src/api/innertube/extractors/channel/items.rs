@@ -43,7 +43,7 @@ fn https(url: &str) -> String {
         .map_or_else(|| url.to_string(), |rest| format!("https://{rest}"))
 }
 
-fn playlist_summary(renderer: &Value) -> Option<PlaylistSummary> {
+pub(crate) fn playlist_summary(renderer: &Value) -> Option<PlaylistSummary> {
     let id = renderer["playlistId"]
         .as_str()
         .filter(|id| !id.is_empty())?;
@@ -59,7 +59,7 @@ fn playlist_summary(renderer: &Value) -> Option<PlaylistSummary> {
     })
 }
 
-fn channel_summary(renderer: &Value) -> Option<ChannelSummary> {
+pub(crate) fn channel_summary(renderer: &Value) -> Option<ChannelSummary> {
     Some(ChannelSummary {
         channel_id: renderer["channelId"]
             .as_str()

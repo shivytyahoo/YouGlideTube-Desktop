@@ -2,7 +2,6 @@ import { getSetting } from "../api/db";
 import { isTauriEnv } from "../api/env";
 import { invokeBackend } from "../api/errors";
 import { getAppMetadata, type AppMetadata } from "../appMetadata";
-import type { Profile } from "../api/profiles";
 import {
   SETTING_DEFINITIONS_BY_KEY,
   SETTING_EXPORT_KEYS,
@@ -49,12 +48,18 @@ export interface SettingsBackup {
   deviceId?: string;
 }
 
+/** One profile listed in a master backup's manifest (Android's `MasterManifest`). */
+export interface MasterBackupProfile {
+  id: string;
+  name: string;
+}
+
 /** Android's master-backup manifest (`MasterBackupZip.kt`), as a top-level key. */
 export interface MasterManifest {
   format: "youglidetube-master";
   version: 1;
   defaultId: string;
-  profiles: Profile[];
+  profiles: MasterBackupProfile[];
   /** Ids whose data is in this file. */
   included: string[];
 }

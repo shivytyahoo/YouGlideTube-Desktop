@@ -11,7 +11,7 @@ import { recapQueriesCleared, recapSearch } from "../lib/recap/recapQueue";
 import { profileStorage } from "../lib/storage/profileStorage";
 import { getSettingValue, useAppSettingsStore } from "./useAppSettingsStore";
 
-const STORAGE_KEY = "flow_search_history";
+const STORAGE_KEY = "youglidetube_search_history";
 export const SEARCH_HISTORY_DEFAULT_LIMIT = 50;
 /** The largest Max history size on offer. */
 const SEARCH_HISTORY_STORED_LIMIT = 500;

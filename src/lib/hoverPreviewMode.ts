@@ -15,8 +15,9 @@ export const HOVER_PREVIEW_MODE_LABELS = {
 // The on/off switch this replaced, on main for a day before beta4: an "on" there means Frames.
 const REPLACED_SWITCH = "video_hover_previews_enabled";
 
-/** The hover preview kind in force. Only one runs at a time, and there is none until chosen. */
+/** The hover preview kind in force. Only one runs at a time, and there is none until chosen. Battery saver forces it off, as on Android. */
 export function hoverPreviewMode(values: Partial<Record<string, string>>): HoverPreviewMode {
+  if (values[SETTINGS.BATTERY_SAVER] === "true") return "off";
   const chosen = values[SETTINGS.VIDEO_HOVER_PREVIEW_MODE];
   if (chosen === "frames" || chosen === "video" || chosen === "off") return chosen;
   return values[REPLACED_SWITCH] === "true" ? "frames" : "off";

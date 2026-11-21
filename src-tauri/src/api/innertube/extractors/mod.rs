@@ -9,6 +9,7 @@ pub mod player;
 pub mod playlist;
 pub mod resolve;
 pub mod search;
+pub mod server_feed;
 pub mod shorts;
 pub mod storyboard;
 pub mod subscription;

@@ -4,7 +4,7 @@ import strings from './strings.json';
 export type StringKey = keyof typeof strings;
 
 /** Where the language choice is kept for the next start: settings aren't readable before the first render. */
-export const APP_LANGUAGE_STORAGE_KEY = 'flow_app_language';
+export const APP_LANGUAGE_STORAGE_KEY = 'youglidetube_app_language';
 
 const RIGHT_TO_LEFT = new Set(['ar', 'fa', 'ur']);
 
@@ -24,7 +24,7 @@ export const APP_LANGUAGES = Object.keys(localeLoaders)
 export async function initAppLanguage(): Promise<void> {
   let tag: string | null = null;
   try {
-    tag = profileStorage.getItem(APP_LANGUAGE_STORAGE_KEY, 'device');
+    tag = profileStorage.getItem(APP_LANGUAGE_STORAGE_KEY);
   } catch {
     tag = null;
   }

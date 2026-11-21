@@ -8,10 +8,9 @@ use tauri::{AppHandle, Manager, State};
 
 use crate::cache_usage::{
     CacheKind, artwork_cache_dirs, clear_network_cache, dir_size, hold_network_cache_to,
-    network_cache_size, trim_oldest_files,
+    network_cache_size, read_state, trim_oldest_files, update_state,
 };
 use crate::errors::{AppError, ErrorResponse};
-use crate::profiles::local_state;
 
 const MB: u64 = 1024 * 1024;
 
@@ -47,7 +46,7 @@ pub async fn cache_usage(
     pool: State<'_, SqlitePool>,
 ) -> Result<CacheUsage, ErrorResponse> {
     let dir = app_data_dir(&app)?;
-    let state = local_state::read(&dir).cache;
+    let state = read_state(&dir);
     let config = app.config();
     let artwork_dirs = artwork_cache_dirs(
         &config.identifier,
@@ -86,8 +85,8 @@ pub async fn clear_cache(
 ) -> Result<(), ErrorResponse> {
     match kind {
         CacheKind::Artwork => {
-            local_state::update(&app_data_dir(&app)?, |state| {
-                state.cache.artwork_clear_pending = true;
+            update_state(&app_data_dir(&app)?, |state| {
+                state.artwork_clear_pending = true;
             });
             Ok(())
         }
@@ -111,8 +110,8 @@ pub async fn set_cache_limit(
     app: AppHandle,
     pool: State<'_, SqlitePool>,
 ) -> Result<(), ErrorResponse> {
-    local_state::update(&app_data_dir(&app)?, |state| {
-        state.cache.set_limit_mb(kind, limit_mb);
+    update_state(&app_data_dir(&app)?, |state| {
+        state.set_limit_mb(kind, limit_mb);
     });
     match kind {
         CacheKind::Artwork => {}
@@ -138,7 +137,7 @@ pub fn spawn_startup_trim(app: AppHandle, pool: SqlitePool) {
         let Ok(dir) = app_data_dir(&app) else {
             return;
         };
-        let state = local_state::read(&dir).cache;
+        let state = read_state(&dir);
         let lyrics = dir.join("lyrics");
         let lyrics_limit = state.limit_mb(CacheKind::Lyrics).saturating_mul(MB);
         let trimmed =

@@ -60,7 +60,7 @@ describe("search history", () => {
 
   it("is kept across launches", () => {
     useSearchHistoryStore.getState().record("synthwave");
-    expect(JSON.parse(localStorage.getItem("flow_search_history") ?? "[]")[0].query).toBe("synthwave");
+    expect(JSON.parse(localStorage.getItem("youglidetube_search_history") ?? "[]")[0].query).toBe("synthwave");
   });
 
   it("caps its length", () => {

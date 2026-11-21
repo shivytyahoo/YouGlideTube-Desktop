@@ -1,10 +1,7 @@
-import { ArchiveRestore } from "lucide-react";
 import { getSetting, setSetting, addWatchRecordsBulk } from "../api/db";
 import { readBackupFile, type UnreadableReason } from "../api/backup";
 import { parseSubscriptionExport } from "../api/youtube";
-import { confirmAction } from "../dialogs";
 import { getString, type StringKey } from "../i18n/index";
-import { profileDisplayName } from "../profiles/display";
 import {
   extractBackupCollections,
   importBackupCollections,
@@ -12,11 +9,9 @@ import {
   type BackupCollections,
 } from "../settings/backup";
 import { isProfilesMaster, restoreMasterProfiles } from "../settings/masterRestore";
-import { SETTINGS, SETTING_SCOPES, type SettingKey } from "../settings/schema";
-import { activeProfile } from "../storage/profileStorage";
+import { SETTINGS, type SettingKey } from "../settings/schema";
 import { setSettingValue } from "../../store/useAppSettingsStore";
 import { useHistoryStore } from "../../store/useHistoryStore";
-import { useProfilesStore } from "../../store/useProfilesStore";
 import { useSubscriptionStore } from "../../store/useSubscriptionStore";
 import { useUiStore } from "../../store/useUiStore";
 import type { VideoSummary } from "../../types/video";
@@ -80,7 +75,7 @@ const UNREADABLE_MESSAGES: Record<UnreadableReason, StringKey> = {
 interface LocalPlaylist { id: string; name: string; description?: string; tracks: VideoSummary[]; }
 
 /**
- * Imports a picked file: a YouGlideTube backup from either app (every profile, settings, collections and
+ * Imports a picked file: a YouGlideTube backup from either app (settings, collections and
  * brains), another app's export, or a plain subscription list. Throws an `Error` whose message
  * is ready to show.
  */
@@ -127,37 +122,18 @@ export async function importFile(
   report({ stage: "saving", percent: 60, message: getString("import_writing") });
 
   if (isJson && backupData && isProfilesMaster(backupData)) {
-    // Every profile in the backup: the ones not running are restored into their own
-    // databases; the running one continues through the import below.
-    report({ message: getString("import_restoring_profiles") });
-    const { running, restoredElsewhere } = await restoreMasterProfiles(backupData);
+    // A profiles-era master: only the Default part restores into this library; the
+    // other profiles' parts are skipped. The Default part continues through the import below.
+    const { running, skippedProfiles } = restoreMasterProfiles(backupData);
     backupData = { schemaVersion: 2, settings: running?.settings ?? {}, collections: running?.collections ?? {} };
-    if (restoredElsewhere > 0) {
-      useUiStore.getState().showToast({ message: getString("import_profiles_restored", restoredElsewhere), variant: "success" });
-    }
-    void useProfilesStore.getState().load();
-  } else if (isJson && backupData?.scope === "MASTER") {
-    const profiles = useProfilesStore.getState().view;
-    const running = profiles?.profiles.find((profile) => profile.id === profiles.activeId);
-    if (profiles && running && profiles.profiles.length > 1) {
-      const proceed = await confirmAction({
-        title: getString("import_old_master_title", profileDisplayName(running)),
-        message: getString("import_old_master_body"),
-        icon: ArchiveRestore,
-        confirmLabel: getString("restore"),
-      });
-      if (!proceed) return { type: "cancelled" };
+    if (skippedProfiles > 0) {
+      useUiStore.getState().showToast({ message: getString("import_profiles_skipped", skippedProfiles), variant: "info" });
     }
   }
 
   const settingsBackup = isJson && backupData ? validateSettingsBackup(backupData) : null;
-  // Device settings (folders, proxy, quality, region) belong to the whole computer: only
-  // Default restores them, so restoring into another profile can't change them.
-  const restoresDeviceSettings = activeProfile().isDefault;
   const settingsEntries = settingsBackup
-    ? (Object.entries(settingsBackup.settings) as [SettingKey, string][]).filter(
-        ([key]) => restoresDeviceSettings || SETTING_SCOPES[key] !== "device",
-      )
+    ? (Object.entries(settingsBackup.settings) as [SettingKey, string][])
     : [];
   if (selection.settings && settingsEntries.length > 0) {
     report({ message: getString("import_importing_settings", settingsEntries.length) });

@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
+import { toggleSubscription } from '../../lib/accountSubscribe';
 import { useBlockedKeywordMatch, useFeedActionsStore } from '../../store/useFeedActionsStore';
 import { useBlockedRevealStore } from '../../lib/blockedContent';
 import { BlockedVideoCard } from './BlockedVideoCard';
@@ -27,7 +28,7 @@ import { shareLink } from '../../lib/clipboard';
 import { youtubeWatchUrl } from '../../lib/youtubeUrl';
 import { getString } from '../../lib/i18n/index';
 import { useUpcomingReminderStore } from '../../store/useUpcomingReminderStore';
-import { useWatchLaterStore } from '../../store/useWatchLaterStore';
+import { useWatchLaterStore, WatchLaterRemoveNeedsRefreshError } from '../../store/useWatchLaterStore';
 import { useWatchedVideoIds } from '../../lib/useWatchedFilter';
 import { isMusicVideo } from '../../lib/utils';
 import { useWatchProgressPercent, useWatchProgressStore } from '../../store/useWatchProgressStore';
@@ -42,7 +43,8 @@ import { useDownloadStore } from '../../store/useDownloadStore';
 import { useDownloadsLibraryStore } from '../../store/useDownloadsLibraryStore';
 import { findDownloadedRecord, useIsDownloaded } from '../../lib/useDownloads';
 import { extractDominantColorFromImage, type Rgb } from '../../lib/useDominantColor';
-import { formatPublishedText, formatYouTubeRelativeTime } from '../../lib/publishedDate';
+import { formatUploadDate, formatYouTubeRelativeTime } from '../../lib/publishedDate';
+import { useDateDisplaySettings } from '../../lib/useDateDisplaySettings';
 import { ColorWash, COLOR_WASH_HOST } from '../ui/ColorWash';
 import { CardPills, ChannelLabel, CollabAvatars, UpcomingBadge } from "./CardMeta";
 import { collaboratorsByline } from "../../lib/collaborators";
@@ -150,8 +152,6 @@ function VideoCardComponent({
   searchQuery = '',
 }: VideoCardProps) {
   const navigate = useNavigate();
-  const subscribe = useSubscriptionStore((s) => s.subscribe);
-  const unsubscribe = useSubscriptionStore((s) => s.unsubscribe);
   const notInterested = useFeedActionsStore((s) => s.notInterested);
   const blockChannelAction = useFeedActionsStore((s) => s.blockChannel);
   const markWatched = useFeedActionsStore((s) => s.markWatched);
@@ -187,7 +187,10 @@ function VideoCardComponent({
   const markLive = useLiveStore((s) => s.markLive);
   const liveFromStore = useLiveStore((s) => s.liveIds.has(video.id));
   const isLiveVideo = !!video.isLive || liveFromStore;
-  const publishedText = formatPublishedText(video);
+  const dateSettings = useDateDisplaySettings();
+  const publishedText = formatUploadDate(video.publishedText, dateSettings, "lists", {
+    timestampMs: video.publishedAt ?? video.publishedAtMs ?? null,
+  });
   // A Short known from its card opens in the Shorts player, whatever the list.
   const route = routeForVideo(video);
   const play = useCallback((event?: React.MouseEvent) => {
@@ -341,11 +344,11 @@ function VideoCardComponent({
     e.stopPropagation();
     const idToToggle = isChannel ? cleanId : channelId;
     if (!idToToggle) return;
-    if (subStatus) {
-      unsubscribe(idToToggle, { learn: true });
-    } else {
-      subscribe(idToToggle, isChannel ? video.title : video.channelName, video.thumbnailUrl || undefined, { learn: true });
-    }
+    void toggleSubscription(
+      idToToggle,
+      isChannel ? video.title : video.channelName,
+      video.thumbnailUrl || undefined,
+    );
   };
 
   const handleRemoveFromHistory = (e: React.MouseEvent) => {
@@ -397,6 +400,12 @@ function VideoCardComponent({
       });
     } catch (error) {
       console.error("Failed to update Watch Later", error);
+      if (error instanceof WatchLaterRemoveNeedsRefreshError) {
+        // The server row's entry id was never read; retrying the same call
+        // cannot work until the list is refreshed.
+        showToast({ variant: "error", message: getString("watch_later_remove_needs_refresh") });
+        return;
+      }
       showSaveFailedToast({
         destination: { kind: "watchLater" },
         item: toastItem,

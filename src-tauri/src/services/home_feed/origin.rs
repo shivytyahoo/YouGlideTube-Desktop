@@ -16,6 +16,8 @@ pub enum OriginKind {
     Search,
     ChannelMemory,
     Neighbour,
+    /// A card the server home feed placed.
+    Server,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -42,6 +44,8 @@ pub struct Provenance<'a> {
     pub queries: HashMap<String, String>,
     pub followed: Option<&'a HashSet<String>>,
     pub neighbour_pointers: HashMap<String, String>,
+    /// Cards the server home feed placed: their origin is the server, not a search.
+    pub server: HashSet<String>,
 }
 
 impl Provenance<'_> {
@@ -58,7 +62,11 @@ impl Provenance<'_> {
                         Origin::new(OriginKind::Related, self.seed_titles.get(id).cloned())
                     }
                     Some(FeedSource::Discovery) => {
-                        Origin::new(OriginKind::Search, self.queries.get(id).cloned())
+                        if self.server.contains(id) {
+                            Origin::new(OriginKind::Server, None)
+                        } else {
+                            Origin::new(OriginKind::Search, self.queries.get(id).cloned())
+                        }
                     }
                     Some(FeedSource::ChannelMemory) => Origin::new(OriginKind::ChannelMemory, None),
                     Some(FeedSource::Subs) => Origin::new(OriginKind::Subscription, None),

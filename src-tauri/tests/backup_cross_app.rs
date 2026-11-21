@@ -394,7 +394,7 @@ struct TempDir(PathBuf);
 
 impl TempDir {
     fn new() -> Self {
-        let dir = std::env::temp_dir().join(format!("flow-cross-app-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("youglidetube-cross-app-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         Self(dir)
     }
@@ -485,7 +485,7 @@ async fn desktop_master(dir: &TempDir, keys: &[String]) -> PathBuf {
     seed_desktop(&pool).await;
     let path = dir.file("master.zip");
     let archive = Archive {
-        root: build_slice(&pool, "MASTER", keys, true, 1_000)
+        root: build_slice(&pool, "MASTER", keys, 1_000)
             .await
             .unwrap(),
         manifest: None,
@@ -756,7 +756,7 @@ fn bytes(value: &Value) -> Vec<u8> {
 #[tokio::test]
 async fn an_android_master_restores_on_the_desktop() {
     let dir = TempDir::new();
-    let path = dir.file("flow_master_backup_1.zip");
+    let path = dir.file("youglidetube_master_backup_1.zip");
     zip_of(
         &path,
         &[
@@ -884,7 +884,7 @@ async fn an_android_master_with_profiles_keeps_each_profile() {
 #[tokio::test]
 async fn android_single_files_restore_on_the_desktop() {
     let dir = TempDir::new();
-    let app = dir.file("flow_backup_1.json");
+    let app = dir.file("youglidetube_backup_1.json");
     std::fs::write(&app, bytes(&android_app_data())).unwrap();
     let BackupFile::Backup(backup) = read_backup_file(&app, 1).unwrap() else {
         panic!("Android's app data reads as a backup");
@@ -892,7 +892,7 @@ async fn android_single_files_restore_on_the_desktop() {
     assert_eq!(backup["scope"], "APP_DATA");
     assert!(backup["collections"]["likes"].is_array());
 
-    let music = dir.file("flow_music_brain_1.json");
+    let music = dir.file("youglidetube_music_brain_1.json");
     std::fs::write(&music, bytes(&android_music())).unwrap();
     let BackupFile::Backup(backup) = read_backup_file(&music, 1).unwrap() else {
         panic!("Android's music brain reads as a backup");
@@ -917,7 +917,7 @@ async fn a_backup_never_holds_a_private_setting() {
 
     let dir = TempDir::new();
     for scope in ["MASTER", "APP_DATA", "BRAIN"] {
-        let slice: Slice = build_slice(&pool, scope, &keys, true, 1).await.unwrap();
+        let slice: Slice = build_slice(&pool, scope, &keys, 1).await.unwrap();
         let path = dir.file(&format!("{scope}.json"));
         write_json(&path, &slice.app_data).unwrap();
         let written = std::fs::read_to_string(&path).unwrap();
@@ -941,7 +941,7 @@ async fn an_app_data_file_carries_no_brains_and_a_brain_file_no_library() {
     seed_note(&pool, "video:abc12345678", "A note", 5).await;
     seed_ledger(&pool).await;
 
-    let app = build_slice(&pool, "APP_DATA", &[], true, 1).await.unwrap();
+    let app = build_slice(&pool, "APP_DATA", &[], 1).await.unwrap();
     assert!(app.engine.is_none());
     assert!(app.music.is_none());
     assert!(app.recap.is_none(), "the ledger is only for a master");
@@ -949,7 +949,7 @@ async fn an_app_data_file_carries_no_brains_and_a_brain_file_no_library() {
     assert!(app.app_data["settings"].is_object());
     assert_eq!(app.app_data["notes"][0]["id"], "video:abc12345678");
 
-    let brain = build_slice(&pool, "BRAIN", &[], true, 1).await.unwrap();
+    let brain = build_slice(&pool, "BRAIN", &[], 1).await.unwrap();
     assert!(brain.engine.is_some());
     assert!(brain.music.is_some());
     assert!(brain.recap.is_none(), "the ledger is only for a master");
@@ -1060,7 +1060,7 @@ async fn a_desktop_master_gives_android_its_notes_and_its_ledger() {
 
     let path = dir.file("master.zip");
     let archive = Archive {
-        root: build_slice(&pool, "MASTER", &[], true, 1_000)
+        root: build_slice(&pool, "MASTER", &[], 1_000)
             .await
             .unwrap(),
         manifest: None,
@@ -1097,7 +1097,7 @@ async fn a_desktop_master_gives_android_its_notes_and_its_ledger() {
 #[tokio::test]
 async fn an_android_master_restores_its_notes_and_replaces_the_ledger() {
     let dir = TempDir::new();
-    let path = dir.file("flow_master_backup_1.zip");
+    let path = dir.file("youglidetube_master_backup_1.zip");
     let mut data = android_app_data();
     data["notes"] = json!([android_note()]);
     zip_of(
@@ -1255,11 +1255,11 @@ async fn each_profile_in_a_master_keeps_its_own_ledger() {
     let default = memory_pool().await;
     seed_ledger(&default).await;
     let archive = Archive {
-        root: build_slice(&default, "MASTER", &[], true, 1).await.unwrap(),
+        root: build_slice(&default, "MASTER", &[], 1).await.unwrap(),
         manifest: Some(manifest),
         profiles: vec![(
             "study".to_string(),
-            build_slice(&closed_profile, "MASTER", &[], false, 1)
+            build_slice(&closed_profile, "MASTER", &[], 1)
                 .await
                 .unwrap(),
         )],

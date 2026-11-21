@@ -1,83 +1,45 @@
-// Web storage is one store per install, shared by every profile. Personal keys go through
-// here so each profile sees only its own: Default keeps today's bare keys, other profiles use
-// a "p:<id>:" prefix. The backend injects the active profile before any script runs.
-
-export type StorageScope = "profile" | "device";
-
-interface ActiveProfileInfo {
-  id: string;
-  isDefault: boolean;
-}
-
-declare global {
-  interface Window {
-    __YOUGLIDETUBE_PROFILE__?: ActiveProfileInfo;
-    __FLOW_PROFILE__?: ActiveProfileInfo;
-  }
-}
-
-export function activeProfile(): ActiveProfileInfo {
-  const injected =
-    typeof window === "undefined"
-      ? undefined
-      : (window.__YOUGLIDETUBE_PROFILE__ ?? window.__FLOW_PROFILE__);
-  return injected?.id ? injected : { id: "", isDefault: true };
-}
-
-export function profilePrefix(profileId: string): string {
-  return `p:${profileId}:`;
-}
-
-export function storageKey(key: string, scope: StorageScope = "profile"): string {
-  const profile = activeProfile();
-  return scope === "device" || profile.isDefault ? key : profilePrefix(profile.id) + key;
+// Web storage is one store for the whole install: there is a single library now, so keys
+// are stored bare. Keys left over from removed profiles (`p:<id>:...`) stay on disk,
+// unread, where they can do no harm.
+//
+// Storage keys were renamed from the `flow_*` stems this app used to write.
+// Reads of a `youglidetube_*` key fall back to its old `flow_*` twin so an
+// existing install keeps its data; a legacy hit migrates forward (the new key
+// is written and the old one removed). New code always uses the new name.
+function legacyTwin(key: string): string | null {
+  return key.startsWith("youglidetube_") ? `flow_${key.slice("youglidetube_".length)}` : null;
 }
 
 // Same throwing behaviour as localStorage, so callers keep their own error handling.
 export const profileStorage = {
-  getItem(key: string, scope?: StorageScope): string | null {
-    return window.localStorage.getItem(storageKey(key, scope));
+  getItem(key: string): string | null {
+    const value = window.localStorage.getItem(key);
+    if (value !== null) return value;
+    const legacy = legacyTwin(key);
+    if (legacy === null) return null;
+    const legacyValue = window.localStorage.getItem(legacy);
+    if (legacyValue === null) return null;
+    window.localStorage.setItem(key, legacyValue);
+    window.localStorage.removeItem(legacy);
+    return legacyValue;
   },
-  setItem(key: string, value: string, scope?: StorageScope): void {
-    window.localStorage.setItem(storageKey(key, scope), value);
+  setItem(key: string, value: string): void {
+    window.localStorage.setItem(key, value);
+    const legacy = legacyTwin(key);
+    if (legacy !== null) window.localStorage.removeItem(legacy);
   },
-  removeItem(key: string, scope?: StorageScope): void {
-    window.localStorage.removeItem(storageKey(key, scope));
+  removeItem(key: string): void {
+    window.localStorage.removeItem(key);
+    const legacy = legacyTwin(key);
+    if (legacy !== null) window.localStorage.removeItem(legacy);
   },
-  /** This profile's keys, without the prefix. */
+  /** This install's keys; leftovers from removed profiles stay hidden. */
   keys(): string[] {
-    const profile = activeProfile();
-    const all = Object.keys(window.localStorage);
-    if (!profile.isDefault) {
-      const prefix = profilePrefix(profile.id);
-      return all.filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length));
-    }
-    return all.filter((key) => !key.startsWith("p:"));
+    return Object.keys(window.localStorage).filter((key) => !key.startsWith("p:"));
   },
 };
 
-/** Copies some of the active profile's keys into another profile (used when creating one). */
-export function copyKeysToProfile(profileId: string, keys: readonly string[]): void {
-  for (const key of keys) {
-    const value = profileStorage.getItem(key);
-    if (value !== null) setProfileKey(profileId, key, value);
-  }
-}
-
-/** Writes a key for a profile other than Default (a new one, while creating it). */
-export function setProfileKey(profileId: string, key: string, value: string): void {
-  window.localStorage.setItem(profilePrefix(profileId) + key, value);
-}
-
-/** Drops a deleted profile's keys. Default's bare keys are never touched here. */
-export function removeProfileKeys(profileId: string): void {
-  const prefix = profilePrefix(profileId);
-  for (const key of Object.keys(window.localStorage)) {
-    if (key.startsWith(prefix)) window.localStorage.removeItem(key);
-  }
-}
-
-// Session storage dies with the process, so a profile switch (a restart) clears it anyway.
+// Session storage dies with the process.
 export const sessionStore = {
   getItem(key: string): string | null {
     return window.sessionStorage.getItem(key);

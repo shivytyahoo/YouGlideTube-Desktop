@@ -204,6 +204,10 @@ impl HomeFeedService {
             .await;
         }
         if !attempt.full() {
+            self.fill_from_server_home(&yt, &pool, &inputs, &followed, &taste, now, &mut attempt)
+                .await;
+        }
+        if !attempt.full() {
             self.fill_from_search(&yt, &pool, &inputs, &followed, &taste, now, &mut attempt)
                 .await;
         }
@@ -341,6 +345,8 @@ impl HomeFeedService {
         let served = attempt.add_all(&ranked, |card| {
             if related.contains(card.id()) {
                 Origin::new(OriginKind::Related, None)
+            } else if self.is_server_video(card.id()) {
+                Origin::new(OriginKind::Server, None)
             } else {
                 Origin::new(OriginKind::Search, search_pages.query_of(card.id()))
             }
@@ -412,6 +418,76 @@ impl HomeFeedService {
             .filter(|c| !attempt.page.used_ids.contains(c.id()))
             .collect();
         let _ = cache::save_reserve(pool, &unused, true, now).await;
+    }
+
+    /// The next page of the server home feed, when this load's server page
+    /// offered a continuation: it pages the discovery lane before the
+    /// starter searches are tried again. A failed page loses the token
+    /// for this load, and the searches below take over.
+    #[allow(clippy::too_many_arguments)]
+    async fn fill_from_server_home(
+        &self,
+        yt: &YoutubeService,
+        pool: &SqlitePool,
+        inputs: &Inputs,
+        followed: &HashSet<String>,
+        taste: &TasteProfile,
+        now: u64,
+        attempt: &mut Attempt,
+    ) {
+        let Some(token) = self.inner.server_continuation.lock().unwrap().clone() else {
+            return;
+        };
+        let page = match yt.browse_home_feed(Some(&token), None).await {
+            Ok(page) => page,
+            Err(_) => {
+                *self.inner.server_continuation.lock().unwrap() = None;
+                return;
+            }
+        };
+        self.store_server_page(&page);
+        let cards: Vec<Card> = page
+            .videos
+            .into_iter()
+            .chain(page.shorts)
+            .map(|video| Card::from_summary(video, now))
+            .collect();
+        self.add_server_cards(pool, inputs, followed, taste, now, &cards, attempt)
+            .await;
+    }
+
+    /// Server cards into an attempt, in the server's own order, with the
+    /// server origin; the ones the page could not hold go to the reserve.
+    #[allow(clippy::too_many_arguments)]
+    async fn add_server_cards(
+        &self,
+        pool: &SqlitePool,
+        inputs: &Inputs,
+        followed: &HashSet<String>,
+        taste: &TasteProfile,
+        now: u64,
+        cards: &[Card],
+        attempt: &mut Attempt,
+    ) {
+        let hidden = |c: &Card| inputs.exclusions.hides(c);
+        let cards: Vec<Card> = keep_showable(
+            cards.iter().cloned().collect::<Vec<_>>(),
+            &inputs.watched,
+            &hidden,
+            now,
+            true,
+        )
+        .collect();
+        if cards.is_empty() {
+            return;
+        }
+        let ranked = lanes::share(taste.demote(lanes::rank(cards, followed)), followed);
+        attempt.add_all(&ranked, |_| Origin::new(OriginKind::Server, None));
+        let unused: Vec<Card> = ranked
+            .into_iter()
+            .filter(|c| !attempt.page.used_ids.contains(c.id()))
+            .collect();
+        let _ = cache::save_reserve(pool, &unused, false, now).await;
     }
 
     #[allow(clippy::too_many_arguments)]

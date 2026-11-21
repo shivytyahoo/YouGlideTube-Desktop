@@ -1,9 +1,8 @@
-//! Builds a backup file's contents from a profile's database.
+//! Builds a backup file's contents from the app's database.
 
 use std::collections::HashMap;
 use std::path::Path;
 
-use base64::Engine;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use sqlx::SqlitePool;
@@ -17,7 +16,6 @@ use crate::commands::backup::{
 use crate::data_model::brain::UserBrain;
 use crate::data_model::music_brain::MusicBrain;
 use crate::recap::model::RecapBackup;
-use crate::services::profile_service::ProfileService;
 use crate::data_model::apply::{MUSIC_BRAIN_KEY, NEURO_BRAIN_KEY};
 use crate::data_model::brain_rekey::align_flow;
 use crate::data_model::error::DataError;
@@ -76,12 +74,11 @@ fn desktop_section(export: &BackupExport, settings: &HashMap<String, String>, no
     })
 }
 
-/// One profile's files. `scope` is `MASTER`, `APP_DATA` or `BRAIN`; each writes only what it covers.
+/// One slice's files. `scope` is `MASTER`, `APP_DATA` or `BRAIN`; each writes only what it covers.
 pub async fn build_slice(
     pool: &SqlitePool,
     scope: &str,
     setting_keys: &[String],
-    with_device_keys: bool,
     now: u64,
 ) -> Result<Slice, DataError> {
     let mut export = export_backup(pool, scope).await?;
@@ -90,7 +87,7 @@ pub async fn build_slice(
     let settings = if is_brain_only {
         HashMap::new()
     } else {
-        raw_settings(pool, setting_keys, with_device_keys).await?
+        raw_settings(pool, setting_keys).await?
     };
     let brain = stored_brain(pool).await?;
     let content_preferences = if is_brain_only {
@@ -125,74 +122,36 @@ pub async fn build_slice(
     })
 }
 
-/// A zip holding the running profile's brains, restorable as a master backup on either app.
-pub async fn brain_archive(
-    pool: &SqlitePool,
-    with_device_keys: bool,
-    now: u64,
-) -> Result<Archive, DataError> {
+/// A zip holding the library's brains, restorable as a master backup on either app.
+pub async fn brain_archive(pool: &SqlitePool, now: u64) -> Result<Archive, DataError> {
     Ok(Archive {
-        root: build_slice(pool, "BRAIN", &[], with_device_keys, now).await?,
+        root: build_slice(pool, "BRAIN", &[], now).await?,
         manifest: None,
         profiles: Vec::new(),
         avatars: Vec::new(),
     })
 }
 
-/// Every profile: the running one through its live pool, the others from their closed databases.
+/// The whole library in one slice. The manifest stays so older builds (and Android) still
+/// recognise the file as a master backup; its `profiles` list is empty because there is only
+/// one library now, and its data stays at the top level where older builds read it.
 pub async fn master_archive(
     pool: &SqlitePool,
-    profiles: &ProfileService,
     setting_keys: &[String],
     now: u64,
 ) -> Result<Archive, DataError> {
-    let protocol = |error: crate::errors::AppError| DataError::Protocol(error.to_string());
-    let running = profiles.running_profile_id().map_err(protocol)?;
-    let view = profiles.list().map_err(protocol)?;
-    let mut root = None;
-    let mut others = Vec::new();
-    let mut included = Vec::new();
-    for profile in &view.profiles {
-        let is_default = profile.id == view.default_id;
-        let slice = if profile.id == running {
-            build_slice(pool, "MASTER", setting_keys, is_default, now).await?
-        } else {
-            let (closed, _) = profiles.open_closed(&profile.id).await.map_err(protocol)?;
-            let slice = build_slice(&closed, "MASTER", setting_keys, is_default, now).await;
-            closed.close().await;
-            slice?
-        };
-        included.push(profile.id.clone());
-        if is_default {
-            root = Some(slice);
-        } else {
-            others.push((profile.id.clone(), slice));
-        }
-    }
-    let root = root.ok_or_else(|| DataError::Protocol("no default profile to back up".into()))?;
-    let avatars = view
-        .profiles
-        .iter()
-        .filter_map(|profile| {
-            let photo = view.photos.get(&profile.id)?;
-            let encoded = photo.split_once(',')?.1;
-            let bytes = base64::engine::general_purpose::STANDARD
-                .decode(encoded)
-                .ok()?;
-            Some((profile.id.clone(), bytes))
-        })
-        .collect();
+    let root = build_slice(pool, "MASTER", setting_keys, now).await?;
     Ok(Archive {
         root,
         manifest: Some(json!({
             "format": "youglidetube-master",
             "version": 1,
-            "defaultId": view.default_id,
-            "profiles": view.profiles,
-            "included": included,
+            "defaultId": "default",
+            "profiles": [],
+            "included": ["default"],
         })),
-        profiles: others,
-        avatars,
+        profiles: Vec::new(),
+        avatars: Vec::new(),
     })
 }
 
@@ -200,34 +159,28 @@ pub async fn master_archive(
 /// brains first.
 pub async fn write_backup(
     pool: &SqlitePool,
-    profiles: &ProfileService,
     scope: &str,
     setting_keys: &[String],
     path: &Path,
 ) -> Result<(), DataError> {
     let now = now_ms();
-    let protocol = |error: crate::errors::AppError| DataError::Protocol(error.to_string());
-    let is_default = {
-        let view = profiles.list().map_err(protocol)?;
-        profiles.running_profile_id().map_err(protocol)? == view.default_id
-    };
     let target = path.to_path_buf();
     let io_error = |error: std::io::Error| DataError::Protocol(format!("backup write: {error}"));
     match scope {
         "APP_DATA" => {
-            let slice = build_slice(pool, scope, setting_keys, is_default, now).await?;
+            let slice = build_slice(pool, scope, setting_keys, now).await?;
             run_blocking(move || crate::backup::archive::write_json(&target, &slice.app_data))
                 .await
                 .map_err(io_error)
         }
         "BRAIN" => {
-            let archive = brain_archive(pool, is_default, now).await?;
+            let archive = brain_archive(pool, now).await?;
             run_blocking(move || crate::backup::archive::write_archive(&target, &archive))
                 .await
                 .map_err(io_error)
         }
         "MASTER" => {
-            let archive = master_archive(pool, profiles, setting_keys, now).await?;
+            let archive = master_archive(pool, setting_keys, now).await?;
             run_blocking(move || crate::backup::archive::write_archive(&target, &archive))
                 .await
                 .map_err(io_error)

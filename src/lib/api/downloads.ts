@@ -27,6 +27,9 @@ export interface StartDownloadRequest {
   music?: MusicSelection;
   /** A subtitle track to save beside a video and play offline. */
   subtitle?: SubtitleChoice;
+  /** A clip of the video, in milliseconds. Both set or neither. */
+  clipStartMs?: number;
+  clipEndMs?: number;
   thumbnailUrl?: string;
   author?: string;
   durationSeconds?: number;
@@ -224,6 +227,9 @@ export interface DownloadRecord {
   chaptersJson: string | null;
   /** JSON array of SponsorBlock segments, saved when SponsorBlock was on. */
   sponsorblockJson: string | null;
+  /** A clip of the video, in milliseconds, when only part of it was saved. */
+  clipStartMs?: number | null;
+  clipEndMs?: number | null;
 }
 
 export function listDownloads(): Promise<DownloadRecord[]> {

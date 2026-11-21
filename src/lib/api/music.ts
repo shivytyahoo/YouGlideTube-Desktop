@@ -15,6 +15,7 @@ import type {
   MoodGenrePage,
   MusicLyrics,
   MusicHomePage,
+  MusicLibraryPage,
   MusicPlaylistPage,
   MusicSearchResponse,
   MusicSearchSuggestions,
@@ -151,6 +152,30 @@ export function getMusicPlaylistPage(
 
 export function getMusicPlaylistContinuation(continuation: string): Promise<SongContinuation> {
   return invokeBackend<SongContinuation>("get_music_playlist_continuation", { continuation });
+}
+
+// --- Library (account) ----------------------------------------------------
+///
+/// The account's YouTube Music library, as Android's `MusicSessionLibrary`
+/// seeds it: the saved playlists and albums from `FEmusic_library_landing`,
+/// the Liked Music (`LM`) playlist, and the server like writes behind the
+/// local like/save toggles. All four require sign-in; signed out, the
+/// frontend falls back to the local library.
+
+export function getMusicLibrary(continuation?: string): Promise<MusicLibraryPage> {
+  return invokeBackend<MusicLibraryPage>("get_music_library", { continuation });
+}
+
+export function getLikedMusic(): Promise<MusicPlaylistPage> {
+  return invokeBackend<MusicPlaylistPage>("get_liked_music", {});
+}
+
+export function setMusicLiked(videoId: string, liked: boolean): Promise<boolean> {
+  return invokeBackend<boolean>("set_music_liked", { videoId, liked });
+}
+
+export function setMusicPlaylistSaved(playlistId: string, saved: boolean): Promise<boolean> {
+  return invokeBackend<boolean>("set_music_playlist_saved", { playlistId, saved });
 }
 
 // --- Watch / queue / lyrics ----------------------------------------------

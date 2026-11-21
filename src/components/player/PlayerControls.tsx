@@ -57,6 +57,7 @@ import { useVolumeLevel } from "../../lib/audio/volumeBoost";
 import { usePlayerButton } from "../../lib/playerButtons";
 import { SETTINGS } from "../../lib/settings/schema";
 import { useAppSettingsStore } from "../../store/useAppSettingsStore";
+import { useBatterySaver } from "../../lib/useBatterySaver";
 
 export interface PlayerControlsProps {
   title?: string;
@@ -279,6 +280,8 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   const currentTimeRef = useRef<HTMLSpanElement>(null);
   const durationTimeRef = useRef<HTMLSpanElement>(null);
   const hoverPillRef = useRef<HTMLDivElement>(null);
+  // Battery saver hides the seek-bar preview frames (Android: previews off).
+  const batterySaver = useBatterySaver();
   const hoverTextRef = useRef<HTMLSpanElement>(null);
   const hoverSegmentRef = useRef<HTMLSpanElement>(null);
   const hoverSegmentDotRef = useRef<HTMLSpanElement>(null);
@@ -414,6 +417,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   const supportedQualities = qualities;
 
   const updateHoverPreview = (clientX: number, trackEl?: HTMLElement) => {
+    if (batterySaver) return;
     const pill = hoverPillRef.current;
     if (!pill) return;
     const track =

@@ -23,7 +23,7 @@ function notify(title: StringKey, body: StringKey) {
  * A computer stays on screen while its owner works elsewhere, so the app counts as in use while its
  * window has focus, or is visible and playing.
  */
-export function flowInUse(): boolean {
+export function appInUse(): boolean {
   if (document.hidden) return false;
   return document.hasFocus() || usePlayerStore.getState().isPlaying || useMusicPlayerStore.getState().isPlaying;
 }
@@ -48,7 +48,7 @@ export function useWellbeingReminders() {
         clock.onHidden(last);
       }
       last = now;
-      if (flowInUse()) clock.onShown(now);
+      if (appInUse()) clock.onShown(now);
       else clock.onHidden(now);
       if (clock.remainingMs(frequencyMs, now) > 0) return;
       clock.restart(now);

@@ -7,7 +7,7 @@ import { writeFileSync } from "node:fs";
 const OUTPUT = "src/lib/about/thirdPartyNotices.json";
 const MAX_OUTPUT_BYTES = 256 * 1024 * 1024;
 
-const OWN_PACKAGES = new Set(["flow", "youglidetube"]);
+const OWN_PACKAGES = new Set(["youglidetube"]);
 
 // Code carried in this repository rather than pulled in through a package manager.
 const VENDORED = [["ChangeVolumeMixerForWebView (Drapondur)", "", "MIT"]];

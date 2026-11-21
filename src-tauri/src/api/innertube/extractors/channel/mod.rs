@@ -24,6 +24,7 @@ use crate::models::channel::{ChannelAbout, ChannelDetails, ChannelPage, ChannelT
 
 pub use about::parse_about;
 pub use header::parse_header;
+pub(crate) use items::{channel_summary, playlist_summary};
 
 /// The params of a channel's search tab.
 const SEARCH_PARAMS: &str = "EgZzZWFyY2jyBgQKAloA";

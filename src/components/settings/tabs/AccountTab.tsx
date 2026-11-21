@@ -1,38 +1,60 @@
 import { useState } from "react";
-import { CircleUserRound, LogIn, LogOut, UserPlus } from "lucide-react";
+import { Check, CircleUserRound, LogIn, LogOut, UserPlus, X } from "lucide-react";
 import { Button } from "../../ui/Button";
 import { SettingItem } from "../SettingItem";
 import { SettingsGroup } from "../SettingsGroup";
 import { GoogleSignInDialog } from "../../GoogleSignInDialog";
 import { getString } from "../../../lib/i18n/index";
+import type { AccountSummary } from "../../../lib/api/account";
 import {
   googleAccountDisplayName,
+  googleAccountInitial,
   useGoogleAccount,
 } from "../../../lib/useGoogleAccount";
 
 /**
  * The "Google account" settings tab — Android's `AccountScreen.kt`, in
- * desktop form: status row, the signed-in account entry, Sign in /
- * Add account / Sign out rows, and the notice text, all with Android's
- * verbatim strings.
+ * desktop form: status row, one row per saved account (tap to switch, the
+ * active one marked), Sign in / Add account / Sign out rows, and the
+ * notice text, all with Android's verbatim strings.
  *
- * Sign-out is immediate with no confirmation, like Android. Multi-account
- * switching is not supported yet (the app stores one Google session):
- * "Add account" signs the current account out and opens the sign-in
- * dialog, replacing the session — the tab says so.
+ * Sign-out is immediate with no confirmation, like Android: it signs out
+ * of the ACTIVE account, and the next saved account (if any) becomes
+ * active. A non-active account can be removed with the × on its row.
  */
 export function AccountTab() {
-  const { status, account, error, signOut } = useGoogleAccount();
+  const { status, account, accounts, error, signOut, switchAccount, removeAccount } =
+    useGoogleAccount();
   const [signInOpen, setSignInOpen] = useState(false);
+  const [signInMode, setSignInMode] = useState<"sign-in" | "add-account">("sign-in");
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const signedIn = status === "signed-in";
 
   const displayName = googleAccountDisplayName(account);
   const subtitle = account?.channelHandle ?? account?.email ?? null;
 
-  /** Add account: replace the single stored session with a new sign-in. */
-  const addAccount = async () => {
-    await signOut();
+  /** Add account: open the sign-in dialog in add mode; the current account stays saved. */
+  const addAccount = () => {
+    setSignInMode("add-account");
     setSignInOpen(true);
+  };
+
+  const openSignIn = () => {
+    setSignInMode("sign-in");
+    setSignInOpen(true);
+  };
+
+  const switchTo = async (id: string) => {
+    setSwitchingId(id);
+    await switchAccount(id);
+    setSwitchingId(null);
+  };
+
+  const remove = async (id: string) => {
+    setRemovingId(id);
+    await removeAccount(id);
+    setRemovingId(null);
   };
 
   return (
@@ -63,17 +85,30 @@ export function AccountTab() {
           </span>
         </div>
 
+        {signedIn &&
+          accounts.map((saved) => (
+            <AccountRow
+              key={saved.id}
+              saved={saved}
+              disabled={switchingId !== null || removingId !== null}
+              onSelect={() => void switchTo(saved.id)}
+              onRemove={() => void remove(saved.id)}
+            />
+          ))}
+
         {signedIn ? (
           <>
             <SettingItem
               title={getString("account_add_account")}
               description={getString("account_add_account_subtitle")}
               icon={<UserPlus className="h-5 w-5" />}
-              onSelect={() => void addAccount()}
+              onSelect={addAccount}
             />
             <SettingItem
               title={getString("account_sign_out")}
-              description={getString("account_sign_out_subtitle")}
+              description={getString(
+                accounts.length > 1 ? "account_sign_out_next_subtitle" : "account_sign_out_subtitle",
+              )}
               icon={<LogOut className="h-5 w-5" />}
               titleClassName="text-chrome-red-400"
               onSelect={() => void signOut()}
@@ -84,18 +119,14 @@ export function AccountTab() {
             title={getString("account_sign_in")}
             description={getString("account_sign_in_subtitle")}
             icon={<LogIn className="h-5 w-5" />}
-            onSelect={() => setSignInOpen(true)}
+            onSelect={openSignIn}
           >
-            <Button variant="secondary" size="sm" onClick={() => setSignInOpen(true)}>
+            <Button variant="secondary" size="sm" onClick={openSignIn}>
               {getString("account_sign_in")}
             </Button>
           </SettingItem>
         )}
       </SettingsGroup>
-
-      {signedIn && (
-        <p className="text-xs text-chrome-neutral-400">{getString("account_replace_note")}</p>
-      )}
 
       <p className="max-w-2xl text-sm text-chrome-neutral-400">
         {getString(signedIn ? "account_body_signed_in" : "account_body_signed_out")}
@@ -107,7 +138,75 @@ export function AccountTab() {
         </p>
       )}
 
-      {signInOpen && <GoogleSignInDialog onClose={() => setSignInOpen(false)} />}
+      {signInOpen && <GoogleSignInDialog mode={signInMode} onClose={() => setSignInOpen(false)} />}
+    </div>
+  );
+}
+
+/**
+ * One saved account: Android's `AccountScreen` option row — the display
+ * name, the channel handle (else email) under it, selected when active.
+ * Tap switches to it; the × removes a non-active account. The row is a
+ * plain div (not a SettingItem) so the remove button is not nested inside
+ * another button.
+ */
+function AccountRow({
+  saved,
+  disabled,
+  onSelect,
+  onRemove,
+}: {
+  saved: AccountSummary;
+  disabled: boolean;
+  onSelect: () => void;
+  onRemove: () => void;
+}) {
+  const name = googleAccountDisplayName(saved) ?? getString("account_title");
+  const detail = saved.channelHandle ?? saved.email ?? null;
+  return (
+    <div className="flex items-center gap-3 px-5 py-3 transition-colors duration-200 ease-out hover:bg-surface-row-hover">
+      <button
+        type="button"
+        disabled={disabled || saved.isActive}
+        onClick={onSelect}
+        className="flex min-w-0 flex-1 items-center gap-3 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary disabled:opacity-70"
+      >
+        {saved.thumbnailUrl ? (
+          <img
+            src={saved.thumbnailUrl}
+            alt=""
+            className="h-10 w-10 shrink-0 rounded-full object-cover"
+          />
+        ) : (
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-container-high text-sm font-medium text-chrome-neutral-200">
+            {googleAccountInitial(saved)}
+          </span>
+        )}
+        <span className="min-w-0 flex-1">
+          <span dir="auto" className="block truncate text-sm font-medium text-chrome-neutral-200">
+            {name}
+          </span>
+          {detail && (
+            <span dir="auto" className="mt-0.5 block truncate text-xs text-chrome-neutral-400">
+              {detail}
+            </span>
+          )}
+        </span>
+      </button>
+      {saved.isActive ? (
+        <Check size={18} className="shrink-0 text-primary" aria-label={getString("account_status_signed_in")} />
+      ) : (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onRemove}
+          aria-label={getString("account_remove_account")}
+          title={getString("account_remove_account")}
+          className="shrink-0 rounded-full p-1.5 text-chrome-neutral-500 hover:bg-surface-container-high hover:text-chrome-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+        >
+          <X size={16} />
+        </button>
+      )}
     </div>
   );
 }

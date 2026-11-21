@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { setSetting } from "../lib/api/db";
 import { Logo } from "../components/common/Logo";
@@ -8,13 +8,11 @@ import ChannelsStep from "../components/onboarding/ChannelsStep";
 import { ReadyStep } from "../components/onboarding/ReadyStep";
 import { onboardingProgress, onboardingSteps } from "../lib/onboardingSteps";
 import { getString } from "../lib/i18n/index";
-import { profileDisplayName } from "../lib/profiles/display";
-import { useProfilesStore } from "../store/useProfilesStore";
 
 /**
  * The setup flow, as on Android: Welcome, Sign in, Channels, Ready. The two
  * middle steps are the only ones the progress bar counts, and both are
- * skippable. No interests, artists, alerts or import step — Android's flow
+ * skippable. No interests, artists, alerts or import step — Android's onboarding
  * has none of those.
  */
 export const Onboarding: React.FC = () => {
@@ -23,16 +21,6 @@ export const Onboarding: React.FC = () => {
   const [steps] = useState(() => onboardingSteps());
   const step = steps[currentStep] ?? "welcome";
   const lastStep = steps.length - 1;
-  const profiles = useProfilesStore((state) => state.view);
-  const loadProfiles = useProfilesStore((state) => state.load);
-  const settingUp =
-    profiles && profiles.activeId !== profiles.defaultId
-      ? profiles.profiles.find((profile) => profile.id === profiles.activeId)
-      : undefined;
-
-  useEffect(() => {
-    void loadProfiles();
-  }, [loadProfiles]);
 
   const finish = async () => {
     try {
@@ -82,9 +70,6 @@ export const Onboarding: React.FC = () => {
       {/* Header with Logo */}
       <div className="absolute top-0 start-0 z-40 flex items-center gap-4 p-8">
         <Logo size={40} showText={true} />
-        {settingUp && (
-          <span className="text-sm text-chrome-neutral-400">{getString("profiles_setting_up", profileDisplayName(settingUp))}</span>
-        )}
       </div>
 
       {/* Skip (middle steps only, top-right) */}

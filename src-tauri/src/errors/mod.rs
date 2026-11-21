@@ -50,6 +50,11 @@ pub enum AppError {
     #[error("Network error: {0}")]
     Network(String),
 
+    /// Shazam answered but found no track for the fingerprint — an expected
+    /// outcome, not a failure of the app; the UI offers "try again".
+    #[error("No match found: {0}")]
+    RecognitionNoMatch(String),
+
     /// The server asked the app to slow down (HTTP 429).
     #[error("Rate limited: {0}")]
     RateLimited(String),
@@ -68,34 +73,6 @@ pub enum AppError {
     /// The system keychain that holds scrobbling sessions cannot be used.
     #[error("Keychain error: {0}")]
     Keychain(String),
-
-    /// A sixth profile was asked for; carries the limit.
-    #[error("You can have up to {0} profiles")]
-    ProfileLimit(usize),
-
-    /// A profile name that is blank, too long or already used; carries `blank`, `tooLong` or
-    /// `taken`.
-    #[error("{0}")]
-    ProfileName(&'static str),
-
-    #[error("Profile not found: {0}")]
-    ProfileNotFound(String),
-
-    /// Default and the profile in use can't be deleted.
-    #[error("Profile in use: {0}")]
-    ProfileInUse(String),
-
-    /// A picture that can't become a profile photo (unreadable, or larger than 15 MB).
-    #[error("{0}")]
-    ProfilePhotoInvalid(String),
-
-    /// A switch can't start now; carries `syncRunning`, `switching` or `alreadyActive`.
-    #[error("{0}")]
-    ProfileSwitchRefused(&'static str),
-
-    /// The new profile couldn't be filled from the current one; nothing was created.
-    #[error("Couldn't copy into the new profile: {0}")]
-    ProfileCopyFailed(String),
 
     /// A library file that is no longer where it was listed.
     #[error("Local file missing: {0}")]
@@ -203,18 +180,12 @@ impl From<AppError> for ErrorResponse {
             AppError::AccountTerminated(_) => "accountTerminated",
             AppError::ContentNotAvailable(_) => "contentNotAvailable",
             AppError::Network(_) => "network",
+            AppError::RecognitionNoMatch(_) => "recognitionNoMatch",
             AppError::RateLimited(_) => "rateLimited",
             AppError::Database(_) => "database",
             AppError::ScrobbleSignInRejected(_) => "scrobbleSignInRejected",
             AppError::ScrobbleKeyMissing(_) => "scrobbleKeyMissing",
             AppError::Keychain(_) => "keychain",
-            AppError::ProfileLimit(_) => "profileLimit",
-            AppError::ProfileName(_) => "profileName",
-            AppError::ProfileNotFound(_) => "profileNotFound",
-            AppError::ProfileInUse(_) => "profileInUse",
-            AppError::ProfileCopyFailed(_) => "profileCopyFailed",
-            AppError::ProfileSwitchRefused(_) => "profileSwitchRefused",
-            AppError::ProfilePhotoInvalid(_) => "profilePhotoInvalid",
             AppError::LocalFileMissing(_) => "localFileMissing",
             AppError::LocalFileRefused(_) => "localFileRefused",
             AppError::Streaming(_) => "streaming",
@@ -266,6 +237,10 @@ mod tests {
             (AppError::AgeRestricted("a".into()), "ageRestricted"),
             (AppError::BotCheckRequired("b".into()), "botCheckRequired"),
             (AppError::Network("n".into()), "network"),
+            (
+                AppError::RecognitionNoMatch("m".into()),
+                "recognitionNoMatch",
+            ),
             (AppError::MembersOnly("m".into()), "membersOnly"),
             (AppError::NetworkWall("w".into()), "networkWall"),
             (AppError::LiveUpcoming("u".into(), Some(5)), "liveUpcoming"),
@@ -282,15 +257,6 @@ mod tests {
                 "scrobbleKeyMissing",
             ),
             (AppError::Keychain("c".into()), "keychain"),
-            (AppError::ProfileLimit(5), "profileLimit"),
-            (AppError::ProfileName("taken"), "profileName"),
-            (AppError::ProfileNotFound("p".into()), "profileNotFound"),
-            (AppError::ProfileInUse("p".into()), "profileInUse"),
-            (AppError::ProfileCopyFailed("p".into()), "profileCopyFailed"),
-            (
-                AppError::ProfileSwitchRefused("switching"),
-                "profileSwitchRefused",
-            ),
             (AppError::LocalFileMissing("m".into()), "localFileMissing"),
             (AppError::LocalFileRefused("r".into()), "localFileRefused"),
             (AppError::Internal("i".into()), "internal"),

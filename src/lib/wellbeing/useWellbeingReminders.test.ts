@@ -19,7 +19,7 @@ vi.mock("../../store/useAppSettingsStore", () => ({
 vi.mock("../../store/usePlayerStore", () => ({ usePlayerStore: { getState: () => ({ isPlaying: playing.video }) } }));
 vi.mock("../../store/useMusicPlayerStore", () => ({ useMusicPlayerStore: { getState: () => ({ isPlaying: playing.music }) } }));
 
-const { useWellbeingReminders, flowInUse } = await import("./useWellbeingReminders");
+const { useWellbeingReminders, appInUse } = await import("./useWellbeingReminders");
 const { SETTINGS } = await import("../settings/schema");
 
 const MINUTE = 60_000;
@@ -64,15 +64,15 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("flowInUse", () => {
+describe("appInUse", () => {
   it("needs focus, or a visible window that is playing", () => {
-    expect(flowInUse()).toBe(true);
+    expect(appInUse()).toBe(true);
     focused = false;
-    expect(flowInUse()).toBe(false);
+    expect(appInUse()).toBe(false);
     playing.video = true;
-    expect(flowInUse()).toBe(true);
+    expect(appInUse()).toBe(true);
     hidden = true;
-    expect(flowInUse()).toBe(false);
+    expect(appInUse()).toBe(false);
   });
 });
 
@@ -104,7 +104,7 @@ describe("the break reminder", () => {
 });
 
 describe("the bedtime reminder", () => {
-  it("fires once at its time, and again the next day while Flow runs", () => {
+  it("fires once at its time, and again the next day while the app runs", () => {
     settings.values = { [SETTINGS.BEDTIME_REMINDER]: "true", [SETTINGS.BEDTIME_START]: "23:00" };
     mount();
     advance(10 * 60 * MINUTE + 59 * MINUTE);
@@ -117,7 +117,7 @@ describe("the bedtime reminder", () => {
     expect(notifications).toHaveLength(2);
   });
 
-  it("doesn't fire when Flow opens after its time", () => {
+  it("doesn't fire when the app opens after its time", () => {
     settings.values = { [SETTINGS.BEDTIME_REMINDER]: "true", [SETTINGS.BEDTIME_START]: "09:00" };
     mount();
     advance(60 * MINUTE);

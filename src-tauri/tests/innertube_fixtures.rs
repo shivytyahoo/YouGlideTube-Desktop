@@ -3,7 +3,7 @@
 //! The captures are not committed. Regenerate them with
 //! `cargo test --test innertube_capture -- --ignored`; until then each test
 //! notes the missing file and passes, so CI does not cover these. Set
-//! `FLOW_REQUIRE_FIXTURES=1` to make a missing capture fail instead.
+//! `YOUGLIDETUBE_REQUIRE_FIXTURES=1` to make a missing capture fail instead.
 
 use std::path::PathBuf;
 
@@ -34,7 +34,7 @@ fn fixture(name: &str) -> Option<Value> {
         .join(format!("{name}.json"));
     match std::fs::read(&path) {
         Ok(bytes) => Some(serde_json::from_slice(&bytes).expect("capture is JSON")),
-        Err(_) if std::env::var_os("FLOW_REQUIRE_FIXTURES").is_some() => {
+        Err(_) if std::env::var_os("YOUGLIDETUBE_REQUIRE_FIXTURES").is_some() => {
             panic!("missing capture {}", path.display())
         }
         Err(_) => {

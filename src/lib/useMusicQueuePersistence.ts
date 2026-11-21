@@ -1,6 +1,5 @@
 import { musicEnabledNow } from "./useMusicContent";
 import { useEffect } from "react";
-import { onBeforeProfileSwitch } from "./profiles/beforeSwitch";
 
 import { useMusicPlayerStore } from "../store/useMusicPlayerStore";
 import { getSettingValue, useAppSettingsStore } from "../store/useAppSettingsStore";
@@ -78,7 +77,6 @@ export function useMusicQueuePersistence() {
       }
     });
     window.addEventListener("beforeunload", flush);
-    const offSwitch = onBeforeProfileSwitch(flush);
 
     void (async () => {
       await settingsLoaded();
@@ -95,7 +93,6 @@ export function useMusicQueuePersistence() {
       cancelled = true;
       unsubscribe();
       window.removeEventListener("beforeunload", flush);
-      offSwitch();
       if (timer !== null) clearTimeout(timer);
     };
   }, []);

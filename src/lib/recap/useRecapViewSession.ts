@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import type { ViewFormat } from "../api/recap";
-import { onBeforeProfileSwitch } from "../profiles/beforeSwitch";
 import type { WatchSubject } from "../useWatchSession";
 import { isKnownShort } from "../videoKind";
 import { MUSIC_COUNT_FRACTION } from "./musicSession";
@@ -75,10 +74,8 @@ export function useRecapViewSession(subject: RecapSubject | null) {
       return flushRecapQueue();
     };
     window.addEventListener("beforeunload", save);
-    const offSwitch = onBeforeProfileSwitch(save);
     return () => {
       window.removeEventListener("beforeunload", save);
-      offSwitch();
       session.close();
       if (sessionRef.current === session) sessionRef.current = null;
     };

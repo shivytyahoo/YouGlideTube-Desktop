@@ -12,6 +12,7 @@ import { CategoryChips } from "../components/layout/CategoryChips";
 import { Select } from "../components/ui/Select";
 import { confirmAction } from "../lib/dialogs";
 import { useHistory, groupHistoryByDate } from "../lib/useHistory";
+import { useServerHistory } from "../lib/useServerHistory";
 import { effectiveHistoryFilter, filterHistory, type HistoryFilter, type HistorySort } from "../lib/historyFilter";
 import { useShortsEnabled } from "../lib/useShortsContent";
 import { useMusicEnabled } from "../lib/useMusicContent";
@@ -35,17 +36,29 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
   const [year, setYear] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const {
-    history,
-    loading,
-    loadingMore,
-    hasMore,
-    offset,
-    loadMore,
+    history: localHistory,
+    loading: localLoading,
+    loadingMore: localLoadingMore,
+    hasMore: localHasMore,
+    offset: localOffset,
+    loadMore: localLoadMore,
     removeHistoryItem,
     restoreHistoryItem,
-    removeShorts,
-    clearHistory,
+    removeShorts: localRemoveShorts,
+    clearHistory: localClearHistory,
   } = useHistory();
+  // Signed in, history is the server list merged with this device's plays;
+  // signed out, the local SQLite history is the fallback.
+  const server = useServerHistory();
+  const signedIn = server.status === "signed-in";
+  const history = signedIn ? server.records : localHistory;
+  const loading = server.status === "unknown" || (signedIn ? server.loading : localLoading);
+  const loadingMore = signedIn ? server.loadingMore : localLoadingMore;
+  const hasMore = signedIn ? server.hasMore : localHasMore;
+  // The drain effect below advances on the loaded count, so the server
+  // list drains the same way the local pages do.
+  const offset = signedIn ? server.entries.length : localOffset;
+  const loadMore = signedIn ? server.loadMore : localLoadMore;
   const showToast = useUiStore((state) => state.showToast);
   const years = useHistoryYears(history);
 
@@ -96,8 +109,16 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
   }, [needsWholeHistory, hasMore, loadingMore, offset, loadMore]);
 
   const handleClearAll = async () => {
+    if (signedIn) {
+      const cleared = await server.clear();
+      setShowClearConfirm(false);
+      if (!cleared) {
+        showToast({ variant: "error", message: getString("history_clear_server_failed") });
+      }
+      return;
+    }
     try {
-      await clearHistory();
+      await localClearHistory();
       setShowClearConfirm(false);
     } catch (e) {
       console.error("Failed to clear watch history", e);
@@ -105,6 +126,35 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
   };
 
   const handleDeleteItem = async (videoId: string) => {
+    if (signedIn) {
+      const entry = server.entries.find((item) => item.videoId === videoId);
+      const record = server.records.find((item) => item.videoId === videoId);
+      const removed = await server.remove(videoId);
+      if (!removed) {
+        showToast({ variant: "error", message: getString("history_remove_failed") });
+        return;
+      }
+      // Only a local-only row can come back; a server row has no undo.
+      if (!record || entry?.source !== "local") {
+        showToast({ message: getString("removed_from_history") });
+        return;
+      }
+      showToast({
+        message: getString("removed_from_history"),
+        actions: [{
+          label: getString("undo"),
+          onSelect: () => {
+            void restoreHistoryItem(record)
+              .then(() => server.remerge())
+              .catch((e) => {
+                console.error("Failed to restore watch history record", e);
+                showToast({ variant: "error", message: getString("toast_action_failed") });
+              });
+          },
+        }],
+      });
+      return;
+    }
     const record = useHistoryStore.getState().records.find((item) => item.videoId === videoId);
     try {
       await removeHistoryItem(videoId);
@@ -136,8 +186,20 @@ export const History: React.FC<HistoryProps> = ({ onPlay }) => {
       destructive: true,
     });
     if (!confirmed) return;
+    if (signedIn) {
+      try {
+        const removed = await server.removeShorts();
+        if (!removed) {
+          showToast({ variant: "error", message: getString("history_delete_shorts_failed") });
+        }
+      } catch (e) {
+        console.error("Failed to delete Shorts from history", e);
+        showToast({ variant: "error", message: getString("history_delete_shorts_failed") });
+      }
+      return;
+    }
     try {
-      await removeShorts();
+      await localRemoveShorts();
     } catch (e) {
       console.error("Failed to delete Shorts from history", e);
       showToast({ variant: "error", message: getString("history_delete_shorts_failed") });

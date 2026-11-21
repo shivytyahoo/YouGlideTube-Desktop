@@ -1,0 +1,86 @@
+YOUGLIDETUBE DESKTOP CHANGE LOG
+VERSION: 1.0.0
+DATE: 2026-11-21
+STATUS: RELEASE
+
+ABOUT
+YouGlideTube Desktop is the desktop version of the YouGlideTube Android app - the same fast, buttery-smooth YouTube client, with the same look, feel and features, rebuilt for the desktop. No ads, no analytics, no telemetry. Sign in with your Google account, or use it without one.
+
+HIGHLIGHTS
+- Google sign-in, the Android way: sign in on Google's own page in a window inside the app, and the home feed reloads signed-in. A cookie-paste option is there if Google refuses the in-app window.
+- Your account, on the server: subscriptions, watch history and Watch Later now come from your Google account, not just the device.
+- Multiple accounts: add more than one Google account and switch between them from Settings > Google account.
+- Home feed is fully YouTube's now: the feed comes from YouTube's own home browse, signed-in or anonymous, with YouTube's chips.
+- Music, the Android way: Listen Again, On Repeat, Speed Dial, Quick Picks, Daily Discover, Daily Mixes and Similar To shelves, a pitch slider, and endless radio.
+- The Android look: the Android logo, the Android onboarding, and glass top bar, sidebar, player controls and mini player.
+- Voice search and music recognition: tap the mic to search by voice, or hold it to a song and the app identifies it.
+- Battery saver: one switch in Settings turns animations, glass and previews off for the fastest, lightest app.
+- The Android launch intro: the logo ring and tagline animate when the app opens.
+- Small on Linux: the optimized .deb is 21.73 MiB, about 56 MB installed.
+
+YOUR ACCOUNT
+- Sign in with your Google account right in the app, with multiple accounts. No companion services app is needed for sign-in.
+- Your sign-in cookie stays on this device, is never backed up, and is only sent to YouTube.
+- Watch history syncs with your YouTube account: videos watched here appear in YouTube history on every device, and the other way round.
+- Clear All and Delete remove videos from your server history too, not just the local list, and they stay gone after refresh.
+- Subscribing from any card saves on your Google account, and unsubscribing removes it there too. Sign-in is asked for first, with the same words as the Android app.
+- Watch Later saves on the server. Your full playlist list loads, and the Library updates the moment you change anything.
+- Sign out needs no confirmation, just like the Android app.
+
+HOME FEED
+- The feed comes from YouTube's own home browse, in YouTube's order, with YouTube's chips. The fixed searches are only a fallback when the server feed is empty or fails.
+- Subscriptions top up the feed, with a related lane from your watch history and likes.
+- Dismissed and blocked channels stay out of the feed.
+
+MUSIC
+- Session shelves from the Android app: Listen Again, On Repeat, Speed Dial, Quick Picks, Daily Discover, Daily Mixes and Similar To.
+- Pitch control from -12 to +12 semitones, and endless radio, on by default.
+- Synced lyrics with source choice and auto-romanization, music crossfade, a customizable mini player and an equalizer.
+- Not interested in Music works as on Android: session-only, artist-level, no escalation, no persistence.
+- Search history is saved separately for video and music searches.
+- Music recognition: hold the mic to a song and the app identifies it, then plays it or searches for it.
+
+DOWNLOADS
+- Offline downloads with quality and format choice.
+- Download a clip: pick a start and end time and download just that part, for video and audio downloads.
+- Multi-audio downloads: tick more than one audio track, Hindi and English together, and the download carries both.
+- Subtitles, a lyrics file and tags on your downloads.
+- Download location and cache controls in Settings.
+
+NOTIFICATIONS
+- A bell with an unread badge and an inbox grouped as New, Today, Yesterday, Last 7 days and Earlier.
+- System notifications for new videos, on a check interval you choose, from 15 minutes to 24 hours.
+- Pull to refresh the inbox any time; dismiss one video or clear them all.
+
+SEARCH
+- Search across videos, Shorts, live streams, channels and playlists, with filters for type, duration, upload date and sort order.
+- Voice search: tap the mic in video or music search and speak, where the device supports it.
+- The Shorts filter shows Shorts, the Videos filter shows videos: each filter returns what it promises.
+
+SHORTS
+- A dedicated Shorts feed with comments, descriptions, saved Shorts, looping and auto-next.
+- Like, comment and subscribe work from the Shorts feed, through the same account actions as everywhere else.
+
+DESKTOP
+- A sidebar and top search, the way YouTube on the desktop works, with the Android app's dark theme and brand colours.
+- Glass top bar, sidebar, player controls and mini player.
+- Windows, macOS and Linux packages: NSIS installer, DMG, and AppImage, .deb and .rpm.
+- In-app updates are not set up yet: Settings > About says so instead of offering a check.
+- Flatpak packaging is not set up yet.
+
+SETTINGS AND APPEARANCE
+- Settings mirror the Android app: Google account, Feeds & content, Player & playback, Quality, Integrations, Appearance, Language & region, Downloads & storage, History & privacy, Notifications, Network, Wellbeing, About and Diagnostics.
+- Settings are grouped the Android way, with a System theme in Appearance that follows your OS, and the sidebar's Library section is now called Library.
+- The Android launch intro plays when the app opens, and is skipped when battery saver is on.
+- Battery saver: one switch in Settings turns animations, glass and previews off for the fastest, lightest app.
+- Themes, fonts and glass blur. In-app diagnostics.
+- About has a Changelog and open source notices. Credit & Thanks lives in CREDITS.md in the repo, not in the app.
+
+BACKUPS AND IMPORT
+- Import from YouGlideTube backups, Google Takeout, NewPipe, LibreTube, FreeTube and OPML.
+- Backups use the YouGlideTube Master Backup format.
+
+PRIVACY
+- No ads, no analytics, no telemetry, and no Google account is required.
+- History, settings and library data are stored locally in SQLite on your computer.
+- The app works from Google and YouTube servers like the Android app does. There are no on-device recommendation, music or sync engines, and no local profiles.

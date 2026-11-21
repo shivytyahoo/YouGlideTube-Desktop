@@ -1,4 +1,4 @@
-//! The atomic apply pipeline for Flow Local Sync.
+//! The atomic apply pipeline for local sync.
 //!
 //! Given the staged canonical payload from a received session ([`protocol::ReceivedPayload`]), this:
 //!  1. takes a **pre-merge backup snapshot** of the affected collections (the safety net for a

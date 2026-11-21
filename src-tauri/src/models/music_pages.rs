@@ -92,6 +92,16 @@ pub struct MusicPlaylistPage {
     pub continuation: Option<String>,
 }
 
+/// One page of the account's YouTube Music library (`FEmusic_library_landing`):
+/// the saved playlists and albums, in the server's order. Android's
+/// `MusicSessionLibrary` seeds its saved-collections set from exactly this page.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MusicLibraryPage {
+    pub items: Vec<YTItem>,
+    pub continuation: Option<String>,
+}
+
 // ---------------------------------------------------------------------------
 // Home (typed — supersedes the VideoSummary-based get_music_home)
 // ---------------------------------------------------------------------------

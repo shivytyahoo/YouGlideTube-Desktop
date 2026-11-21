@@ -40,6 +40,14 @@ const cache = new Map<CacheKey, CacheEntry>();
 /** Backend walks still running, which may outlive the wait that started them. */
 const walks = new Map<CacheKey, Promise<MusicStreamInfo>>();
 
+/** Battery saver stops warming the next track; playing a track still resolves it. */
+let prefetchEnabled = true;
+
+/** Battery saver calls this with false; re-enabling only resumes new prefetches. */
+export function setMusicPrefetchEnabled(enabled: boolean): void {
+  prefetchEnabled = enabled;
+}
+
 const keyFor = (videoId: string, quality: MusicAudioQuality, options?: MusicStreamOptions): CacheKey =>
   `${videoId}::${quality}${options?.preferAac ? "::aac" : ""}`;
 
@@ -122,6 +130,7 @@ export function prefetchMusicStream(
   quality: MusicAudioQuality,
   options?: MusicStreamOptions,
 ) {
+  if (!prefetchEnabled) return;
   if (!videoId) return;
   const key = keyFor(videoId, quality, options);
   if (readCache(key) || walks.has(key)) return;

@@ -11,7 +11,7 @@
 <p align="center"><b>Buttery smooth. Truly yours.</b></p>
 
 <p align="center">
-  <a href="https://github.com/shivytyahoo/YouGlideTube-Desktop/releases/tag/v0.1.0-beta4"><img src="https://img.shields.io/badge/version-0.1.0--beta4-blue?style=flat-square" alt="Version 0.1.0-beta4"></a>
+  <a href="https://github.com/shivytyahoo/YouGlideTube-Desktop/releases/tag/v1.0.0"><img src="https://img.shields.io/badge/version-1.0.0-blue?style=flat-square" alt="Version 1.0.0"></a>
   <a href="https://github.com/shivytyahoo/YouGlideTube-Desktop/releases"><img src="https://img.shields.io/github/v/release/shivytyahoo/YouGlideTube-Desktop?style=flat-square" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-0078D4?style=flat-square" alt="Windows, macOS, Linux">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="GPL-3.0"></a>
@@ -38,7 +38,7 @@ See [LICENSE](LICENSE) for the full text.
 | | |
 |---|---|
 | **App** | `io.github.shivytyahoo.glidetube.desktop` |
-| **Latest release** | [0.1.0-beta4](https://github.com/shivytyahoo/YouGlideTube-Desktop/releases/tag/v0.1.0-beta4) |
+| **Latest release** | [1.0.0](https://github.com/shivytyahoo/YouGlideTube-Desktop/releases/tag/v1.0.0) |
 | **Requires** | Windows 10 22H2+, macOS 13+, or Ubuntu 22.04+ / Debian 12+ (and comparable modern distributions) |
 | **License** | GPL-3.0 |
 
@@ -70,7 +70,7 @@ where it should be quiet, colourful exactly where your videos are, and
 fast everywhere. It is the kind of interface you enjoy opening, not just
 tolerating.
 
-## ⚡ What's new in 0.1.0-beta4
+## ⚡ What's new in 1.0.0
 
 The first desktop release — the Android app, on the desktop.
 
@@ -90,6 +90,14 @@ The first desktop release — the Android app, on the desktop.
   pitch slider, and endless radio
 - **The Android look** — the Android logo, the Android onboarding, and
   glass top bar, sidebar, player controls and mini player
+- **Download a clip** — pick a start and end time and download just
+  that part
+- **Voice search and music recognition** — tap the mic to search by
+  voice, or hold it to a song and the app identifies it
+- **Battery saver** — one switch in Settings turns animations, glass
+  and previews off for the fastest, lightest app
+- **The Android launch intro** — the logo ring and tagline animate
+  when the app opens
 
 See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
@@ -158,6 +166,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 ### 📥 Downloads
 
 - **Offline downloads** with quality and format choice
+- **Download a clip** — pick a start and end time and download just
+  that part, for video and audio downloads
 - **Multi-audio downloads** — tick more than one audio track, Hindi and
   English together, and the download carries both
 - Subtitles, a lyrics file and tags on your downloads
@@ -281,8 +291,6 @@ Fresh screenshots of the desktop app are being added here.
 - **Stable:** reviewed releases intended for normal use.
 - **Beta / RC:** public GitHub prereleases for wider testing. These
   install as **YouGlideTube Beta** with isolated application data.
-- **Nightly:** automatic snapshots from `main`. These install as
-  **YouGlideTube Nightly**, use isolated data, and may be unstable.
 
 In-app updates are **not set up yet**: the app has no update server
 configured, so Settings → About says so instead of offering a check.
@@ -337,8 +345,7 @@ can't be opened". To open it:
    xattr -dr com.apple.quarantine /Applications/YouGlideTube.app
    ```
 
-   For a Beta or Nightly build, use `"/Applications/YouGlideTube Beta.app"`
-   or `"/Applications/YouGlideTube Nightly.app"`, with the quotes.
+   For a Beta build, use `"/Applications/YouGlideTube Beta.app"`, with the quotes.
 3. Open YouGlideTube as usual.
 
 Without Terminal: try to open YouGlideTube once, then go to

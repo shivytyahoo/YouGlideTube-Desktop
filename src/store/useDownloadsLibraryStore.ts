@@ -1,7 +1,6 @@
 import { create } from "zustand";
 
 import { getPlural, getString } from "../lib/i18n/index";
-import { onBeforeProfileSwitch } from "../lib/profiles/beforeSwitch";
 import { useUiStore } from "./useUiStore";
 import {
   clearDownloads,
@@ -41,7 +40,6 @@ function flushOnExit() {
   if (flushesOnExit) return;
   flushesOnExit = true;
   window.addEventListener("beforeunload", finishAwaitingDelete);
-  onBeforeProfileSwitch(finishAwaitingDelete);
 }
 
 function withoutAwaitingDelete(records: DownloadRecord[], ids: string[]) {

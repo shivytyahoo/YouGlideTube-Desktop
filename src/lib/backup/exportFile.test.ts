@@ -13,10 +13,10 @@ describe("backup files", () => {
     exportBackupFile.mockReset();
   });
 
-  it("offers Android's file names, a zip for a master backup", () => {
-    expect(backupFileName("MASTER", 5)).toBe("flow_master_backup_5.zip");
-    expect(backupFileName("BRAIN", 5)).toBe("flow_brain_backup_5.zip");
-    expect(backupFileName("APP_DATA", 5)).toBe("flow_backup_5.json");
+  it("offers the app's file names, a zip for a master backup", () => {
+    expect(backupFileName("MASTER", 5)).toBe("youglidetube_master_backup_5.zip");
+    expect(backupFileName("BRAIN", 5)).toBe("youglidetube_brain_backup_5.zip");
+    expect(backupFileName("APP_DATA", 5)).toBe("youglidetube_backup_5.json");
     expect(backupFileName("NEWPIPE_SUBSCRIPTIONS", 5)).toBe("newpipe_subscriptions_5.json");
     expect(backupFileName("WATCH_HISTORY", 5)).toBe("youglidetube-watch-history.json");
   });

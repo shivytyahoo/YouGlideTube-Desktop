@@ -113,15 +113,15 @@ impl GatherSpec {
 
     /// Next page: continue the reel sequence and refresh topic discovery.
     fn continuation(token: Option<String>) -> Self {
-        let flow_discovery = token
+        let shorts_discovery = token
             .as_deref()
             .is_some_and(|value| value.starts_with(YOUGLIDETUBE_DISCOVERY_CONTINUATION));
         Self {
-            include_reel: !flow_discovery,
+            include_reel: !shorts_discovery,
             reel_sequence_params: token
                 .filter(|value| !value.starts_with(YOUGLIDETUBE_DISCOVERY_CONTINUATION)),
             include_discovery: true,
-            include_subs: flow_discovery,
+            include_subs: shorts_discovery,
         }
     }
 }

@@ -5,11 +5,11 @@ Date: 2026-11-21 (step 3). Android reference: YouGlideTube v1.1.1,
 fresh shallow clone at `/tmp/youglide`
 (`app/src/main/java/io/github/shivytyahoo/glidetube/` unless stated
 otherwise; strings from `app/src/main/res/values/strings.xml`).
-Tauri fork: `~/workspace/youglide-tauri/`, fork of Flow Desktop
-v0.1.0-beta4.
+Tauri app: `~/workspace/youglide-tauri/`, built from the upstream Tauri codebase
+at v0.1.0-beta4.
 
 Standing rule: the app must look, feel and behave like YouGlideTube —
-settings, screens, features, naming, everything. Flow contributes ONLY
+settings, screens, features, naming, everything. The upstream codebase contributes ONLY
 its method (Tauri size/architecture), NEVER its look, feel, branding or
 feature set.
 
@@ -39,7 +39,7 @@ feature set.
   `LocalProfile` anywhere; "profile" matches only `BufferProfile`
   (buffer presets). What exists is multi-Google-account switching
   (`SavedAccount` list, switchable from Settings → Google account).
-  Flow's local-profiles system (top-bar `ProfileMenuButton`, Profiles
+  The upstream app's local-profiles system (top-bar `ProfileMenuButton`, Profiles
   settings tab, "Who's watching" overlay) is NOT a YouGlideTube
   pattern. Gap C1: remove/reshape in a follow-up; the Profiles tab is
   left in place this step because profile-scoped data (settings,
@@ -130,7 +130,7 @@ Legend: ✅ present · 🟡 partial · ❌ missing · ⏭️ out of scope (deskt
 
 | Feature | Android (where) | Tauri fork | Gap action |
 |---|---|---|---|
-| Home feed | `ui/screens/home/HomeScreen.kt`, topic chips (`HomeChipFeeds.kt`), prefetch (`data/feed/FeedPrefetchQueue.kt`), guest banner | ✅ feed + chips + guest banner; prefetch via FlowNeuro seeds | None. (FlowNeuro "Your taste" page is Flow-only, see C3.) |
+| Home feed | `ui/screens/home/HomeScreen.kt`, topic chips (`HomeChipFeeds.kt`), prefetch (`data/feed/FeedPrefetchQueue.kt`), guest banner | ✅ feed + chips + guest banner; prefetch via stored taste seeds | None. (The removed recommendation engine's "Your taste" page is upstream-only, see C3.) |
 | Search: filters/chips | `SearchScreen.kt:143-196` filter sheet, `SearchFilter` params | ✅ filter chips + sort (`Search.tsx`, `useSearchFilterMemory`) | None |
 | Search: suggestions | `data/search/SearchSuggestionsRepository.kt` | ✅ `lib/searchSuggestions.ts` | None |
 | Search: history | `data/local/SearchHistoryRepository`, saved queries | ✅ `store/useSearchHistoryStore.ts` | None |
@@ -150,19 +150,19 @@ Legend: ✅ present · 🟡 partial · ❌ missing · ⏭️ out of scope (deskt
 | ListenBrainz / Last.fm scrobbling | `data/scrobble/Scrobbler.kt`, `ListenBrainzClient.kt`, `AudioscrobblerClient.kt` | ✅ `LASTFM` / `LIBREFM` / `LISTENBRAINZ` (`lib/api/scrobble.ts`), Last.fm discovery | None |
 | Local media | `LocalMediaScreen.kt`, MediaStore scan | ✅ `LocalMedia.tsx` (folder scan on desktop) | None |
 | Notifications / bell inbox | `NotificationsScreen.kt`, local inbox, "Peace and quiet" empty state | ✅ `NotificationsBell.tsx` (unread badge, 9+ cap) + local inbox via `notification_service.rs` | None |
-| Update checks | `UpdateScreen.kt`, GitHub releases of `shivytyahoo/YouGlideTube` | ✅ `UpdateManager` + Settings → About → check for updates | Updater endpoint still points at Flow releases — step 4 re-points it |
+| Update checks | `UpdateScreen.kt`, GitHub releases of `shivytyahoo/YouGlideTube` | ✅ `UpdateManager` + Settings → About → check for updates | Updater is disabled (no endpoints configured) — re-point it when a published release exists |
 | Equalizer | `ui/screens/equalizer/EqualizerScreen.kt` | ✅ `EqualizerDialog` (from the music player) | None (dialog, not a route — fine on desktop) |
-| Deep Glide Mode | Settings "YouGlideTube Engine" group | ✅ privacy tab + top-bar toggle (`deep_flow_*`) | None |
+| Deep Glide Mode | Settings "YouGlideTube Engine" group | ✅ privacy tab + top-bar toggle (`deep-glide-*`) | None |
 | Wellbeing | `WellbeingScreen.kt` (watch-time reminders) | ✅ wellbeing tab + `WellbeingController` | None |
 | Onboarding | `onboarding` start destination incl. sign-in step | 🟡 onboarding exists but has **no sign-in step** | Follow-up: add the Android sign-in step ("Sign in with Google" + skip) to `Onboarding.tsx` |
 | Sign-in UI wording | `GoogleLoginActivity.kt` + strings above | 🟡 WebView flow matches; dialog strings were CMP paraphrases, not Android's | Fixed this step in part: Account tab uses verbatim Android strings; dialog footer reworded to Android's `account_body_signed_out` |
 | Avatar / display name | No top-bar avatar; identity from `account_menu` | 🟡 brand-blue "Y" placeholder (no name stored) | **Fixed this step (A1): fetch `account/account_menu`, show real name + initial (+ photo when present)** |
 | Settings: Account page | `AccountScreen.kt` (status, account rows, Add account, Sign out, notice) | ❌ no account category at all (step 2 wrongly claimed Android has none) | **Fixed this step (B1): "Google account" settings category mirroring AccountScreen** |
-| Settings: everything else | 28 sub-pages (see Android reference facts) | 🟡 Flow's 17 categories cover the same ground with different grouping; Flow-only extras: profiles, keyboard, taste/recap, sync-adjacent data rows | Follow-up: re-group rows toward Android's order; do not delete Flow rows users rely on without a migration note |
-| Top-bar ProfileMenuButton | No local profiles in Android | ❌ Flow-only (local profiles) | Follow-up (C1): remove/reshape once profile-scoped data migration is planned; left in place this step (load-bearing) |
-| Sync (P2P with Flow Android) | No equivalent (Android syncs via Google server) | ❌ Flow-only page + sidebar item | **Fixed this step (C2): removed from sidebar** (route kept, unlinked, pending removal/replacement) |
-| Support / Donations | No equivalent (Android About page) | ❌ Flow-only donations page ("Support Flow") | **Fixed this step (C2): removed from sidebar** (route kept, unlinked) |
-| "Your taste" (FlowNeuro) | No equivalent (Android feed IS the feed) | 🟡 Flow-only recommendation-engine page, neutral label | Left: label is already neutral ("Your taste"); engine is Flow-only, recorded here, not rebranded as YouGlideTube |
+| Settings: everything else | 28 sub-pages (see Android reference facts) | 🟡 The upstream app's 17 categories cover the same ground with different grouping; upstream-only extras: profiles, keyboard, taste/recap, sync-adjacent data rows | Follow-up: re-group rows toward Android's order; do not delete upstream rows users rely on without a migration note |
+| Top-bar ProfileMenuButton | No local profiles in Android | ❌ Upstream-only (local profiles) | Follow-up (C1): remove/reshape once profile-scoped data migration is planned; left in place this step (load-bearing) |
+| Sync (P2P with the upstream Android app) | No equivalent (Android syncs via Google server) | ❌ Upstream-only page + sidebar item | **Fixed this step (C2): removed from sidebar** (route kept, unlinked, pending removal/replacement) |
+| Support / Donations | No equivalent (Android About page) | ❌ Upstream-only donations page ("Support") | **Fixed this step (C2): removed from sidebar** (route kept, unlinked) |
+| "Your taste" (removed recommendation engine) | No equivalent (Android feed IS the feed) | 🟡 Upstream-only recommendation-engine page, neutral label | Left: label is already neutral ("Your taste"); engine is upstream-only, recorded here, not rebranded as YouGlideTube |
 | TV-code OAuth | `data/account/TvOAuth.kt` (TV path) | ⏭️ out of scope — user decision (2026-11-21): no TV-code OAuth on desktop; WebView sign-in is the only sign-in path | Do not build; not a follow-up |
 | Multi-account switching | `SavedAccount` list, switch from Account page | ❌ single session only (`google-session.txt`) | Follow-up: multi-session storage; "Add account" currently replaces the session (documented in the tab) |
 | Shazam-style recognition | `data/recognition/shazam/ShazamClient.kt` | ❌ no recognition | Follow-up (low priority) |
@@ -207,12 +207,12 @@ new sync system.
   stays a follow-up.
 - **C2 — naming/labels.** Sidebar "You" → "Library" (Android's tab
   name); "Extensions" → "Integrations" (Android's settings page
-  name); Flow-only "Sync" and "Support Flow" sidebar items removed
+  name); Upstream-only "Sync" and "Support" sidebar items removed
   (routes kept, unlinked, pending removal/replacement in step 4).
   Sign-in dialog comment corrected (it wrongly claimed Android has
   no account settings tab) and its footer now uses Android's
   `account_body_signed_out` wording.
-- **(d) — unreachable screens.** Checked: every Flow screen that
+- **(d) — unreachable screens.** Checked: every upstream screen that
   exists is already reachable — subscriptions, history, library,
   downloads, music, Shorts, playlists, albums, Watch Later,
   saved Shorts, liked, notes, local media, Explore, Recap (via

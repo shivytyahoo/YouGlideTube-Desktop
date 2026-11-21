@@ -4,7 +4,7 @@ import { getRecapIndex, getRecapSummary, type RecapIndex, type RecapSource, type
 import { profileStorage } from "../storage/profileStorage";
 import { flushRecapQueue } from "./recapQueue";
 
-const SOURCE_KEY = "flow_recap_source";
+const SOURCE_KEY = "youglidetube_recap_source";
 
 function rememberedSource(): RecapSource {
   const saved = profileStorage.getItem(SOURCE_KEY);

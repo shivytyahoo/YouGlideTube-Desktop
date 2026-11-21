@@ -1,5 +1,5 @@
-//! Channels the viewer keeps watching without subscribing, and their latest uploads, from Flow
-//! for Android's `ChannelMemory`. Engagement comes from watch history and likes; the uploads and
+//! Channels the viewer keeps watching without subscribing, and their latest uploads, from the
+//! Android app's `ChannelMemory`. Engagement comes from watch history and likes; the uploads and
 //! the viewer's verdicts are kept in `home_channel_memory`.
 
 use std::collections::{HashMap, HashSet};

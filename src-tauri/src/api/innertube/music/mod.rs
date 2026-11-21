@@ -15,6 +15,7 @@ pub mod browse;
 pub mod client;
 pub mod clients;
 pub mod endpoints;
+pub mod library;
 pub mod parse;
 pub mod playback;
 pub mod playlist;

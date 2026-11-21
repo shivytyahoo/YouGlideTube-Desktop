@@ -5,9 +5,37 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TopbarSearch } from "./TopbarSearch";
 import { useSettingsSearchStore } from "../../store/useSettingsSearchStore";
+import { useUiStore } from "../../store/useUiStore";
 import { getString } from "../../lib/i18n/index";
+import type { SpeechRecognitionInstance } from "../../lib/voiceSearch";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+/** A controllable stand-in for the webview's speech recognizer. */
+class FakeRecognition implements SpeechRecognitionInstance {
+  static last: FakeRecognition | null = null;
+  lang = "";
+  onresult: SpeechRecognitionInstance["onresult"] = null;
+  onerror: SpeechRecognitionInstance["onerror"] = null;
+  onend: SpeechRecognitionInstance["onend"] = null;
+  started = false;
+
+  constructor() {
+    FakeRecognition.last = this;
+  }
+
+  start(): void {
+    this.started = true;
+  }
+
+  stop(): void {
+    this.onend?.();
+  }
+
+  result(transcript: string): void {
+    this.onresult?.({ results: [[{ transcript }]] });
+  }
+}
 
 let host: HTMLDivElement;
 let root: Root;
@@ -30,6 +58,9 @@ describe("TopbarSearch", () => {
     act(() => root.unmount());
     host.remove();
     useSettingsSearchStore.getState().clearQuery();
+    useUiStore.getState().dismissToast();
+    delete (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition;
+    FakeRecognition.last = null;
   });
 
   it("renders default search placeholder on standard routes", () => {
@@ -102,5 +133,41 @@ describe("TopbarSearch", () => {
       input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     });
     expect(useSettingsSearchStore.getState().query).toBe("");
+  });
+
+  it("shows a voice search button on standard routes, but not on /settings", () => {
+    renderTopbarSearch("/");
+    expect(host.querySelector(`button[aria-label="${getString("search_voice_search")}"]`)).not.toBeNull();
+
+    act(() => root.unmount());
+    root = createRoot(host);
+    renderTopbarSearch("/settings");
+    expect(host.querySelector(`button[aria-label="${getString("search_voice_search")}"]`)).toBeNull();
+  });
+
+  it("shows an honest error when the webview exposes no recognizer", () => {
+    renderTopbarSearch("/");
+    const mic = host.querySelector(`button[aria-label="${getString("search_voice_search")}"]`)!;
+    act(() => {
+      mic.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(useUiStore.getState().toast?.message).toBe(getString("search_voice_unavailable"));
+    expect(useUiStore.getState().toast?.variant).toBe("error");
+  });
+
+  it("runs the recognised text as a search when a recognizer is available", () => {
+    (window as unknown as { SpeechRecognition: unknown }).SpeechRecognition = FakeRecognition;
+    renderTopbarSearch("/");
+    const mic = host.querySelector(`button[aria-label="${getString("search_voice_search")}"]`)!;
+    act(() => {
+      mic.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(FakeRecognition.last?.started).toBe(true);
+
+    act(() => {
+      FakeRecognition.last?.result("cats");
+      FakeRecognition.last?.onend?.();
+    });
+    expect(host.querySelector("input")?.value).toBe("cats");
   });
 });

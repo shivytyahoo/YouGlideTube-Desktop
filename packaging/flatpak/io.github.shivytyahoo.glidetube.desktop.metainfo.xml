@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.shivytyahoo.glidetube.desktop</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <name>YouGlideTube</name>
+  <summary>A fast, buttery-smooth YouTube client for desktop</summary>
+  <developer id="io.github.shivytyahoo">
+    <name>Shivyt</name>
+  </developer>
+  <description>
+    <p>YouGlideTube Desktop is the desktop version of the YouGlideTube
+    Android app: a fast, buttery-smooth YouTube client with the same look,
+    feel and features, rebuilt for the desktop. It needs no Google account
+    and contains no ads, analytics or telemetry. Sign in with Google and
+    your subscriptions, watch history and Watch Later follow your account,
+    just like on the phone.</p>
+    <ul>
+      <li>Native video playback with quality and codec choice, chapters,
+      subtitles, playback speed, queues and a mini player</li>
+      <li>Google sign-in in the app, with multiple accounts</li>
+      <li>Your home feed from YouTube, subscriptions, watch history and
+      Watch Later from your Google account</li>
+      <li>YouTube Music with search, artists, albums, playlists and synced
+      lyrics</li>
+      <li>A Shorts feed, channel pages, comments and live chat</li>
+      <li>SponsorBlock, DeArrow and Return YouTube Dislike</li>
+      <li>Downloads of videos and songs, including clip downloads</li>
+      <li>Imports from YouGlideTube backups, Google Takeout, NewPipe,
+      LibreTube, FreeTube and OPML</li>
+    </ul>
+    <p>YouGlideTube Desktop is under active development. Features and storage
+    formats may change before the first stable release.</p>
+  </description>
+  <launchable type="desktop-id">io.github.shivytyahoo.glidetube.desktop.desktop</launchable>
+
+  <content_rating type="oars-1.1" />
+
+  <url type="homepage">https://github.com/shivytyahoo/YouGlideTube-Desktop</url>
+  <url type="bugtracker">https://github.com/shivytyahoo/YouGlideTube-Desktop/issues</url>
+  <url type="vcs-browser">https://github.com/shivytyahoo/YouGlideTube-Desktop</url>
+
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <recommends>
+    <internet>always</internet>
+  </recommends>
+  <requires>
+    <display_length compare="ge">640</display_length>
+  </requires>
+
+  <releases>
+    <release version="1.0.0" date="2026-11-21" type="stable">
+      <url type="details">https://github.com/shivytyahoo/YouGlideTube-Desktop/releases/tag/v1.0.0</url>
+      <description>
+        <p>The first desktop release: Google sign-in the Android way, server
+        subscriptions, history and Watch Later, multiple accounts, the
+        server home feed, music session shelves, clip downloads and the
+        Android look with glass surfaces.</p>
+      </description>
+    </release>
+  </releases>
+</component>

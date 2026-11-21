@@ -1,6 +1,6 @@
 import { appProxyUrl } from "../settings/appProxy";
 import { useAppSettingsStore } from "../../store/useAppSettingsStore";
-import { relaunchFlow } from "./process";
+import { relaunchYouGlideTube } from "./process";
 import { isTauriEnv } from "./env";
 import { invokeBackend } from "./errors";
 import { parseUpdateSupport, type UpdateSupport } from "../updateSupport";
@@ -78,5 +78,5 @@ export async function downloadAndInstallUpdate(
 /** Relaunches the app into the freshly installed build. */
 export async function relaunchApp(): Promise<void> {
   if (!(await isTauriEnv())) return;
-  await relaunchFlow();
+  await relaunchYouGlideTube();
 }

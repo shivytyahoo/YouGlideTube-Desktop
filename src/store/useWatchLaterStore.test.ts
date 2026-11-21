@@ -5,6 +5,8 @@ import type { VideoSummary } from "../types/video";
 const loadStoredPlaylists = vi.fn();
 const addVideoToWatchLater = vi.fn();
 const removeVideoFromWatchLater = vi.fn();
+const getAccountSignedIn = vi.fn();
+const setVideoWatchLater = vi.fn();
 
 vi.mock("../lib/playlistLibrary", () => ({
   PLAYLIST_LIBRARY_UPDATED_EVENT: "youglidetube:playlist-library-updated",
@@ -14,7 +16,14 @@ vi.mock("../lib/playlistLibrary", () => ({
   removeVideoFromWatchLater: (...args: unknown[]) => removeVideoFromWatchLater(...args),
 }));
 
-const { useWatchLaterStore } = await import("./useWatchLaterStore");
+vi.mock("../lib/api/account", () => ({
+  getAccountSignedIn: (...args: unknown[]) => getAccountSignedIn(...args),
+  setVideoWatchLater: (...args: unknown[]) => setVideoWatchLater(...args),
+}));
+
+const { useWatchLaterStore, WatchLaterRemoveNeedsRefreshError } = await import(
+  "./useWatchLaterStore"
+);
 
 const video = (id: string) => ({ id, title: id }) as VideoSummary;
 
@@ -28,10 +37,17 @@ function libraryWith(ids: string[]) {
 describe("useWatchLaterStore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useWatchLaterStore.setState({ ids: new Set(), loaded: false });
+    useWatchLaterStore.setState({
+      ids: new Set(),
+      loaded: false,
+      serverSetVideoIds: {},
+      serverVersion: 0,
+    });
     loadStoredPlaylists.mockResolvedValue(libraryWith(["a", "b"]));
     addVideoToWatchLater.mockResolvedValue(undefined);
     removeVideoFromWatchLater.mockResolvedValue(undefined);
+    getAccountSignedIn.mockResolvedValue(false);
+    setVideoWatchLater.mockResolvedValue(true);
   });
 
   it("reads only the Watch Later playlist's ids", async () => {
@@ -111,5 +127,76 @@ describe("useWatchLaterStore", () => {
     window.dispatchEvent(new Event("youglidetube:playlist-library-updated"));
 
     expect(loadStoredPlaylists).not.toHaveBeenCalled();
+  });
+
+  describe("server Watch Later", () => {
+    beforeEach(() => {
+      getAccountSignedIn.mockResolvedValue(true);
+    });
+
+    it("saves on the server first, then locally, and bumps the server version", async () => {
+      await useWatchLaterStore.getState().load();
+
+      await useWatchLaterStore.getState().add(video("c"));
+
+      expect(setVideoWatchLater).toHaveBeenCalledWith("c", true);
+      expect(addVideoToWatchLater).toHaveBeenCalledTimes(1);
+      expect(useWatchLaterStore.getState().ids.has("c")).toBe(true);
+      expect(useWatchLaterStore.getState().serverVersion).toBe(1);
+    });
+
+    it("rolls back an add when the server save fails, without touching the library", async () => {
+      await useWatchLaterStore.getState().load();
+      setVideoWatchLater.mockRejectedValueOnce(new Error("server down"));
+
+      await expect(useWatchLaterStore.getState().add(video("c"))).rejects.toThrow(
+        "server down",
+      );
+      expect(useWatchLaterStore.getState().ids.has("c")).toBe(false);
+      expect(addVideoToWatchLater).not.toHaveBeenCalled();
+      expect(useWatchLaterStore.getState().serverVersion).toBe(0);
+    });
+
+    it("removes through the server when the page published an entry id", async () => {
+      await useWatchLaterStore.getState().load();
+      useWatchLaterStore.getState().setServerSetVideoIds({ a: "set-a", b: null });
+
+      await useWatchLaterStore.getState().remove("a");
+
+      expect(setVideoWatchLater).toHaveBeenCalledWith("a", false, "set-a");
+      expect(removeVideoFromWatchLater).toHaveBeenCalledWith("a");
+      expect(useWatchLaterStore.getState().ids.has("a")).toBe(false);
+      expect(useWatchLaterStore.getState().serverVersion).toBe(1);
+    });
+
+    it("refuses a remove when the server row has no entry id, and keeps the video", async () => {
+      await useWatchLaterStore.getState().load();
+      useWatchLaterStore.getState().setServerSetVideoIds({ a: "set-a", b: null });
+
+      await expect(useWatchLaterStore.getState().remove("b")).rejects.toBeInstanceOf(
+        WatchLaterRemoveNeedsRefreshError,
+      );
+      expect(setVideoWatchLater).not.toHaveBeenCalled();
+      expect(removeVideoFromWatchLater).not.toHaveBeenCalled();
+      expect(useWatchLaterStore.getState().ids.has("b")).toBe(true);
+    });
+
+    it("removes locally only when the server list does not carry the video", async () => {
+      await useWatchLaterStore.getState().load();
+      useWatchLaterStore.getState().setServerSetVideoIds({ a: "set-a" });
+
+      await useWatchLaterStore.getState().remove("b");
+
+      expect(setVideoWatchLater).not.toHaveBeenCalled();
+      expect(removeVideoFromWatchLater).toHaveBeenCalledWith("b");
+      expect(useWatchLaterStore.getState().ids.has("b")).toBe(false);
+    });
+
+    it("replaces the published entry-id map wholesale", () => {
+      useWatchLaterStore.getState().setServerSetVideoIds({ a: "set-a" });
+      useWatchLaterStore.getState().setServerSetVideoIds({ c: "set-c" });
+
+      expect(useWatchLaterStore.getState().serverSetVideoIds).toEqual({ c: "set-c" });
+    });
   });
 });

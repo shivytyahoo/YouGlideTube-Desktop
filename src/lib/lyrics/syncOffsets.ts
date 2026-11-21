@@ -1,6 +1,6 @@
 import { profileStorage } from "../storage/profileStorage";
 
-const STORAGE_KEY = "flow_lyrics_sync_offsets";
+const STORAGE_KEY = "youglidetube_lyrics_sync_offsets";
 /** Oldest songs are dropped past this, so the map cannot grow without limit. */
 const MAX_SONGS = 3000;
 // A nudge is several quick clicks; only where they end is worth writing.

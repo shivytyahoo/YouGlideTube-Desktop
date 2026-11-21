@@ -57,6 +57,7 @@ pub async fn save_subtitle(
     media_path: &Path,
     track: &CaptionTrack,
     emitter: &ProgressEmitter,
+    clip: Option<super::ClipRange>,
 ) -> Option<SavedSubtitle> {
     let vtt = match fetch(&track.url).await {
         Ok(vtt) => vtt,
@@ -64,6 +65,18 @@ pub async fn save_subtitle(
             emitter.log(format!("Could not save the subtitles: {error}"));
             return None;
         }
+    };
+    // A clip keeps only the cues that overlap it, shifted to start at zero;
+    // a clip with no cues saves no subtitle file, rather than a mistimed one.
+    let vtt = match clip {
+        Some(clip) => match shift_vtt(&vtt, clip) {
+            Some(shifted) => shifted,
+            None => {
+                emitter.log("No subtitles fall inside the clip range".to_string());
+                return None;
+            }
+        },
+        None => vtt,
     };
     let dir = app.path().app_data_dir().ok()?.join(SUBTITLE_STORE_DIR);
     tokio::fs::create_dir_all(&dir).await.ok()?;
@@ -118,6 +131,121 @@ async fn fetch(url: &str) -> Result<String, String> {
         return Err("the caption server did not return WebVTT".into());
     }
     Ok(text)
+}
+
+/// Keeps only the cues that overlap `[clip.start_ms, clip.end_ms)`, shifted so
+/// the clip starts at zero. `None` when no cue survives. Cue settings and the
+/// `WEBVTT` header pass through untouched; a cue's id line is kept with it.
+pub fn shift_vtt(vtt: &str, clip: super::ClipRange) -> Option<String> {
+    let mut out = String::new();
+    let mut kept = 0_usize;
+    let mut seen_cue = false;
+    let mut pending_id: Option<&str> = None;
+    let mut lines = vtt.lines().peekable();
+    while let Some(line) = lines.next() {
+        if let Some((start_ms, end_ms, settings)) = parse_cue_header(line) {
+            seen_cue = true;
+            let mut payload = Vec::new();
+            while let Some(next) = lines.peek() {
+                if next.trim().is_empty() {
+                    break;
+                }
+                payload.push(*next);
+                lines.next();
+            }
+            let new_start = start_ms.max(clip.start_ms) - clip.start_ms;
+            let new_end = end_ms.min(clip.end_ms).saturating_sub(clip.start_ms);
+            if end_ms > clip.start_ms && start_ms < clip.end_ms && new_end > new_start {
+                if let Some(id) = pending_id.take() {
+                    out.push_str(id);
+                    out.push('\n');
+                }
+                let _ = write!(
+                    out,
+                    "{} --> {}",
+                    format_vtt_time(new_start),
+                    format_vtt_time(new_end)
+                );
+                if !settings.is_empty() {
+                    out.push(' ');
+                    out.push_str(settings);
+                }
+                out.push('\n');
+                for payload_line in payload {
+                    out.push_str(payload_line);
+                    out.push('\n');
+                }
+                out.push('\n');
+                kept += 1;
+            }
+            pending_id = None;
+            continue;
+        }
+        if !seen_cue {
+            // The `WEBVTT` header and its metadata, before the first cue.
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        }
+        // After the first cue a non-blank line is a cue id; blank lines
+        // separate cues and are rewritten after each kept cue.
+        if line.trim().is_empty() {
+            pending_id = None;
+        } else {
+            pending_id = Some(line);
+        }
+    }
+    if kept == 0 {
+        return None;
+    }
+    Some(out)
+}
+
+/// A cue header's start, end and settings (`align:start ...`), when the line
+/// is one: `00:00:01.000 --> 00:00:02.500 align:start`.
+fn parse_cue_header(line: &str) -> Option<(u64, u64, &str)> {
+    let (start, rest) = line.split_once("-->")?;
+    let end = rest.split_whitespace().next().unwrap_or_default();
+    let start_ms = vtt_time_ms(start.trim())?;
+    let end_ms = vtt_time_ms(end)?;
+    let settings = rest.trim_start().strip_prefix(end).unwrap_or("").trim_start();
+    Some((start_ms, end_ms, settings))
+}
+
+/// `01:02.500` or `00:01:02.500` → milliseconds.
+fn vtt_time_ms(value: &str) -> Option<u64> {
+    let (clock, millis) = value.split_once('.')?;
+    let parts: Vec<&str> = clock.split(':').collect();
+    let (hours, minutes, seconds) = match parts.as_slice() {
+        [minutes, seconds] => (
+            0,
+            minutes.parse::<u64>().ok()?,
+            seconds.parse::<u64>().ok()?,
+        ),
+        [hours, minutes, seconds] => (
+            hours.parse::<u64>().ok()?,
+            minutes.parse::<u64>().ok()?,
+            seconds.parse::<u64>().ok()?,
+        ),
+        _ => return None,
+    };
+    let mut fraction = millis.to_string();
+    while fraction.len() < 3 {
+        fraction.push('0');
+    }
+    let millis = fraction[..3].parse::<u64>().ok()?;
+    Some(((hours * 60 + minutes) * 60 + seconds) * 1000 + millis)
+}
+
+fn format_vtt_time(ms: u64) -> String {
+    let total_seconds = ms / 1000;
+    format!(
+        "{:02}:{:02}:{:02}.{:03}",
+        total_seconds / 3600,
+        (total_seconds / 60) % 60,
+        total_seconds % 60,
+        ms % 1000
+    )
 }
 
 /// Converts `WebVTT` cues to `SubRip`: numbered cues, comma decimal separators, no cue
@@ -192,7 +320,8 @@ fn strip_tags(line: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{SubtitleChoice, pick_track, srt_path, vtt_to_srt};
+    use super::{SubtitleChoice, pick_track, shift_vtt, srt_path, vtt_to_srt};
+    use super::super::ClipRange;
     use crate::models::video::CaptionTrack;
     use std::path::Path;
 
@@ -238,6 +367,32 @@ mod tests {
             vtt_to_srt(vtt),
             "1\n00:00:01,000 --> 00:00:02,500\nHello there\n\n2\n00:01:02,000 --> 00:01:03,250\nA & B\nline two\n\n"
         );
+    }
+
+    #[test]
+    fn clips_shift_subtitles_to_the_clip_start() {
+        let vtt = "WEBVTT\nKind: captions\n\n00:00:01.000 --> 00:00:02.500\nBefore\n\n00:01:05.000 --> 00:01:07.000 align:start\nInside\n\n00:02:00.000 --> 00:02:03.000\nAfter\n\n";
+        let clip = ClipRange::new(60_000, 70_000).unwrap();
+        let shifted = shift_vtt(vtt, clip).expect("has a cue in range");
+        assert!(shifted.starts_with("WEBVTT\nKind: captions\n\n"));
+        assert!(shifted.contains("00:00:05.000 --> 00:00:07.000 align:start\nInside\n"));
+        assert!(!shifted.contains("Before"));
+        assert!(!shifted.contains("After"));
+    }
+
+    #[test]
+    fn a_cue_spanning_the_clip_start_is_trimmed_to_it() {
+        let vtt = "WEBVTT\n\n00:00:58.000 --> 00:01:02.000\nSpanning\n\n";
+        let clip = ClipRange::new(60_000, 70_000).unwrap();
+        let shifted = shift_vtt(vtt, clip).expect("has a cue in range");
+        assert!(shifted.contains("00:00:00.000 --> 00:00:02.000\nSpanning\n"));
+    }
+
+    #[test]
+    fn a_clip_with_no_cues_saves_no_subtitles() {
+        let vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nEarly\n\n";
+        let clip = ClipRange::new(60_000, 70_000).unwrap();
+        assert!(shift_vtt(vtt, clip).is_none());
     }
 
     #[test]

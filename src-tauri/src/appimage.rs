@@ -187,7 +187,7 @@ mod tests {
     use std::ffi::OsString;
     use std::path::Path;
 
-    const APPDIR: &str = "/tmp/.mount_Flow_abc123";
+    const APPDIR: &str = "/tmp/.mount_YouGlideTube_abc123";
 
     fn fallback() -> String {
         format!("{APPDIR}/{LIBVA_FALLBACK_DIR}")

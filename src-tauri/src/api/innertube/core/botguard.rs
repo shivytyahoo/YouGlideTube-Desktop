@@ -52,9 +52,9 @@ fn token_cache() -> &'static Mutex<HashMap<String, MintedToken>> {
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Resolve the Node executable. Honors `FLOW_NODE`, else relies on PATH.
+/// Resolve the Node executable. Honors `YOUGLIDETUBE_NODE`, else relies on PATH.
 pub(crate) fn node_command() -> String {
-    std::env::var("FLOW_NODE").unwrap_or_else(|_| "node".to_string())
+    std::env::var("YOUGLIDETUBE_NODE").unwrap_or_else(|_| "node".to_string())
 }
 
 static RESOURCE_DIR: OnceLock<PathBuf> = OnceLock::new();
@@ -122,7 +122,7 @@ fn sidecar_candidates(
 }
 
 async fn run_sidecar(content_binding: &str) -> Option<MintedToken> {
-    let Some(script) = sidecar_script_path("integrity.cjs", "FLOW_INTEGRITY_SCRIPT") else {
+    let Some(script) = sidecar_script_path("integrity.cjs", "YOUGLIDETUBE_INTEGRITY_SCRIPT") else {
         warn!("integrity.cjs sidecar not found; cannot mint PO token");
         return None;
     };

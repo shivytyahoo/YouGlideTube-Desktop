@@ -55,6 +55,12 @@ describe("downloadDetail", () => {
     expect(downloadDetail(record(1, { fileSizeBytes: 5 * 1024 * 1024 }))).toMatch(/MB • .*2026/);
     expect(downloadDetail(record(1, { createdAt: "nonsense", fileSizeBytes: null }))).toBe("");
   });
+
+  it("names a clip's range", () => {
+    expect(
+      downloadDetail(record(1, { clipStartMs: 60_000, clipEndMs: 150_000 })),
+    ).toMatch(/^Clip 1:00–2:30 • .*2026/);
+  });
 });
 
 describe("the saved sort", () => {

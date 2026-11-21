@@ -9,6 +9,7 @@ use webm_iterable::matroska_spec::{BlockLacing, Master, MatroskaSpec, SimpleBloc
 use crate::api::innertube::download::DownloadContainer;
 
 mod boxes;
+pub mod clip;
 mod ilst;
 pub mod matroska;
 mod mp4_demux;
@@ -19,6 +20,7 @@ mod vp9;
 
 pub use ilst::{EmbeddedChapter, EmbeddedMetadata, MAX_COVER_BYTES};
 
+use super::ClipRange;
 use mp4_demux::{Codec, ProgressiveSample, ProgressiveTrack};
 use mp4_writer::{Mp4Options, SampleSource, TrackRole, WriterSample, WriterTrack};
 
@@ -58,6 +60,8 @@ pub struct TrackInput<'a> {
 /// `output` selects the destination container; each input's `container` is the one
 /// its bytes really arrived in, which can differ from `output`: AV1 ships as
 /// fragmented MP4 and VP9 as `WebM`, and both end up in MP4 next to AAC.
+/// `clip` keeps only `[clip.start_ms, clip.end_ms)` of each track; `None` is
+/// today's full download, byte for byte.
 pub fn mux_adaptive_tracks(
     output: DownloadContainer,
     video: TrackInput<'_>,
@@ -65,14 +69,15 @@ pub fn mux_adaptive_tracks(
     output_path: &Path,
     metadata: Option<&EmbeddedMetadata>,
     cancelled: &AtomicBool,
+    clip: Option<ClipRange>,
 ) -> Result<(), String> {
     match output {
-        DownloadContainer::Mp4 => mux_mp4(video, audio, output_path, metadata, cancelled),
+        DownloadContainer::Mp4 => mux_mp4(video, audio, output_path, metadata, cancelled, clip),
         DownloadContainer::Mkv => {
             let (video_entry, video_packets) =
-                open_track_source(video.container, video.path, 1, TrackKind::Video)?;
+                open_track_source(video.container, video.path, 1, TrackKind::Video, clip)?;
             let (audio_entry, audio_packets) =
-                open_track_source(audio.container, audio.path, 2, TrackKind::Audio)?;
+                open_track_source(audio.container, audio.path, 2, TrackKind::Audio, clip)?;
             matroska::write_matroska(
                 output_path,
                 vec![
@@ -102,6 +107,7 @@ fn mux_mp4(
     output_path: &Path,
     metadata: Option<&EmbeddedMetadata>,
     cancelled: &AtomicBool,
+    clip: Option<ClipRange>,
 ) -> Result<(), String> {
     let (video_track, video_codec) = match video.container {
         DownloadContainer::Mp4 => {
@@ -110,10 +116,10 @@ fn mux_mp4(
                 return Err("VP8 video cannot be stored in MP4".to_string());
             }
             let codec = track.codec;
-            (fragmented_writer_track(track, TrackKind::Video), codec)
+            (fragmented_writer_track(track, TrackKind::Video, clip)?, codec)
         }
         DownloadContainer::Mkv => (
-            webm_vp9_writer_track(video.path, video.mime_type)?,
+            webm_vp9_writer_track(video.path, video.mime_type, clip)?,
             Codec::Vp9,
         ),
     };
@@ -124,7 +130,7 @@ fn mux_mp4(
     if !matches!(audio_track.codec, Codec::Aac) {
         return Err("MP4 downloads need an AAC audio track".to_string());
     }
-    let audio_track = fragmented_writer_track(audio_track, TrackKind::Audio);
+    let audio_track = fragmented_writer_track(audio_track, TrackKind::Audio, clip)?;
 
     let mut compatible_brands = vec![*b"isom", *b"iso2", *b"mp41"];
     match video_codec {
@@ -152,6 +158,7 @@ pub fn remux_audio_to_m4a(
     output: &Path,
     metadata: Option<&EmbeddedMetadata>,
     cancelled: &AtomicBool,
+    clip: Option<ClipRange>,
 ) -> Result<(), String> {
     let track = mp4_demux::open_progressive(input, TrackKind::Audio)?;
     if !matches!(track.codec, Codec::Aac) {
@@ -165,7 +172,7 @@ pub fn remux_audio_to_m4a(
     };
     mp4_writer::write_mp4(
         output,
-        vec![fragmented_writer_track(track, TrackKind::Audio)],
+        vec![fragmented_writer_track(track, TrackKind::Audio, clip)?],
         &options,
         cancelled,
     )
@@ -181,8 +188,12 @@ impl SampleSource for ProgressiveTrack {
     }
 }
 
-fn fragmented_writer_track(track: ProgressiveTrack, kind: TrackKind) -> WriterTrack<'static> {
-    let samples: Vec<WriterSample> = track
+fn fragmented_writer_track(
+    mut track: ProgressiveTrack,
+    kind: TrackKind,
+    clip: Option<ClipRange>,
+) -> Result<WriterTrack<'static>, String> {
+    let mut samples: Vec<WriterSample> = track
         .samples
         .iter()
         .map(|sample| WriterSample {
@@ -199,17 +210,40 @@ fn fragmented_writer_track(track: ProgressiveTrack, kind: TrackKind) -> WriterTr
         },
         TrackKind::Audio => TrackRole::Audio,
     };
-    let media_time = track
+    let mut media_time = track
         .edit_media_time
         .or_else(|| first_presentation_time(&samples));
-    WriterTrack {
+    if let Some(clip) = clip {
+        // The track's own samples are filtered to the same kept indices as the
+        // writer's list, so the source still answers each index with its bytes.
+        let trimmed = clip::trim_samples(
+            &samples,
+            track.timescale,
+            matches!(kind, TrackKind::Video),
+            track.edit_media_time.unwrap_or(0),
+            clip,
+        )
+        .map_err(|error| format!("{}: {error}", kind.label()))?;
+        track.samples = trimmed
+            .indices
+            .iter()
+            .map(|index| track.samples[*index])
+            .collect();
+        samples = trimmed
+            .indices
+            .iter()
+            .map(|index| samples[*index])
+            .collect();
+        media_time = Some(trimmed.media_time);
+    }
+    Ok(WriterTrack {
         role,
         timescale: track.timescale,
         sample_entry: track.sample_entry.clone(),
         samples,
         media_time,
         source: Box::new(track),
-    }
+    })
 }
 
 /// The earliest presentation time when the stream starts after zero, as B-frame
@@ -247,7 +281,11 @@ impl SampleSource for WebmFrameSource {
     }
 }
 
-fn webm_vp9_writer_track(path: &Path, mime_type: &str) -> Result<WriterTrack<'static>, String> {
+fn webm_vp9_writer_track(
+    path: &Path,
+    mime_type: &str,
+    clip: Option<ClipRange>,
+) -> Result<WriterTrack<'static>, String> {
     let (entry, source_track) = read_matroska_track_entry(path, 1, TrackKind::Video.label())?;
     let (codec_id, width, height, default_duration) = webm_video_info(&entry);
     if codec_id.as_deref() != Some("V_VP9") {
@@ -275,6 +313,32 @@ fn webm_vp9_writer_track(path: &Path, mime_type: &str) -> Result<WriterTrack<'st
     let ticks = |ns: i128| -> i64 {
         i64::try_from(ns * i128::from(WEBM_VIDEO_TIMESCALE) / 1_000_000_000).unwrap_or(0)
     };
+    // A clip keeps one run of frames: the keyframe at or before the start
+    // through the last frame before the end. WebM times are absolute, so the
+    // track's media offset is zero and decode order is file order.
+    let mut skip = 0_usize;
+    let mut media_time = None;
+    if let Some(clip) = clip {
+        let presentations: Vec<i64> =
+            frames.iter().map(|(timestamp, _, _)| ticks(*timestamp)).collect();
+        let is_sync: Vec<bool> = frames.iter().map(|(_, _, keyframe)| *keyframe).collect();
+        let trimmed = clip::select_range(
+            &presentations,
+            &presentations,
+            &is_sync,
+            true,
+            ticks(i128::from(clip.start_ms) * 1_000_000),
+            ticks(i128::from(clip.end_ms) * 1_000_000),
+        )
+        .map_err(|error| format!("video track: {error}"))?;
+        skip = trimmed.indices[0];
+        media_time = Some(trimmed.media_time);
+        frames = trimmed
+            .indices
+            .iter()
+            .map(|index| frames[*index])
+            .collect();
+    }
     let fallback = default_duration
         .map(|ns| ticks(i128::from(ns)))
         .filter(|value| *value > 0)
@@ -298,14 +362,20 @@ fn webm_vp9_writer_track(path: &Path, mime_type: &str) -> Result<WriterTrack<'st
     }
 
     let config = vp9::Vp9Config::resolve(mime_type, first_keyframe.as_deref());
+    // The source re-reads the file from the start, so the dropped leading
+    // frames are skipped before the writer asks for its first sample.
+    let mut source_track = MatroskaTrack::open(path, source_track, TrackKind::Video.label())?;
+    for _ in 0..skip {
+        source_track.next_packet()?;
+    }
     Ok(WriterTrack {
         role: TrackRole::Video { width, height },
         timescale: WEBM_VIDEO_TIMESCALE,
         sample_entry: vp9::vp09_sample_entry(width, height, config),
         samples,
-        media_time: None,
+        media_time,
         source: Box::new(WebmFrameSource {
-            track: MatroskaTrack::open(path, source_track, TrackKind::Video.label())?,
+            track: source_track,
             next: 0,
         }),
     })
@@ -361,6 +431,8 @@ struct MatroskaPacket {
 enum PacketSource {
     Webm(Box<MatroskaTrack>),
     Mp4(mp4_demux::SampleReader),
+    /// A clip of another source: only the clip range reaches the writer.
+    Clip(Box<clip::ClipPackets>),
 }
 
 impl PacketSource {
@@ -368,6 +440,7 @@ impl PacketSource {
         match self {
             Self::Webm(track) => track.next_packet(),
             Self::Mp4(reader) => reader.next_packet(),
+            Self::Clip(clipped) => clipped.next_packet(),
         }
     }
 }
@@ -377,19 +450,29 @@ fn open_track_source(
     path: &Path,
     output_track: u64,
     kind: TrackKind,
+    clip: Option<ClipRange>,
 ) -> Result<(MatroskaSpec, PacketSource), String> {
-    match container {
+    let (entry, source) = match container {
         DownloadContainer::Mkv => {
             let (entry, source_track) =
                 read_matroska_track_entry(path, output_track, kind.label())?;
             let track = MatroskaTrack::open(path, source_track, kind.label())?;
-            Ok((entry, PacketSource::Webm(Box::new(track))))
+            (entry, PacketSource::Webm(Box::new(track)))
         }
         DownloadContainer::Mp4 => {
             let (entry, reader) = mp4_demux::open(path, output_track, kind)?;
-            Ok((entry, PacketSource::Mp4(reader)))
+            (entry, PacketSource::Mp4(reader))
         }
-    }
+    };
+    let source = match clip {
+        Some(clip) => PacketSource::Clip(Box::new(clip::ClipPackets::new(
+            source,
+            matches!(kind, TrackKind::Video),
+            clip,
+        ))),
+        None => source,
+    };
+    Ok((entry, source))
 }
 
 struct MatroskaTrack {
@@ -553,7 +636,12 @@ pub(super) fn write_test_song(path: &Path) {
 
 #[cfg(test)]
 mod tests {
-    use super::{WriterSample, first_presentation_time};
+    use super::{ClipRange, TrackKind, WriterSample, first_presentation_time, fragmented_writer_track};
+    use super::mp4_demux::{Codec, ProgressiveSample, ProgressiveTrack};
+    use super::mp4_writer::tests::{audio_track, options, samples, video_track};
+    use super::validate::inspect_mp4_bytes;
+    use super::{clip, mp4_writer};
+    use std::sync::atomic::AtomicBool;
 
     fn sample(duration: u32, composition_offset: i32) -> WriterSample {
         WriterSample {
@@ -569,5 +657,109 @@ mod tests {
         let samples = [sample(1000, 2000), sample(1000, 4000), sample(1000, 0)];
         assert_eq!(first_presentation_time(&samples), Some(2000));
         assert_eq!(first_presentation_time(&[sample(1000, 0)]), None);
+    }
+
+    #[test]
+    fn a_clipped_track_keeps_its_kept_samples_and_their_bytes() {
+        // A synthetic fragmented track: 3 s of 30 fps video, a keyframe every
+        // 30 frames. The clip [1.1 s, 2.0 s) keeps the GOP that began at 1.0 s.
+        let path = super::scratch_file("clip-track", "mp4");
+        let mut file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)
+            .expect("scratch file");
+        // Every byte holds its own offset, so a read proves which sample it was.
+        use std::io::Write as _;
+        let bytes: Vec<u8> = (0..=255).collect();
+        file.write_all(&bytes).expect("writes scratch bytes");
+        let track = ProgressiveTrack {
+            file,
+            codec: Codec::H264,
+            timescale: 90_000,
+            width: 640,
+            height: 360,
+            sample_entry: vec![0; 78],
+            edit_media_time: None,
+            samples: (0..90)
+                .map(|index| ProgressiveSample {
+                    offset: index as u64,
+                    size: 10,
+                    duration: 3000,
+                    composition_offset: 0,
+                    is_sync: index % 30 == 0,
+                })
+                .collect(),
+        };
+        let writer_track = fragmented_writer_track(
+            track,
+            TrackKind::Video,
+            Some(ClipRange::new(1100, 2000).unwrap()),
+        )
+        .expect("trims");
+        assert_eq!(writer_track.samples.len(), 30);
+        assert_eq!(writer_track.media_time, Some(9000));
+        // The source still answers each kept index with its own sample: the
+        // first kept sample is the keyframe at offset 30, not offset 0.
+        let mut source = writer_track.source;
+        let first = source
+            .read_sample(0, &writer_track.samples[0])
+            .expect("reads");
+        assert_eq!(first.len(), 10);
+        assert_eq!(first[0], 30);
+    }
+
+    #[test]
+    fn a_trimmed_pair_writes_a_clip_length_file() {
+        // 3 s of 30 fps video and matching audio, clipped to [1 s, 2 s).
+        let video_samples = samples(90, 10, 3000, 30);
+        let video = clip::trim_samples(
+            &video_samples,
+            90_000,
+            true,
+            0,
+            ClipRange::new(1000, 2000).unwrap(),
+        )
+        .expect("trims video");
+        let audio_samples = samples(130, 4, 1024, 1);
+        let audio = clip::trim_samples(
+            &audio_samples,
+            44_100,
+            false,
+            0,
+            ClipRange::new(1000, 2000).unwrap(),
+        )
+        .expect("trims audio");
+        let mut video_track = video_track(
+            video
+                .indices
+                .iter()
+                .map(|index| video_samples[*index])
+                .collect(),
+        );
+        video_track.media_time = Some(video.media_time);
+        let mut audio_track = audio_track(
+            audio
+                .indices
+                .iter()
+                .map(|index| audio_samples[*index])
+                .collect(),
+        );
+        audio_track.media_time = Some(audio.media_time);
+        let path = super::scratch_file("clip-pair", "mp4");
+        mp4_writer::write_mp4(
+            &path,
+            vec![video_track, audio_track],
+            &options(),
+            &AtomicBool::new(false),
+        )
+        .expect("writes");
+        let bytes = std::fs::read(&path).expect("reads");
+        let parsed = inspect_mp4_bytes(&bytes).expect("parses");
+        assert_eq!(parsed.tracks[0].sample_count, 30);
+        assert_eq!(parsed.tracks[1].sample_count, 43);
+        assert!((parsed.duration_seconds - 1.0).abs() < 0.05);
     }
 }

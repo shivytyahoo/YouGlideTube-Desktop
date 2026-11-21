@@ -78,6 +78,8 @@ pub fn rank_related(
 pub struct Raw {
     pub subs: Vec<Card>,
     pub rss: Vec<Card>,
+    /// The server home feed's cards: the discovery lane's primary source.
+    pub server: Vec<Card>,
     pub discovery: Vec<Card>,
     pub memory: Vec<Card>,
     pub related: Vec<GraphCandidate>,
@@ -89,6 +91,7 @@ impl Raw {
     #[must_use]
     pub fn new(
         store: &[Card],
+        server: Vec<Card>,
         searches: &[(String, Vec<Card>)],
         memory: Vec<Card>,
         related: Vec<GraphCandidate>,
@@ -98,6 +101,7 @@ impl Raw {
         Self {
             subs: super::filters::stored_subscription_videos(store, now_ms),
             rss: store.to_vec(),
+            server,
             discovery: searches
                 .iter()
                 .flat_map(|(_, cards)| cards.iter().cloned())
@@ -121,6 +125,8 @@ pub struct Lanes {
     pub best_related: Vec<Card>,
     pub related: Vec<GraphCandidate>,
     pub subs_by_recency: Vec<Card>,
+    /// Cards in the discovery lane that came from the server home feed.
+    pub server_ids: HashSet<String>,
 }
 
 impl Lanes {
@@ -172,8 +178,20 @@ pub fn build(
             .collect(),
         |c| c.id().to_string(),
     );
-    let discovery_pool: Vec<Card> =
-        keep_showable(raw.discovery, &inputs.watched, &hidden, now_ms, true).collect();
+    // The server feed leads the discovery lane; the searches only fill
+    // what it did not already offer, in the server's own order.
+    let server_ids: HashSet<String> = raw.server.iter().map(|c| c.id().to_string()).collect();
+    let discovery_pool: Vec<Card> = distinct_by(
+        keep_showable(
+            raw.server.into_iter().chain(raw.discovery),
+            &inputs.watched,
+            &hidden,
+            now_ms,
+            true,
+        )
+        .collect(),
+        |c| c.id().to_string(),
+    );
     let memory_pool: Vec<Card> =
         keep_showable(raw.memory, &inputs.watched, &hidden, now_ms, true).collect();
     let neighbour_pool: Vec<Card> =
@@ -221,6 +239,11 @@ pub fn build(
         &raw.query_of,
         BEST_DISCOVERY_LIMIT,
     );
+    let server_ids: HashSet<String> = best_discovery
+        .iter()
+        .filter(|c| server_ids.contains(c.id()))
+        .map(|c| c.id().to_string())
+        .collect();
     let best_memory = distinct_by(
         taste.demote(rank(memory_pool, &subs)),
         |c| c.channel_id().to_string(),
@@ -254,6 +277,7 @@ pub fn build(
         best_related,
         related,
         subs_by_recency,
+        server_ids,
     }
 }
 
@@ -318,6 +342,8 @@ pub struct Mix {
     pub fresh_added: usize,
     pub memory_quota: usize,
     pub subs_backlog: Vec<Card>,
+    /// Cards in the mix that came from the server home feed.
+    pub server_ids: HashSet<String>,
 }
 
 /// Pinned fresh uploads first, then the quota blend. Cards on screen are left out so a refresh
@@ -394,5 +420,6 @@ pub fn assemble(
         fresh_added,
         memory_quota: quotas.get(&FeedSource::ChannelMemory).copied().unwrap_or(0),
         subs_backlog,
+        server_ids: lanes.server_ids.clone(),
     }
 }

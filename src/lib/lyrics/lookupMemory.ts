@@ -1,6 +1,6 @@
 import { profileStorage } from "../storage/profileStorage";
 
-const STORAGE_KEY = "flow_lyrics_lookups";
+const STORAGE_KEY = "youglidetube_lyrics_lookups";
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 /** Oldest songs are dropped past this, so the map cannot grow without limit. */
 const MAX_SONGS = 3000;

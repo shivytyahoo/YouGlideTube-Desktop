@@ -1,5 +1,5 @@
 import { profileStorage } from "./storage/profileStorage";
-const CONTINUE_WATCHING_HIDDEN_KEY = "flow_continue_watching_hidden_v1";
+const CONTINUE_WATCHING_HIDDEN_KEY = "youglidetube_continue_watching_hidden_v1";
 
 const readHiddenIds = (): string[] => {
   try {

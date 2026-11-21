@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { homeReasonLine } from "./homeOrigin";
+import { homeOriginLabel, homeReasonLine } from "./homeOrigin";
+
+describe("homeOriginLabel", () => {
+  it("names the server home feed for server cards", () => {
+    expect(homeOriginLabel({ kind: "server" })).toBe("From your YouTube home feed");
+    expect(homeOriginLabel({ kind: "subscription" })).toBe("From a channel you follow");
+    expect(homeOriginLabel({ kind: "search", detail: "Music" })).toBe("From a search for Music");
+  });
+});
 
 describe("homeReasonLine", () => {
   it("speaks only for channels the viewer keeps watching", () => {

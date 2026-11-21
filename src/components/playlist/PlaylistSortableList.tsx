@@ -29,6 +29,8 @@ interface PlaylistSortableListProps {
   /** What the rows are filtered by; a filter hides rows, so dragging waits until it clears. */
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  /** False when the list's order comes from elsewhere (the server) and can't be rearranged here. */
+  reorderable?: boolean;
   onReorder: (videos: VideoSummary[]) => void;
   onPlay: (video: VideoSummary) => void;
   onAddToQueue?: (video: VideoSummary) => void;
@@ -169,6 +171,7 @@ export function PlaylistSortableList({
   onSortChange,
   searchQuery,
   onSearchChange,
+  reorderable = true,
   onReorder,
   onPlay,
   onAddToQueue,
@@ -180,7 +183,7 @@ export function PlaylistSortableList({
   selectionBar,
 }: PlaylistSortableListProps) {
   const [searchOpen, setSearchOpen] = useState(false);
-  const sortEnabled = sortOrder === "manual" && !searchOpen && !selecting;
+  const sortEnabled = reorderable && sortOrder === "manual" && !searchOpen && !selecting;
 
   const closeSearch = () => {
     setSearchOpen(false);

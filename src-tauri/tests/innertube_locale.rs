@@ -23,7 +23,7 @@ fn fixture(name: &str) -> Option<Value> {
         .join(format!("{name}.json"));
     match std::fs::read(&path) {
         Ok(bytes) => Some(serde_json::from_slice(&bytes).expect("capture is JSON")),
-        Err(_) if std::env::var_os("FLOW_REQUIRE_FIXTURES").is_some() => {
+        Err(_) if std::env::var_os("YOUGLIDETUBE_REQUIRE_FIXTURES").is_some() => {
             panic!("missing capture {}", path.display())
         }
         Err(_) => {

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { SettingsLayout, type SettingsCategory } from "./SettingsLayout";
 import { useSettingsSearchStore } from "../../store/useSettingsSearchStore";
-import { getString } from "../../lib/i18n/index";
+import { getString, type StringKey } from "../../lib/i18n/index";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -107,5 +107,43 @@ describe("SettingsLayout", () => {
     });
 
     expect(useSettingsSearchStore.getState().query).toBe("");
+  });
+
+  it("orders tabs after Android's grouped settings home", () => {
+    act(() => {
+      renderSettingsLayout();
+    });
+
+    const labels = Array.from(host.querySelectorAll("nav button")).map((btn) => btn.textContent?.trim());
+    expect(labels).toEqual([
+      getString("account_title"),
+      getString("settings_content_ui"),
+      getString("settings_player"),
+      getString("settings_quality_codecs"),
+      getString("settings_music"),
+      getString("music_lyrics"),
+      getString("settings_subscriptions_notifications"),
+      getString("settings_appearance"),
+      getString("settings_language_region"),
+      getString("settings_keyboard_shortcuts"),
+      getString("settings_downloads"),
+      getString("settings_history_privacy"),
+      getString("settings_data_backup"),
+      getString("settings_notifications"),
+      getString("settings_network_buffer"),
+      getString("settings_digital_wellbeing"),
+      getString("settings_about"),
+    ]);
+
+    const headers: StringKey[] = [
+      "settings_group_watching",
+      "settings_group_look",
+      "settings_group_data",
+      "settings_group_system",
+      "settings_header_about",
+    ];
+    for (const header of headers) {
+      expect(host.textContent).toContain(getString(header));
+    }
   });
 });

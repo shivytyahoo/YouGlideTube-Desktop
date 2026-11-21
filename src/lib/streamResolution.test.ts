@@ -133,6 +133,25 @@ describe("prefetchStreamInfo", () => {
 
     await expect(mod.resolveStreamInfo("a")).rejects.toThrow(/age-restricted/);
   });
+
+  it("stops while battery saver is on, and the player's own resolve still works", async () => {
+    const getStreamInfo = vi.fn().mockResolvedValue(makeInfo("a"));
+    const mod = await loadModule(getStreamInfo);
+
+    mod.setStreamPrefetchEnabled(false);
+    mod.prefetchStreamInfo("a");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(getStreamInfo).not.toHaveBeenCalled();
+
+    // The player's own resolve is not a prefetch and is untouched.
+    await mod.resolveStreamInfo("a");
+    expect(getStreamInfo).toHaveBeenCalledTimes(1);
+
+    mod.setStreamPrefetchEnabled(true);
+    mod.prefetchStreamInfo("b");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(getStreamInfo).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("cross-window stream priming", () => {

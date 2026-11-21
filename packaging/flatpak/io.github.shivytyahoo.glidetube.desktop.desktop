@@ -1,0 +1,19 @@
+[Desktop Entry]
+Categories=AudioVideo;Video;Player;
+Comment=A fast, buttery-smooth YouTube client for desktop.
+Exec=youglidetube %u
+StartupWMClass=youglidetube
+Icon=io.github.shivytyahoo.glidetube.desktop
+Name=YouGlideTube
+Terminal=false
+Type=Application
+MimeType=x-scheme-handler/youglidetube;
+Actions=new-window;safe-graphics;
+
+[Desktop Action safe-graphics]
+Name=Start with safe graphics
+Exec=youglidetube --safe-graphics
+
+[Desktop Action new-window]
+Name=New window
+Exec=youglidetube --new-window

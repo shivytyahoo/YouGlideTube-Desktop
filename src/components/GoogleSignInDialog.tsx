@@ -8,6 +8,12 @@ const SURFACE_SPRING: Transition = { type: "spring", stiffness: 420, damping: 38
 
 interface GoogleSignInDialogProps {
   onClose: () => void;
+  /**
+   * "add-account" opens the same sign-in while signed in: the captured
+   * session joins the saved accounts instead of replacing the current
+   * one. Defaults to a first sign-in.
+   */
+  mode?: "sign-in" | "add-account";
 }
 
 /**
@@ -16,19 +22,21 @@ interface GoogleSignInDialogProps {
  * window, Option 2 pastes a cookie header. The account itself lives in
  * Settings → Google account (Android's `AccountScreen.kt`); this dialog
  * is only the sign-in entry point. The dialog closes itself once the
- * session is captured.
+ * session is captured — but only after a sign-in was attempted here, since
+ * in add-account mode the status is already signed-in when it opens.
  */
-export function GoogleSignInDialog({ onClose }: GoogleSignInDialogProps) {
-  const { status, error, startSignIn, signInWithCookie } = useGoogleAccount();
+export function GoogleSignInDialog({ onClose, mode = "sign-in" }: GoogleSignInDialogProps) {
+  const { status, error, startSignIn, startAddAccount, signInWithCookie } = useGoogleAccount();
   const [cookieText, setCookieText] = useState("");
   const [cookieWorking, setCookieWorking] = useState(false);
+  const [attempted, setAttempted] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const signingIn = status === "signing-in";
 
   useEffect(() => {
-    if (status === "signed-in") onClose();
-  }, [status, onClose]);
+    if (attempted && status === "signed-in") onClose();
+  }, [attempted, status, onClose]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -51,8 +59,14 @@ export function GoogleSignInDialog({ onClose }: GoogleSignInDialogProps) {
   const saveCookie = async () => {
     if (!cookieText.trim()) return;
     setCookieWorking(true);
+    setAttempted(true);
     await signInWithCookie(cookieText.trim());
     setCookieWorking(false);
+  };
+
+  const startWebViewSignIn = () => {
+    setAttempted(true);
+    void (mode === "add-account" ? startAddAccount() : startSignIn());
   };
 
   return (
@@ -89,7 +103,7 @@ export function GoogleSignInDialog({ onClose }: GoogleSignInDialogProps) {
             {getString("sign_in_option_webview_desc")}
           </p>
           <div className="mt-3">
-            <Button onClick={() => void startSignIn()} disabled={signingIn}>
+            <Button onClick={startWebViewSignIn} disabled={signingIn}>
               {getString(signingIn ? "sign_in_waiting" : "sign_in_with_google")}
             </Button>
           </div>

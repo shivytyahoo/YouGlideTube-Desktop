@@ -10,7 +10,6 @@ vi.mock("../lib/api/downloads", () => ({
   getDownloadedVideoIds: () => getDownloadedVideoIds(),
 }));
 
-import { runBeforeProfileSwitch } from "../lib/profiles/beforeSwitch";
 import { DOWNLOAD_UNDO_MS, useDownloadsLibraryStore } from "./useDownloadsLibraryStore";
 import { useUiStore } from "./useUiStore";
 
@@ -49,14 +48,6 @@ describe("deleting with Undo", () => {
     expect(deleteDownloads).toHaveBeenCalledWith([1]);
     vi.advanceTimersByTime(DOWNLOAD_UNDO_MS);
     expect(deleteDownloads).toHaveBeenCalledTimes(1);
-  });
-
-  it("deletes before a profile switch ends the process", async () => {
-    useDownloadsLibraryStore.getState().removeWithUndo([1]);
-    const switching = runBeforeProfileSwitch();
-    expect(deleteDownloads).toHaveBeenCalledWith([1]);
-    await vi.advanceTimersByTimeAsync(300);
-    await switching;
   });
 
   it("keeps a video marked saved while another copy of it remains", () => {

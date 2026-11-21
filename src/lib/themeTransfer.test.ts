@@ -22,9 +22,9 @@ describe("custom theme transfer", () => {
   });
 
   it("names the file after a single theme", () => {
-    expect(customThemesFileName([theme("custom-a", "Night Shift!")])).toBe("flow_theme_night_shift.json");
-    expect(customThemesFileName([theme("custom-a", "!!!")])).toBe("flow_theme_custom.json");
-    expect(customThemesFileName([theme("custom-a"), theme("custom-b")])).toBe("flow_themes.json");
+    expect(customThemesFileName([theme("custom-a", "Night Shift!")])).toBe("youglidetube_theme_night_shift.json");
+    expect(customThemesFileName([theme("custom-a", "!!!")])).toBe("youglidetube_theme_custom.json");
+    expect(customThemesFileName([theme("custom-a"), theme("custom-b")])).toBe("youglidetube_themes.json");
   });
 
   it("gives a clashing id a fresh one instead of overwriting", () => {

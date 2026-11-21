@@ -2,7 +2,7 @@ import { addWatchRecord, getWatchHistory } from "./api/db";
 import { profileStorage } from "./storage/profileStorage";
 import { HISTORY_UPDATED_EVENT } from "../store/useHistoryStore";
 
-const PROGRESS_PREFIX = "flow_watch_progress:";
+const PROGRESS_PREFIX = "youglidetube_watch_progress:";
 const HISTORY_LOOKBACK = 2000;
 
 /** Forgets how far a video was watched: no resume point, and history no longer counts it as watched. */

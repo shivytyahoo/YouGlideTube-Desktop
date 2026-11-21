@@ -11,7 +11,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use uuid::Uuid;
 
-use crate::db::{device, local_media as db};
+use crate::db::local_media as db;
 use crate::errors::{AppError, AppResult, ErrorResponse};
 use crate::local_media::bounds::LibraryBounds;
 use crate::local_media::covers::{cached_cover, store_frame};
@@ -79,7 +79,7 @@ pub async fn local_media_library(
     pool: State<'_, SqlitePool>,
     scanner: State<'_, Arc<LocalMediaScanner>>,
 ) -> Result<LocalMediaLibrary, ErrorResponse> {
-    let device_pool = device::pool(&pool);
+    let device_pool = &*pool;
     let folders = db::folders(device_pool).await?;
     let files = db::files(device_pool).await?;
     let plays = db::plays(&pool).await?;
@@ -142,7 +142,7 @@ pub async fn local_media_add_folder(
     };
     let resolved = validate_library_folder(&picked)?;
     let path = resolved.to_string_lossy().into_owned();
-    let device_pool = device::pool(&pool);
+    let device_pool = &*pool;
     db::add_folder(device_pool, &path, role, now_ms()).await?;
     scanner.request(app, device_pool.clone());
     Ok(Some(path))
@@ -156,7 +156,7 @@ pub async fn local_media_remove_folder(
     scanner: State<'_, Arc<LocalMediaScanner>>,
     streaming_manager: State<'_, StreamingManager>,
 ) -> Result<(), ErrorResponse> {
-    let device_pool = device::pool(&pool);
+    let device_pool = &*pool;
     db::remove_folder(device_pool, &path).await?;
     streaming_manager.revoke_local_sessions_under(Path::new(&path));
     scanner.request(app, device_pool.clone());
@@ -189,7 +189,7 @@ pub async fn local_media_exclude_folder(
     scanner: State<'_, Arc<LocalMediaScanner>>,
     streaming_manager: State<'_, StreamingManager>,
 ) -> Result<(), ErrorResponse> {
-    let device_pool = device::pool(&pool);
+    let device_pool = &*pool;
     let folders = db::folders(device_pool).await?;
     let roots = resolved_folders(&folders, FolderRole::Include);
     check_can_hide(Path::new(&path), &roots)?;
@@ -205,7 +205,7 @@ pub async fn local_media_rescan(
     pool: State<'_, SqlitePool>,
     scanner: State<'_, Arc<LocalMediaScanner>>,
 ) -> Result<(), ErrorResponse> {
-    scanner.request(app, device::pool(&pool).clone());
+    scanner.request(app, (*pool).clone());
     Ok(())
 }
 
@@ -248,7 +248,7 @@ pub async fn get_local_stream(
     streaming_manager: State<'_, StreamingManager>,
 ) -> Result<LocalStreamInfo, ErrorResponse> {
     validate_local_media_id(&id)?;
-    let device_pool = device::pool(&pool);
+    let device_pool = &*pool;
     let file = db::file(device_pool, &id).await?.ok_or_else(|| {
         AppError::LocalFileMissing("This file isn't in the library any more".into())
     })?;
@@ -407,7 +407,7 @@ pub async fn local_media_cover(
     streaming_manager: State<'_, StreamingManager>,
 ) -> Result<Option<String>, ErrorResponse> {
     validate_local_media_id(&id)?;
-    let device_pool = device::pool(&pool);
+    let device_pool = &*pool;
     let Some(file) = db::file(device_pool, &id).await? else {
         return Ok(None);
     };
@@ -443,7 +443,7 @@ pub async fn local_media_save_frame(
     if frame_base64.len() > MAX_FRAME_BASE64_BYTES {
         return Err(AppError::Validation("The frame is too large".into()).into());
     }
-    let Some(file) = db::file(device::pool(&pool), &id).await? else {
+    let Some(file) = db::file(&pool, &id).await? else {
         return Ok(None);
     };
     if file.kind != MediaKind::Video.as_str() {
@@ -472,7 +472,7 @@ pub async fn local_media_pick_subtitle(
     streaming_manager: State<'_, StreamingManager>,
 ) -> Result<Option<CaptionTrack>, ErrorResponse> {
     validate_local_media_id(&id)?;
-    let device_pool = device::pool(&pool);
+    let device_pool = &*pool;
     if db::file(device_pool, &id).await?.is_none() {
         return Err(
             AppError::LocalFileMissing("This file isn't in the library any more".into()).into(),
@@ -531,7 +531,7 @@ pub async fn local_media_trash(
     pool: State<'_, SqlitePool>,
 ) -> Result<(), ErrorResponse> {
     validate_local_media_id(&id)?;
-    let device_pool = device::pool(&pool);
+    let device_pool = &*pool;
     let file = db::file(device_pool, &id).await?.ok_or_else(|| {
         AppError::LocalFileMissing("This file isn't in the library any more".into())
     })?;

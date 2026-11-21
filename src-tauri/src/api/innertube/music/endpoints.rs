@@ -18,6 +18,14 @@ pub const CHARTS_PARAMS: &str = "ggMGCgQIgAQ%3D";
 pub const BROWSE_NEW_RELEASES: &str = "FEmusic_new_releases_albums";
 pub const BROWSE_MOODS: &str = "FEmusic_moods_and_genres";
 
+/// The account's YouTube Music library landing page, as Android's
+/// `MusicSessionLibrary` seeds its saved collections from it.
+pub const BROWSE_MUSIC_LIBRARY: &str = "FEmusic_library_landing";
+
+/// The account's Liked Music playlist, as Android's `MusicSessionLibrary` seeds
+/// its favourites from it (`LIKED_MUSIC_PLAYLIST_ID = "LM"`).
+pub const LIKED_MUSIC_PLAYLIST_ID: &str = "LM";
+
 /// Search filters: the canonical name, the stable prefix that names the filter
 /// inside any generation of its `params`, and the params the site's own chips
 /// send today.

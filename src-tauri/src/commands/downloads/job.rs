@@ -22,7 +22,7 @@ use super::{
 };
 use crate::api::innertube::download::DownloadContainer;
 use crate::db::downloads::DownloadRecord;
-use crate::models::video::CaptionTrack;
+use crate::models::video::{CaptionTrack, VideoChapter};
 
 pub struct DownloadJob {
     pub id: String,
@@ -51,7 +51,7 @@ impl DownloadJob {
     }
 
     fn staged(&self, suffix: &str) -> PathBuf {
-        self.dir().join(format!(".{}{suffix}.flowpart", self.id))
+        self.dir().join(format!(".{}{suffix}.youglidetube-part", self.id))
     }
 
     /// Every partial file this job can leave behind.
@@ -170,14 +170,21 @@ async fn run_single(
     emitter: &ProgressEmitter,
 ) -> Result<(Packaged, PreparedMetadata), String> {
     let path = job.staged("");
+    // A clip of a song can only be trimmed from AAC: refuse a WebM/Opus song
+    // before fetching, rather than after the bytes are down.
+    let mime = source.current(Role::Single).await.mime_type;
+    let is_aac = mime.to_ascii_lowercase().starts_with("audio/mp4");
+    if job.request.is_clip() && !is_aac {
+        return Err(
+            "This song's stream cannot be clipped: only AAC audio can be trimmed".into(),
+        );
+    }
     let fetch = track_fetch(job, source, Role::Single, &path, emitter, "media stream");
     let total = transfer::probe_length(&fetch).await;
     emitter.set_total(total);
     emitter.emit(DownloadStatus::Downloading, None);
     transfer::fetch_track(&fetch, total).await?;
     let prepared = metadata_task.await.unwrap_or_default();
-    let mime = source.current(Role::Single).await.mime_type;
-    let is_aac = mime.to_ascii_lowercase().starts_with("audio/mp4");
     let file = if is_aac {
         package_song(job, &path, &prepared, emitter).await?
     } else {
@@ -291,8 +298,7 @@ async fn mux_pair(
     let embedded = muxer::EmbeddedMetadata {
         tags: prepared.tags.clone(),
         cover: prepared.cover.clone(),
-        chapters: prepared
-            .chapters
+        chapters: clipped_chapters(prepared, job.request.clip_range())
             .iter()
             .map(|chapter| muxer::EmbeddedChapter {
                 start_ms: chapter.start_seconds.saturating_mul(1000),
@@ -312,6 +318,7 @@ async fn mux_pair(
     let (audio_path, audio_container) = tracks.audio.clone();
     let output_path = job.staged("");
     let control = job.control.clone();
+    let clip = job.request.clip_range();
     emitter.log("Tracks downloaded; writing the file");
     tokio::task::spawn_blocking(move || {
         muxer::mux_adaptive_tracks(
@@ -329,6 +336,7 @@ async fn mux_pair(
             &output_path,
             Some(&embedded),
             &control.cancelled,
+            clip,
         )?;
         match output {
             DownloadContainer::Mp4 => muxer::validate::validate_mp4(&output_path, expectation),
@@ -337,6 +345,49 @@ async fn mux_pair(
     })
     .await
     .map_err(|error| format!("The muxer stopped unexpectedly: {error}"))?
+}
+
+/// Chapters inside the clip, shifted so the clip starts at zero; the full list
+/// when no clip was asked for. Chapter starts are whole seconds, so a clip
+/// starting mid-second rounds each shifted start to the nearest second —
+/// a chapter marker is a coarse position, and half a second is invisible there.
+fn clipped_chapters(
+    prepared: &PreparedMetadata,
+    clip: Option<super::ClipRange>,
+) -> Vec<VideoChapter> {
+    let Some(clip) = clip else {
+        return prepared.chapters.clone();
+    };
+    prepared
+        .chapters
+        .iter()
+        .filter_map(|chapter| {
+            let start_ms = chapter.start_seconds.saturating_mul(1000);
+            if start_ms < clip.start_ms || start_ms >= clip.end_ms {
+                return None;
+            }
+            let shifted_start_ms = start_ms - clip.start_ms;
+            let shifted_end_ms = if chapter.end_seconds == 0 {
+                0
+            } else {
+                chapter
+                    .end_seconds
+                    .saturating_mul(1000)
+                    .min(clip.end_ms)
+                    .saturating_sub(clip.start_ms)
+            };
+            Some(VideoChapter {
+                title: chapter.title.clone(),
+                start_seconds: (shifted_start_ms + 500) / 1000,
+                end_seconds: if shifted_end_ms == 0 {
+                    0
+                } else {
+                    (shifted_end_ms + 500) / 1000
+                },
+                thumbnail_url: chapter.thumbnail_url.clone(),
+            })
+        })
+        .collect()
 }
 
 fn track_fetch<'a>(
@@ -360,6 +411,9 @@ fn track_fetch<'a>(
 }
 
 fn expected_seconds(job: &DownloadJob) -> Option<f64> {
+    if let Some(clip) = job.request.clip_range() {
+        return Some(clip.duration_seconds());
+    }
     job.request
         .duration_seconds
         .map(|seconds| f64::from(u32::try_from(seconds).unwrap_or(u32::MAX)))
@@ -425,8 +479,9 @@ async fn package_song(
     };
     let control = job.control.clone();
     let (source, staged) = (input.to_path_buf(), output.clone());
+    let clip = job.request.clip_range();
     let remuxed = tokio::task::spawn_blocking(move || {
-        muxer::remux_audio_to_m4a(&source, &staged, Some(&metadata), &control.cancelled)
+        muxer::remux_audio_to_m4a(&source, &staged, Some(&metadata), &control.cancelled, clip)
     })
     .await
     .map_err(|error| format!("Audio packaging stopped unexpectedly: {error}"))?;
@@ -497,8 +552,15 @@ async fn finish(
         pool,
     )
     .await;
+    let clip = job.request.clip_range();
     let sponsorblock = if matches!(job.request.media_kind, DownloadMediaKind::Video) {
-        sidecars::sponsorblock_segments(pool, &job.request.video_id, emitter).await
+        sidecars::sponsorblock_segments(pool, &job.request.video_id, emitter)
+            .await
+            .and_then(|json| match clip {
+                // Segments outside the clip are dropped; the rest shift with it.
+                Some(clip) => sidecars::shift_segments_for_clip(&json, clip),
+                None => Some(json),
+            })
     } else {
         None
     };
@@ -531,7 +593,15 @@ async fn save_subtitles(
         ));
         return None;
     };
-    let saved = subtitles::save_subtitle(app, &job.id, &packaged.file, track, emitter).await?;
+    let saved = subtitles::save_subtitle(
+        app,
+        &job.id,
+        &packaged.file,
+        track,
+        emitter,
+        job.request.clip_range(),
+    )
+    .await?;
     serde_json::to_string(&[saved]).ok()
 }
 
@@ -557,6 +627,7 @@ async fn record_completed_download(
         .and_then(|metadata| i64::try_from(metadata.len()).ok());
     let request = &job.request;
     let tags = &prepared.tags;
+    let clip = request.clip_range();
     let record = DownloadRecord {
         id: None,
         video_id: Some(request.video_id.clone()),
@@ -565,9 +636,15 @@ async fn record_completed_download(
         media_kind: request.media_kind.as_str().to_string(),
         file_path: packaged.file.to_string_lossy().into_owned(),
         thumbnail_url: request.thumbnail_url.clone(),
-        duration_seconds: request
-            .duration_seconds
-            .and_then(|seconds| i64::try_from(seconds).ok()),
+        duration_seconds: match clip {
+            // The saved file is the clip, so its length is the clip's length.
+            Some(clip) => i64::try_from(clip.duration_ms() / 1000).ok(),
+            None => request
+                .duration_seconds
+                .and_then(|seconds| i64::try_from(seconds).ok()),
+        },
+        clip_start_ms: clip.map(|clip| i64::try_from(clip.start_ms).unwrap_or(i64::MAX)),
+        clip_end_ms: clip.map(|clip| i64::try_from(clip.end_ms).unwrap_or(i64::MAX)),
         quality_label: Some(request.quality_label.clone()),
         file_size_bytes,
         collection_db_id: request.collection_db_id,
@@ -593,9 +670,12 @@ async fn record_completed_download(
             .extension()
             .map(|extension| extension.to_string_lossy().to_ascii_lowercase()),
         video_codec: packaged.video_codec.map(ToOwned::to_owned),
-        chapters_json: (!prepared.chapters.is_empty())
-            .then(|| serde_json::to_string(&prepared.chapters).ok())
-            .flatten(),
+        chapters_json: {
+            let chapters = clipped_chapters(prepared, clip);
+            (!chapters.is_empty())
+                .then(|| serde_json::to_string(&chapters).ok())
+                .flatten()
+        },
         sponsorblock_json: extras.sponsorblock_json,
         subtitles_json: extras.subtitles_json,
         cover_url: None,

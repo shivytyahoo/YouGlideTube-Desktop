@@ -6,9 +6,9 @@ export function customThemesJson(themes: readonly CustomThemeDefinition[]): stri
 }
 
 export function customThemesFileName(themes: readonly CustomThemeDefinition[]): string {
-  if (themes.length !== 1) return "flow_themes.json";
+  if (themes.length !== 1) return "youglidetube_themes.json";
   const slug = themes[0]!.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-  return `flow_theme_${slug || "custom"}.json`;
+  return `youglidetube_theme_${slug || "custom"}.json`;
 }
 
 export interface ThemeImportResult {

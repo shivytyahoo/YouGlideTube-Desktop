@@ -12,7 +12,6 @@ import { primeStreamInfo } from "../streamResolution";
 import { parseTabSession, restoreTabSession, serializeTabSession } from "./tabSession";
 import { playerSnapshot } from "./tabPlayback";
 import { watchVideoIdFromPath } from "../watchRouteSync";
-import { onBeforeProfileSwitch } from "../profiles/beforeSwitch";
 import { claimStartPage, startPagePath } from "../startPage";
 import { sessionStore } from "../storage/profileStorage";
 
@@ -137,9 +136,7 @@ export function useTabSession(): boolean {
       if (state.currentVideo?.id !== previous.currentVideo?.id || state.isPlaying !== previous.isPlaying) schedule();
     });
     window.addEventListener("pagehide", save);
-    const offSwitch = onBeforeProfileSwitch(save);
     return () => {
-      offSwitch();
       window.clearTimeout(timer);
       unsubscribeTabs();
       unsubscribePlayer();

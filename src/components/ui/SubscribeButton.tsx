@@ -4,6 +4,7 @@ import { BellOff, BellRing, Check, ChevronDown, Eye, EyeOff, FolderPlus, UserMin
 import { Button } from "./Button";
 import { AnchoredPortalMenu, type MenuAnchor } from "./AnchoredPortalMenu";
 import { useSubscriptionStore } from "../../store/useSubscriptionStore";
+import { restoreSubscription, toggleSubscription, unsubscribeChannel } from "../../lib/accountSubscribe";
 import { useNotificationStore } from "../../store/useNotificationStore";
 import { useAppSettingsStore } from "../../store/useAppSettingsStore";
 import { useUiStore } from "../../store/useUiStore";
@@ -92,13 +93,14 @@ export function SubscribeButton({
 
   const subscribe = () => {
     morphNextRef.current = true;
-    void useSubscriptionStore.getState().subscribe(channelId, channelName, avatarUrl, { learn: true });
-    if (notificationsOn) ring();
+    void toggleSubscription(channelId, channelName, avatarUrl).then((changed) => {
+      if (changed && notificationsOn) ring();
+    });
   };
 
   const unsubscribe = async () => {
     morphNextRef.current = true;
-    const removed = await useSubscriptionStore.getState().unsubscribe(channelId, { learn: true });
+    const removed = await unsubscribeChannel(channelId);
     if (!removed) return;
     useUiStore.getState().showToast({
       variant: "info",
@@ -110,7 +112,7 @@ export function SubscribeButton({
           label: getString("undo"),
           onSelect: () => {
             morphNextRef.current = true;
-            void useSubscriptionStore.getState().restoreSubscription(removed, { learn: true });
+            void restoreSubscription(removed);
             if (notificationsOn) ring();
           },
         },

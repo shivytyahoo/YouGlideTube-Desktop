@@ -16,7 +16,6 @@ use tauri::State;
 use crate::errors::{AppError, ErrorResponse};
 use crate::recap;
 use crate::recap::model::RecapBackup;
-use crate::services::profile_service::{MasterManifest, ProfileService, RestoreTarget};
 use crate::data_model::apply;
 use crate::data_model::canonical::{
     Collection, FlowNeuroBrainSnapshot, Like, MusicBrainSnapshot, Note, Playlist, SettingEntry,
@@ -355,14 +354,9 @@ pub async fn export_backup_data(
 pub(crate) async fn raw_settings(
     pool: &SqlitePool,
     keys: &[String],
-    with_device_keys: bool,
 ) -> Result<std::collections::HashMap<String, String>, DataError> {
     let mut settings = std::collections::HashMap::new();
     for key in keys {
-        // Device settings travel once, in Default's part, where older builds read them.
-        if !with_device_keys && crate::profiles::device_keys::is_device_key(key) {
-            continue;
-        }
         if crate::backup::is_never_backed_up(key) {
             continue;
         }
@@ -371,52 +365,6 @@ pub(crate) async fn raw_settings(
         }
     }
     Ok(settings)
-}
-
-/// Adds a master backup's profiles to the registry; see `ProfileService::restore_master`.
-#[tauri::command]
-pub async fn profiles_restore_master(
-    manifest: MasterManifest,
-    avatars: std::collections::HashMap<String, String>,
-    profiles: State<'_, ProfileService>,
-) -> Result<Vec<RestoreTarget>, ErrorResponse> {
-    profiles
-        .restore_master(manifest, avatars)
-        .await
-        .map_err(ErrorResponse::from)
-}
-
-/// Restores one profile's part of a master backup into that profile while it isn't running.
-/// Settings arrive already validated by the frontend; device settings only land in Default.
-#[tauri::command]
-pub async fn import_profile_backup(
-    id: String,
-    payload: Value,
-    settings: std::collections::HashMap<String, String>,
-    profiles: State<'_, ProfileService>,
-) -> Result<ImportSummary, ErrorResponse> {
-    if id == profiles.running_profile_id().map_err(ErrorResponse::from)? {
-        return Err(AppError::Validation(
-            "the running profile restores through import_backup_data".into(),
-        )
-        .into());
-    }
-    let (closed, is_default) = profiles
-        .open_closed(&id)
-        .await
-        .map_err(ErrorResponse::from)?;
-    let restored = async {
-        let summary = import_backup(&closed, &payload).await?;
-        for (key, value) in &settings {
-            if is_default || !crate::profiles::device_keys::is_device_key(key) {
-                set_setting_value(&closed, key, value).await?;
-            }
-        }
-        Ok::<_, DataError>(summary)
-    }
-    .await;
-    closed.close().await;
-    restored.map_err(sync_err)
 }
 
 #[tauri::command]

@@ -9,6 +9,8 @@ import { Copy } from "lucide-react";
 import { copyText } from "../../lib/clipboard";
 import { useUiStore } from "../../store/useUiStore";
 import type { DescriptionCardProps } from "./types";
+import { formatUploadDate } from "../../lib/publishedDate";
+import { useDateDisplaySettings } from "../../lib/useDateDisplaySettings";
 
 // A live stream's count is YouTube's own "197 watching now", shown as sent.
 const formatViews = (views: string | number | null | undefined, isLive: boolean) => {
@@ -26,10 +28,16 @@ async function copyDescription(description: string) {
 
 export function DescriptionCard({ currentVideo, videoData }: DescriptionCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const dateSettings = useDateDisplaySettings();
 
   const description = videoData?.description || "";
   const viewCount = videoData?.viewCountText || currentVideo.viewCountText || null;
-  const published = videoData?.publishedText || currentVideo.publishedText || "";
+  const publishedRaw = videoData?.publishedText || currentVideo.publishedText || "";
+  const published = publishedRaw
+    ? formatUploadDate(publishedRaw, dateSettings, "watch", {
+        timestampMs: currentVideo.publishedAt ?? currentVideo.publishedAtMs ?? null,
+      })
+    : "";
 
   return (
     <div

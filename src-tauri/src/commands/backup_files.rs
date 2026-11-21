@@ -21,7 +21,6 @@ use crate::backup::import::save::{ImportReport, save_found};
 use crate::backup::import::{Found, ImportKind, read_import};
 use crate::backup::reader::{BackupFile, ReadError, read_backup_file};
 use crate::errors::{AppError, ErrorResponse};
-use crate::services::profile_service::ProfileService;
 use crate::services::youtube_service::YoutubeService;
 use crate::data_model::error::DataError;
 
@@ -65,13 +64,12 @@ pub async fn export_backup_file(
     path: String,
     setting_keys: Vec<String>,
     pool: State<'_, SqlitePool>,
-    profiles: State<'_, ProfileService>,
 ) -> Result<ExportResult, ErrorResponse> {
     match kind.as_str() {
         "MASTER" | "BRAIN" | "APP_DATA" => {
             let extension = if kind == "APP_DATA" { "json" } else { "zip" };
             let target = save_path(&path, extension)?;
-            write_backup(&pool, &profiles, &kind, &setting_keys, &target)
+            write_backup(&pool, &kind, &setting_keys, &target)
                 .await
                 .map_err(sync_err)?;
             Ok(ExportResult::default())

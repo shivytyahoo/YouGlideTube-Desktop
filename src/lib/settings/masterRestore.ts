@@ -1,11 +1,4 @@
-import { invokeBackend } from "../api/errors";
-import { validateSettingsBackup, type BackupCollections, type MasterBackup, type ProfileBackupSlice } from "./backup";
-
-interface RestoreTarget {
-  backupId: string;
-  localId: string;
-  running: boolean;
-}
+import type { BackupCollections, MasterBackup, ProfileBackupSlice } from "./backup";
 
 /** A master backup from a build with profiles (it carries Android's manifest). */
 export function isProfilesMaster(value: unknown): value is MasterBackup {
@@ -14,35 +7,20 @@ export function isProfilesMaster(value: unknown): value is MasterBackup {
 }
 
 /**
- * Adds the backup's profiles and restores every one that isn't running straight into its own
- * database. Returns the running profile's part, which the normal import restores live.
+ * Splits a profiles-era master backup: the library is the backup's Default part, which
+ * lives at the top level; every other profile's part is skipped — there is only one
+ * library now. Returns the Default part, which the normal import restores live, and
+ * how many other profiles were skipped.
  */
-export async function restoreMasterProfiles(
+export function restoreMasterProfiles(
   backup: MasterBackup,
-): Promise<{ running: ProfileBackupSlice | null; restoredElsewhere: number }> {
-  const targets = await invokeBackend<RestoreTarget[]>("profiles_restore_master", {
-    manifest: backup.manifest,
-    avatars: backup.profile_avatars ?? {},
-  });
-  let running: ProfileBackupSlice | null = null;
-  let restoredElsewhere = 0;
-  for (const target of targets) {
-    const slice =
-      target.backupId === backup.manifest.defaultId
-        ? { settings: backup.settings, collections: backup.collections ?? ({} as BackupCollections) }
-        : backup.profiles?.[target.backupId];
-    if (!slice) continue;
-    if (target.running) {
-      running = slice;
-      continue;
-    }
-    const settings = validateSettingsBackup({ schemaVersion: 2, settings: slice.settings })?.settings ?? {};
-    await invokeBackend("import_profile_backup", {
-      id: target.localId,
-      payload: { collections: slice.collections },
-      settings,
-    });
-    restoredElsewhere++;
-  }
-  return { running, restoredElsewhere };
+): { running: ProfileBackupSlice | null; skippedProfiles: number } {
+  const running: ProfileBackupSlice = {
+    settings: backup.settings,
+    collections: backup.collections ?? ({} as BackupCollections),
+  };
+  const skippedProfiles = Object.keys(backup.profiles ?? {}).filter(
+    (id) => id !== backup.manifest.defaultId,
+  ).length;
+  return { running, skippedProfiles };
 }

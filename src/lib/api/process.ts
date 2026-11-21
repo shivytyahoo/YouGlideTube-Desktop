@@ -9,7 +9,7 @@ export async function quitApp(): Promise<void> {
 }
 
 /** Restarts the app without re-running the command line it was opened with. */
-export async function relaunchFlow(): Promise<void> {
+export async function relaunchYouGlideTube(): Promise<void> {
   if (!(await isTauriEnv())) return;
   await invokeBackend<void>("relaunch_app");
 }

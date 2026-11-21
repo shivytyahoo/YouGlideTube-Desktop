@@ -88,7 +88,7 @@ export function pickDashStart(input: {
 
 export function readMeasuredSpeedKbps(): number | null {
   try {
-    const value = Number(profileStorage.getItem(MEASURED_SPEED_KEY, "device"));
+    const value = Number(profileStorage.getItem(MEASURED_SPEED_KEY));
     return Number.isFinite(value) && value > 0 ? value : null;
   } catch {
     return null;
@@ -122,7 +122,7 @@ export function recordVideoSegmentSpeed(event: unknown): void {
   const previous = readMeasuredSpeedKbps();
   const next = previous === null ? sampleKbps : previous + (sampleKbps - previous) * SAMPLE_WEIGHT;
   try {
-    profileStorage.setItem(MEASURED_SPEED_KEY, String(Math.round(next)), "device");
+    profileStorage.setItem(MEASURED_SPEED_KEY, String(Math.round(next)));
   } catch {
     // Without storage the next video just starts as if nothing had been measured.
   }

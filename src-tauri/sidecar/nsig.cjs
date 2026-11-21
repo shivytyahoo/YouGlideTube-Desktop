@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 "use strict";
 
-// Flow Desktop — YouTube `n` throttling-parameter solver.
+// YouGlideTube — YouTube `n` throttling-parameter solver.
 //
 // Web-family stream URLs (MWEB/WEB, including their SABR endpoint) carry an
 // obfuscated `n` that googlevideo refuses until it is rewritten by the player's
-// own JavaScript. Like Flow for Android, this runs the real player script rather
+// own JavaScript. Like the Android app, this runs the real player script rather
 // than re-implementing its transform: the player's URL class, constructed with
 // its "deobfuscate" flag, returns the solved `n` from `.get("n")`.
 //
@@ -117,12 +117,12 @@ function main() {
 
   const context = vm.createContext(browserGlobals());
   try {
-    vm.runInContext(`${source}\n;this.__flowPlayer = _yt_player;`, context, { timeout: 10000 });
+    vm.runInContext(`${source}\n;this.__youglidePlayer = _yt_player;`, context, { timeout: 10000 });
   } catch (error) {
     // A late initializer can throw after every class is defined; only a missing
     // class below is fatal.
   }
-  const UrlClass = context.__flowPlayer && context.__flowPlayer[urlClass];
+  const UrlClass = context.__youglidePlayer && context.__youglidePlayer[urlClass];
   if (typeof UrlClass !== "function") fail(`player class ${urlClass} unavailable after load`);
 
   const results = {};

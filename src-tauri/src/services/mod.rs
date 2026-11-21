@@ -9,7 +9,6 @@ pub mod music_service;
 pub mod music_tray;
 pub mod notes_service;
 pub mod notification_service;
-pub mod profile_service;
 pub mod shell_pages;
 pub mod shorts_service;
 pub mod subscription_feed;
