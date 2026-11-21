@@ -41,7 +41,7 @@ import type { AudioTrack, CaptionTrack, StreamVariant } from "../../types/video"
 import { SubtitleOverlay } from "../player/SubtitleOverlay";
 import { StatsForNerds } from "../player/StatsForNerds";
 import { MediaScrubber } from "../ui/MediaScrubber";
-import { noteShortEnded, noteShortProgress } from "../../lib/shortViews";
+import { noteShortProgress } from "../../lib/shortViews";
 import { listenForShortsKeys } from "../../lib/shortsKeys";
 import { useVideoEq } from "../../lib/audio/useVideoEq";
 import { videoEqAvailable } from "../../lib/audio/mediaEqEngine";
@@ -359,7 +359,6 @@ export function ShortVideoSurface({
       };
 
       const handleEnded = () => {
-        noteShortEnded(videoId);
         if (shouldLoop) {
           loopBoth();
           return;
@@ -403,7 +402,6 @@ export function ShortVideoSurface({
       };
       const handleDashError = () => onError?.();
       const handleEnded = () => {
-        noteShortEnded(videoId);
         if (shouldLoop || autoAdvanceFiredRef.current) return;
         autoAdvanceFiredRef.current = true;
         onRequestAdvance?.();

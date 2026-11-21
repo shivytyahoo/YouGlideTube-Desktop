@@ -69,7 +69,7 @@ describe("search history", () => {
     expect(queries()[0]).toBe(`q${SEARCH_HISTORY_LIMIT + 4}`);
   });
 
-  it("records nothing while Deep Flow keeps history private", () => {
+  it("records nothing while Deep Glide keeps history private", () => {
     deepGlide.record = false;
     useSearchHistoryStore.getState().record("secret");
     expect(queries()).toEqual([]);
@@ -127,5 +127,51 @@ describe("visibleSearchEntries", () => {
 
   it("caps at the size", () => {
     expect(shown({ [SETTINGS.SEARCH_HISTORY_MAX_SIZE]: "1" })).toEqual(["new"]);
+  });
+});
+
+describe("search history scopes", () => {
+  beforeEach(() => {
+    deepGlide.record = true;
+    useAppSettingsStore.setState({ values: {} });
+    useSearchHistoryStore.getState().clear();
+  });
+
+  it("keeps the same words separately in video and music", () => {
+    const store = useSearchHistoryStore.getState();
+    store.record("lofi");
+    store.record("lofi", "music");
+    expect(useSearchHistoryStore.getState().entries).toHaveLength(2);
+    expect(visibleSearchEntries(useSearchHistoryStore.getState().entries, {}, Date.now(), "music").map((e) => e.query)).toEqual(["lofi"]);
+    expect(visibleSearchEntries(useSearchHistoryStore.getState().entries, {}, Date.now()).map((e) => e.query)).toEqual(["lofi"]);
+  });
+
+  it("treats entries written before scopes as video", () => {
+    const entries = [{ query: "old", at: Date.now() }];
+    expect(visibleSearchEntries(entries, {}, Date.now(), "music")).toEqual([]);
+    expect(visibleSearchEntries(entries, {}, Date.now())).toEqual(entries);
+  });
+
+  it("removes and clears one scope at a time", () => {
+    const store = useSearchHistoryStore.getState();
+    store.record("lofi");
+    store.record("lofi", "music");
+    store.remove("lofi", "music");
+    expect(useSearchHistoryStore.getState().entries).toHaveLength(1);
+    store.record("lofi", "music");
+    store.clear("music");
+    expect(queries()).toEqual(["lofi"]);
+    store.clear();
+    expect(queries()).toEqual([]);
+  });
+
+  it("keeps filters per scope", () => {
+    const store = useSearchHistoryStore.getState();
+    const narrowed = { ...DEFAULT_SEARCH_FILTER_STATE, category: "videos" as const };
+    store.record("lofi");
+    store.record("lofi", "music");
+    store.rememberFilters("lofi", narrowed, "music");
+    expect(store.filtersOf("lofi")).toBeUndefined();
+    expect(store.filtersOf("lofi", "music")).toEqual(narrowed);
   });
 });

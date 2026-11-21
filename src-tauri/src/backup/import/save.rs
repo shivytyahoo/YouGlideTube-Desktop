@@ -11,16 +11,12 @@ use sqlx::SqlitePool;
 use super::{Found, ImportError, TakenLike, TakenPlaylist, Watch};
 use crate::commands::backup::{SUBSCRIPTION_CHANNELS_KEY, get_setting_value, import_backup};
 use crate::db::watch_history;
-use crate::flow_neuro::bootstrap::ImportedVideo;
 use crate::data_model::canonical::{
     Hlc, Like, LikeKind, LikeState, Playlist, PlaylistItem, PlaylistOrigin, WatchHistoryRecord,
 };
 use crate::data_model::mapping::{self, WATCH_LATER_SYNC_ID, video_thumbnail};
 
 const IMPORT_DEVICE: &str = "import";
-const LEARN_FROM_WATCHES: usize = 800;
-const LEARN_FROM_LIKES: usize = 500;
-const LIKES_LEARNING_WINDOW_MS: u64 = 365 * 24 * 60 * 60 * 1000;
 
 #[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -36,11 +32,9 @@ pub struct ImportReport {
     pub ads_removed: usize,
 }
 
-/// What the import hands the engines, and what it reports.
+/// What the import reports.
 pub struct Saved {
     pub report: ImportReport,
-    pub learn_from: Vec<ImportedVideo>,
-    pub channel_names: Vec<String>,
 }
 
 fn watch_record(watch: &Watch) -> WatchHistoryRecord {
@@ -195,24 +189,6 @@ async fn liked_ids(pool: &SqlitePool) -> Result<HashSet<String>, ImportError> {
         .collect())
 }
 
-fn imported_video(
-    video_id: &str,
-    title: &str,
-    channel_name: &str,
-    channel_id: &str,
-    at: u64,
-    is_music: bool,
-) -> ImportedVideo {
-    ImportedVideo {
-        video_id: video_id.to_string(),
-        title: title.to_string(),
-        channel_name: channel_name.to_string(),
-        channel_id: (!channel_id.is_empty()).then(|| channel_id.to_string()),
-        duration_seconds: None,
-        watched_at: i64::try_from(at).unwrap_or(0),
-        is_music,
-    }
-}
 
 /// An earlier import, before ads were told apart, saved them as watched. Rows for the ads this
 /// export lists go, unless they were played here since or the export also lists the video as a
@@ -300,46 +276,5 @@ pub async fn save_found(pool: &SqlitePool, found: &Found, now: u64) -> Result<Sa
         .map_err(|error| ImportError::Failed(error.to_string()))?;
     report.ads_removed = remove_imported_ads(pool, found).await?;
 
-    let mut learn_from: Vec<ImportedVideo> = watches
-        .iter()
-        .filter(|watch| !watch.title.is_empty())
-        .take(LEARN_FROM_WATCHES)
-        .map(|watch| {
-            imported_video(
-                &watch.video_id,
-                &watch.title,
-                &watch.channel_name,
-                &watch.channel_id,
-                watch.watched_at,
-                watch.is_music,
-            )
-        })
-        .collect();
-    let since = now.saturating_sub(LIKES_LEARNING_WINDOW_MS);
-    learn_from.extend(
-        new_likes
-            .iter()
-            .filter(|like| !like.is_music && like.liked_at >= since)
-            .take(LEARN_FROM_LIKES)
-            .map(|like| {
-                imported_video(
-                    &like.video_id,
-                    &like.title,
-                    &like.channel_name,
-                    &like.channel_id,
-                    like.liked_at,
-                    false,
-                )
-            }),
-    );
-    Ok(Saved {
-        report,
-        learn_from,
-        channel_names: found
-            .channels
-            .iter()
-            .map(|channel| channel.name.clone())
-            .filter(|name| !name.is_empty())
-            .collect(),
-    })
+    Ok(Saved { report })
 }

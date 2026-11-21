@@ -52,6 +52,9 @@ const TITLED_SHELVES: Array<[RegExp, string]> = [
   [/music videos for you/i, 'music-videos-for-you'],
   [/live performances/i, 'live-performances'],
   [/music videos/i, 'music-videos'],
+  [/^listen again$/i, 'listen-again'],
+  [/^recommended$/i, 'recommended'],
+  [/^top albums$/i, 'top-albums'],
 ];
 
 const titledShelfId = (title: string) => TITLED_SHELVES.find(([pattern]) => pattern.test(title))?.[1];
@@ -62,6 +65,13 @@ const LEAD_GROUPS: Record<string, string[]> = {
   warming: ['quick-picks', 'from-community', 'daily-discover'],
   mature: ['quick-picks', 'similar', 'from-community'],
 };
+
+/**
+ * The session-discovery block, fixed after the personal block in Android's order:
+ * Quick Picks, Daily Discover, Daily Mixes, then the Similar To rows. A first-run home
+ * has no session to draw on, so it skips this block and leads with charts instead.
+ */
+const SESSION_GROUPS = ['quick-picks', 'daily-discover', 'daily-mixes', 'similar'];
 
 function itemKey(item: YTItem): string {
   switch (item.type) {
@@ -81,6 +91,9 @@ const isAnchor = (section: MusicShelf) =>
 function remoteSection(section: MusicShelf): MusicFeedSection {
   const first = section.items[0];
   const titled = titledShelfId(section.title);
+  // YouTube's own Listen again is the same shelf as the session one, so it joins the
+  // fixed personal block (third) instead of landing last with the generic feed.
+  const isListenAgain = titled === 'listen-again';
   return {
     id: titled ?? `remote:${section.source ?? section.browseId ?? section.title}:${first ? itemKey(first) : ''}`,
     title: section.title,
@@ -89,7 +102,7 @@ function remoteSection(section: MusicShelf): MusicFeedSection {
     browseId: section.browseId,
     params: section.params,
     source: section.source,
-    origin: isAnchor(section) || titled ? 'anchor' : 'remote',
+    origin: isAnchor(section) || titled ? (isListenAgain ? 'personal' : 'anchor') : 'remote',
   };
 }
 
@@ -103,6 +116,8 @@ export function feedGroupOf(entry: MusicFeedEntry): string {
   const { section } = entry;
   if (section.source?.startsWith('chart')) return 'charts';
   if (section.source === 'newReleases') return 'new-releases';
+  // The "{mood} Vibes" playlist row is the from-community lead.
+  if (section.id === 'vibes') return 'from-community';
   const similar = /^(?:similar|performances|artist-albums)-(.+)$/.exec(section.id);
   if (similar) return `similar:${similar[1]}`;
   if (section.id.startsWith('mix-')) return 'daily-mixes';
@@ -140,11 +155,24 @@ function orderEntries(entries: MusicFeedEntry[], maturity: string, seed: number)
     groups.set(key, [...(groups.get(key) ?? []), entry]);
   }
   const take = (key: string): MusicFeedEntry[] => {
+    if (key === 'similar') {
+      const similar = [...groups.keys()].filter((group) => group.startsWith('similar:')).flatMap((group) => {
+        const entries = groups.get(group) ?? [];
+        groups.delete(group);
+        return entries;
+      });
+      return similar;
+    }
     const group = groups.get(key) ?? [];
     groups.delete(key);
-    return group;
+    // The session Listen Again and YouTube's own are the same shelf: the session one
+    // leads and the server copy is dropped rather than shown twice.
+    return key === 'listen-again' ? group.slice(0, 1) : group;
   };
   const head = HEAD_GROUPS.flatMap(take);
+  const session = maturity === 'cold_start'
+    ? []
+    : SESSION_GROUPS.flatMap((group) => (group === 'similar' ? take('similar') : take(group)));
   const leads = (LEAD_GROUPS[maturity] ?? LEAD_GROUPS.warming ?? []).flatMap((lead) =>
     lead === 'similar'
       ? [...groups.keys()].filter((key) => key.startsWith('similar:')).flatMap(take)
@@ -153,14 +181,16 @@ function orderEntries(entries: MusicFeedEntry[], maturity: string, seed: number)
   const rest = [...groups.entries()]
     .sort(([a], [b]) => sessionRank(seed, a) - sessionRank(seed, b))
     .flatMap(([, group]) => group);
-  return [...head, ...leads, ...rest, ...tail, ...generic];
+  return [...head, ...session, ...leads, ...rest, ...tail, ...generic];
 }
 
 /**
- * Orders the whole home: the fixed personal block, three lead groups chosen by listening
- * maturity, the remaining groups in a per-session shuffle, then YouTube's own feed. Below
- * the personal block each item appears once (Quick Picks claim theirs first), and a shelf
- * that deduplication shrank below a useful size is dropped rather than shown as a stub.
+ * Orders the whole home: the fixed personal block, the session-discovery block (Quick Picks,
+ * Daily Discover, Daily Mixes, Similar To) for anyone with plays behind them, three lead
+ * groups chosen by listening maturity, the remaining groups in a per-session shuffle, then
+ * YouTube's own feed. Below the personal block each item appears once (Quick Picks claim
+ * theirs first), and a shelf that deduplication shrank below a useful size is dropped
+ * rather than shown as a stub.
  */
 export function composeMusicFeed(
   personal: PersonalSection[],

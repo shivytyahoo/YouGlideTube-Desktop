@@ -5,8 +5,8 @@ use serde_json::Value;
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqlitePoolOptions;
 
-use flow_desktop_lib::backup::import::save::save_found;
-use flow_desktop_lib::backup::import::{Channel, Found, TakenLike, TakenPlaylist, Track, Watch};
+use youglidetube_desktop_lib::backup::import::save::save_found;
+use youglidetube_desktop_lib::backup::import::{Channel, Found, TakenLike, TakenPlaylist, Track, Watch};
 
 const NOW: u64 = 1_800_000_000_000;
 const YEAR_MS: u64 = 365 * 24 * 60 * 60 * 1000;
@@ -266,7 +266,7 @@ async fn a_newer_watch_here_is_not_overridden() {
 }
 
 #[tokio::test]
-async fn a_held_like_stays_and_only_new_recent_video_likes_teach() {
+async fn a_held_like_stays_and_old_likes_are_kept() {
     let pool = memory_pool().await;
     set_setting(
         &pool,
@@ -285,12 +285,6 @@ async fn a_held_like_stays_and_only_new_recent_video_likes_teach() {
     };
     let saved = save_found(&pool, &found, NOW).await.unwrap();
     assert_eq!(saved.report.likes, 3);
-    let learned: Vec<&str> = saved
-        .learn_from
-        .iter()
-        .map(|v| v.video_id.as_str())
-        .collect();
-    assert_eq!(learned, ["recent00000"]);
     let likes = setting(&pool, "liked_items").await.unwrap();
     assert!(
         likes.contains("Mine"),
@@ -302,41 +296,3 @@ async fn a_held_like_stays_and_only_new_recent_video_likes_teach() {
     );
 }
 
-#[tokio::test]
-async fn the_engine_is_handed_music_marked_so_it_can_leave_it_out() {
-    let pool = memory_pool().await;
-    let found = Found {
-        watches: vec![
-            watch("video000000", 20, false),
-            watch("song0000000", 10, true),
-        ],
-        channels: vec![Channel {
-            id: "UCaaaaaaaaaaaaaaaaaaaaaa".into(),
-            name: "Chan".into(),
-            avatar: String::new(),
-        }],
-        playlists: vec![TakenPlaylist {
-            key: "k".into(),
-            name: "P".into(),
-            created_at: 1,
-            tracks: vec![track("aaaaaaaaaaa")],
-            ..TakenPlaylist::default()
-        }],
-        ..Found::default()
-    };
-    let saved = save_found(&pool, &found, NOW).await.unwrap();
-    assert_eq!(saved.channel_names, ["Chan"]);
-    assert_eq!(saved.learn_from.len(), 2, "a playlist teaches nothing");
-    assert!(
-        saved
-            .learn_from
-            .iter()
-            .any(|v| v.video_id == "song0000000" && v.is_music)
-    );
-    assert!(
-        saved
-            .learn_from
-            .iter()
-            .any(|v| v.video_id == "video000000" && !v.is_music)
-    );
-}

@@ -14,7 +14,6 @@ pub mod commands;
 mod config;
 mod db;
 mod errors;
-pub mod flow_neuro;
 #[cfg(any(target_os = "linux", test))]
 mod legacy_link_handler;
 #[cfg(any(target_os = "linux", test))]
@@ -53,10 +52,11 @@ use commands::backup::{
     export_backup_data, import_backup_data, import_profile_backup, profiles_restore_master,
 };
 use commands::db::{
-    add_watch_record, add_watch_records_bulk, clear_watch_history, delete_short_watch_records,
-    delete_watch_record, get_music_history, get_setting, get_watch_history,
-    get_watch_history_years, get_watch_progress, get_watch_records, reset_app_data,
-    restore_watch_record, set_setting,
+    add_watch_record, add_watch_records_bulk, block_channel, clear_watch_history,
+    delete_short_watch_records, delete_watch_record, get_music_history, get_setting,
+    get_watch_history, get_watch_history_years, get_watch_progress, get_watch_records,
+    record_seen_videos, reset_app_data, restore_watch_record, seen_video_ids_among, set_setting,
+    unblock_channel,
 };
 use commands::diagnostics::{
     clear_logs, crash_report_delete, crash_report_dismiss, crash_report_read, get_graphics_mode,
@@ -118,24 +118,12 @@ use commands::profiles::{
     profiles_prepare_switch, profiles_rename, profiles_set_ask_whos_watching, profiles_set_look,
     profiles_set_photo, profiles_switch, profiles_take_held_link, profiles_take_launch_question,
 };
-use commands::recommendation::{
-    add_blocked_topic, add_preferred_topic, block_channel, bootstrap_from_history,
-    bootstrap_from_subscriptions, clear_channel_memory, complete_onboarding, end_watch_session,
-    forget_remembered_channel, get_brain_snapshot, get_flow_persona, get_neighbour_channels,
-    get_onboarding_status, get_profile_interests, get_recommendation_events, get_taste_overview,
-    import_brain, learn_from_search, log_interaction, mark_not_interested, note_subscription,
-    observe_channel_uploads, record_feed_impressions, record_seen_videos, remove_preferred_topic,
-    report_watch_progress, reset_brain, resolve_hidden_channel_names, seen_video_ids_among,
-    unblock_channel, unblock_topic,
-};
 use commands::scrobble::{
     scrobble_flush, scrobble_listened, scrobble_love, scrobble_now_playing,
     scrobble_retry_keychain, scrobble_set_own_key, scrobble_sign_in, scrobble_sign_out,
     scrobble_similar_tracks, scrobble_status, scrobble_top_artists,
 };
-use commands::shorts::{
-    get_shorts_feed, load_more_shorts, record_seen_shorts, report_short_view, reset_shorts_feed,
-};
+use commands::shorts::{get_shorts_feed, load_more_shorts, reset_shorts_feed};
 use commands::subscription_posts::{forget_subscription_posts, get_subscription_posts};
 use commands::subtitle_file::read_subtitle_file;
 use commands::tray::{
@@ -157,7 +145,6 @@ use commands::youtube::{
 };
 use services::discord_presence::DiscordPresence;
 use services::music_service::MusicService;
-use services::recommendation_service::RecommendationService;
 use services::shorts_service::ShortsService;
 use services::youtube_service::YoutubeService;
 
@@ -514,38 +501,9 @@ pub fn run() {
                 }
             });
 
-            // Load the single resident recommendation brain (in-memory, debounced writes)
-            let brain_store = tauri::async_runtime::block_on(async {
-                flow_neuro::brain_store::BrainStore::load(pool.clone()).await
-            })
-            .map_err(|error| {
-                Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    error.to_string(),
-                ))
-            })?;
-
-            let neuro_stores = tauri::async_runtime::block_on(async {
-                flow_neuro::side_stores::SideStores::load(pool.clone()).await
-            })
-            .map_err(|error| {
-                Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    error.to_string(),
-                ))
-            })?;
-
-            // Initialize and manage recommendation service
-            let rec_service = RecommendationService::new(
-                pool.clone(),
-                brain_store,
-                std::sync::Arc::new(neuro_stores),
-            );
-            app.manage(rec_service);
 
             // Manage the Shorts feed service (prefetch buffer + session de-dup)
             app.manage(ShortsService::new());
-            app.manage(services::blocked_channel_names::BlockedChannelNames::default());
             app.manage(services::home_feed::HomeFeedService::new());
             app.manage(DownloadManager::default());
             app.manage(commands::local_media::LocalCoverLimit::default());
@@ -770,19 +728,10 @@ pub fn run() {
             create_download_collection,
             list_download_collections,
             delete_download_collections,
-            log_interaction,
-            report_watch_progress,
-            end_watch_session,
-            import_brain,
-            bootstrap_from_history,
-            bootstrap_from_subscriptions,
-            learn_from_search,
-            note_subscription,
-            observe_channel_uploads,
-            mark_not_interested,
-            record_feed_impressions,
             record_seen_videos,
             seen_video_ids_among,
+            block_channel,
+            unblock_channel,
             commands::recap::recap_record_batch,
             commands::recap::recap_index,
             commands::recap::recap_summary,
@@ -795,24 +744,7 @@ pub fn run() {
             commands::home_feed::home_feed_clear,
             commands::home_feed::home_feed_chips,
             commands::home_feed::home_chip_feed,
-            complete_onboarding,
-            get_onboarding_status,
-            get_flow_persona,
-            get_profile_interests,
-            get_brain_snapshot,
-            get_taste_overview,
-            get_neighbour_channels,
-            get_recommendation_events,
-            unblock_topic,
-            add_blocked_topic,
-            add_preferred_topic,
-            remove_preferred_topic,
-            unblock_channel,
-            block_channel,
-            resolve_hidden_channel_names,
-            forget_remembered_channel,
-            clear_channel_memory,
-            reset_brain,
+            commands::home_feed::record_feed_impressions,
             get_sponsorblock_segments,
             get_non_music_segments,
             submit_sponsorblock_segment,
@@ -867,8 +799,6 @@ pub fn run() {
             get_shorts_feed,
             load_more_shorts,
             reset_shorts_feed,
-            report_short_view,
-            record_seen_shorts,
             // --- YouTube Music subsystem (additive) ---
             get_music_home_page,
             get_cached_music_home_page,
@@ -963,12 +893,5 @@ pub fn run() {
                 relaunch::on_exit(&app_handle.env());
             }
 
-            // Flush the resident brain to disk on shutdown so the debounce window is never lost.
-            if let tauri::RunEvent::ExitRequested { .. } = event {
-                if let Some(service) = app_handle.try_state::<RecommendationService>() {
-                    let _ = tauri::async_runtime::block_on(service.settle_watch_session(None));
-                    let _ = tauri::async_runtime::block_on(service.flush_brain());
-                }
-            }
         });
 }

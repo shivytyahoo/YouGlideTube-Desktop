@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { seenVideoIdsAmong } from "./api/recommendation";
+import { seenVideoIdsAmong } from "./api/db";
 
 interface Answers {
   key: string;

@@ -1,15 +1,18 @@
 //! The hybrid clock: a local edit made after applying a record stamped by a clock that runs ahead
 //! is still stamped later, and the high-water mark survives a restart.
 
+#[path = "common/mod.rs"]
+mod common;
+
+use common::local_edits;
 use serde_json::json;
 use sqlx::SqlitePool;
 
-use flow_desktop_lib::profiles::{ActiveProfile, open_database};
-use flow_desktop_lib::data_model::apply::apply_payload;
-use flow_desktop_lib::data_model::canonical::Collection;
-use flow_desktop_lib::data_model::clock;
-use flow_desktop_lib::data_model::local_edits;
-use flow_desktop_lib::data_model::protocol::StagedCollection;
+use youglidetube_desktop_lib::profiles::{ActiveProfile, open_database};
+use youglidetube_desktop_lib::data_model::apply::apply_payload;
+use youglidetube_desktop_lib::data_model::canonical::Collection;
+use youglidetube_desktop_lib::data_model::clock;
+use youglidetube_desktop_lib::data_model::collection::StagedCollection;
 
 const DAY_MS: u64 = 24 * 60 * 60 * 1000;
 
@@ -45,7 +48,7 @@ async fn apply_like_from_the_future(pool: &SqlitePool) -> u64 {
 
 #[tokio::test]
 async fn an_edit_after_a_record_from_a_clock_ahead_is_stamped_later() {
-    let dir = std::env::temp_dir().join(format!("flow-clock-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("youglidetube-clock-{}", uuid::Uuid::new_v4()));
     let pool = open_database(&dir, &default_profile()).await.unwrap();
     let ahead = apply_like_from_the_future(&pool).await;
 
@@ -65,7 +68,7 @@ async fn an_edit_after_a_record_from_a_clock_ahead_is_stamped_later() {
 
 #[tokio::test]
 async fn the_clock_keeps_what_it_saw_across_a_restart() {
-    let dir = std::env::temp_dir().join(format!("flow-clock-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("youglidetube-clock-{}", uuid::Uuid::new_v4()));
     let pool = open_database(&dir, &default_profile()).await.unwrap();
     let ahead = apply_like_from_the_future(&pool).await;
     pool.close().await;
@@ -78,7 +81,7 @@ async fn the_clock_keeps_what_it_saw_across_a_restart() {
 
 #[tokio::test]
 async fn a_stamp_at_the_end_of_time_still_lets_this_device_edit() {
-    let dir = std::env::temp_dir().join(format!("flow-clock-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("youglidetube-clock-{}", uuid::Uuid::new_v4()));
     let pool = open_database(&dir, &default_profile()).await.unwrap();
     clock::observe(&mut pool.acquire().await.unwrap(), u64::MAX)
         .await

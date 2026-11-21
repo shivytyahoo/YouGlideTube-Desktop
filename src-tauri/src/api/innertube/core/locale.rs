@@ -117,7 +117,7 @@ mod tests {
     }
 
     #[test]
-    fn host_languages_follow_flow_for_android() {
+    fn host_languages_follow_app_for_android() {
         assert_eq!(normalize_host_language("system"), "en");
         assert_eq!(
             normalize_host_language("en-DE-u-fw-mon-ms-metric-mu-celsius"),

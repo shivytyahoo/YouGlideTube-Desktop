@@ -11,13 +11,12 @@
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::SqlitePool;
-use tauri::{AppHandle, Manager, State};
+use tauri::State;
 
 use crate::errors::{AppError, ErrorResponse};
 use crate::recap;
 use crate::recap::model::RecapBackup;
 use crate::services::profile_service::{MasterManifest, ProfileService, RestoreTarget};
-use crate::services::recommendation_service::RecommendationService;
 use crate::data_model::apply;
 use crate::data_model::canonical::{
     Collection, FlowNeuroBrainSnapshot, Like, MusicBrainSnapshot, Note, Playlist, SettingEntry,
@@ -342,41 +341,14 @@ pub async fn import_backup(pool: &SqlitePool, payload: &Value) -> Result<ImportS
     Ok(summary)
 }
 
-// Mirror the sync session's flush/reload choreography: flush the resident brains so the
-// export/merge sees the freshest learning, and reload them after a merge wrote the DB so
-// the next debounced flush can't clobber the merged result. An import holds the video
-// brain's saves in between, so its background save cannot land mid-merge either.
-pub(crate) async fn flush_brains(app: &AppHandle, hold: bool) {
-    if let Some(svc) = app.try_state::<RecommendationService>() {
-        let flushed = if hold {
-            svc.flush_and_hold_brain().await
-        } else {
-            svc.flush_brain().await
-        };
-        if let Err(e) = flushed {
-            tracing::warn!(%e, "[backup] flush flow_neuro brain failed");
-        }
-    }
-}
-
-async fn reload_brains(app: &AppHandle) {
-    if let Some(svc) = app.try_state::<RecommendationService>() {
-        if let Err(e) = svc.reload_brain().await {
-            tracing::warn!(%e, "[backup] reload flow_neuro brain failed");
-        }
-    }
-}
-
 #[tauri::command]
 pub async fn export_backup_data(
     scope: String,
-    app: AppHandle,
     pool: State<'_, SqlitePool>,
 ) -> Result<BackupExport, ErrorResponse> {
     if scope_collections(&scope).is_none() {
         return Err(AppError::Validation(format!("unknown backup scope: {scope}")).into());
     }
-    flush_brains(&app, false).await;
     export_backup(&pool, &scope).await.map_err(sync_err)
 }
 
@@ -450,13 +422,9 @@ pub async fn import_profile_backup(
 #[tauri::command]
 pub async fn import_backup_data(
     payload: Value,
-    app: AppHandle,
     pool: State<'_, SqlitePool>,
 ) -> Result<ImportSummary, ErrorResponse> {
-    flush_brains(&app, true).await;
     let imported = import_backup(&pool, &payload).await;
-    // Also after a failed import, which releases the held brain.
-    reload_brains(&app).await;
     imported.map_err(sync_err)
 }
 

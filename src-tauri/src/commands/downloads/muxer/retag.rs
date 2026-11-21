@@ -58,13 +58,13 @@ pub fn set_mp4_tags(path: &Path, metadata: &EmbeddedMetadata) -> Result<(), Stri
 
 /// What a file's index says: its YouGlideTube tags by lowercased name, and its length.
 #[derive(Debug, Default, PartialEq)]
-pub struct Mp4FlowTags {
+pub struct Mp4YouGlideTubeTags {
     pub fields: HashMap<String, String>,
     pub duration_seconds: Option<i64>,
 }
 
 /// Reads the `io.github.shivytyahoo.glidetube` freeform tags, without touching the media.
-pub fn read_mp4_flow_tags(path: &Path) -> Result<Mp4FlowTags, String> {
+pub fn read_mp4_youglidetube_tags(path: &Path) -> Result<Mp4YouGlideTubeTags, String> {
     let io = |error: std::io::Error| format!("Could not read the file: {error}");
     let mut file = File::open(path).map_err(io)?;
     let boxes = top_level_boxes(&mut file)?;
@@ -81,8 +81,8 @@ pub fn read_mp4_flow_tags(path: &Path) -> Result<Mp4FlowTags, String> {
     parse_moov_tags(&bytes[8..])
 }
 
-fn parse_moov_tags(moov: &[u8]) -> Result<Mp4FlowTags, String> {
-    let mut tags = Mp4FlowTags::default();
+fn parse_moov_tags(moov: &[u8]) -> Result<Mp4YouGlideTubeTags, String> {
+    let mut tags = Mp4YouGlideTubeTags::default();
     for (kind, whole) in children(moov)? {
         match &kind {
             b"mvhd" => tags.duration_seconds = mvhd_seconds(&whole[8..]),
@@ -467,7 +467,7 @@ fn read_count(body: &[u8]) -> Result<usize, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{read_mp4_flow_tags, set_mp4_lyrics, set_mp4_tags};
+    use super::{read_mp4_youglidetube_tags, set_mp4_lyrics, set_mp4_tags};
     use crate::commands::downloads::muxer::mp4_writer::tests::{audio_track, options, samples};
     use crate::commands::downloads::muxer::mp4_writer::{Mp4Options, write_mp4};
     use crate::commands::downloads::muxer::validate::inspect_mp4_bytes;
@@ -517,10 +517,10 @@ mod tests {
     #[test]
     fn tags_written_later_read_back_and_the_media_survives() {
         let path = untagged_song("youglidetube-retag");
-        assert!(read_mp4_flow_tags(&path).expect("reads").fields.is_empty());
+        assert!(read_mp4_youglidetube_tags(&path).expect("reads").fields.is_empty());
         set_mp4_tags(&path, &metadata()).expect("retags");
 
-        let read = read_mp4_flow_tags(&path).expect("reads");
+        let read = read_mp4_youglidetube_tags(&path).expect("reads");
         assert_eq!(
             read.fields.get("videoid").map(String::as_str),
             Some("dQw4w9WgXcQ")
@@ -550,7 +550,7 @@ mod tests {
     fn a_tagged_file_reads_its_length() {
         let path = tagged_song("youglidetube-length");
         assert!(
-            read_mp4_flow_tags(&path)
+            read_mp4_youglidetube_tags(&path)
                 .expect("reads")
                 .duration_seconds
                 .is_some()
@@ -561,7 +561,7 @@ mod tests {
     fn a_broken_file_is_an_error_not_a_panic() {
         let path = crate::commands::downloads::muxer::scratch_file("youglidetube-broken", "m4a");
         std::fs::write(&path, b"not an mp4 at all").expect("writes");
-        assert!(read_mp4_flow_tags(&path).is_err());
+        assert!(read_mp4_youglidetube_tags(&path).is_err());
     }
 
     fn contains(haystack: &[u8], needle: &[u8]) -> bool {

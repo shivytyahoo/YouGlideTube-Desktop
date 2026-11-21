@@ -15,7 +15,6 @@ import {
 } from "../../lib/playlistLibrary";
 import { usePlaylistModalStore } from "../../store/usePlaylistModalStore";
 import { useUiStore } from "../../store/useUiStore";
-import { noteVideoSaved } from "../../lib/videoSaved";
 import { showSaveFailedToast, showSaveToast, type SaveDestination } from "../../lib/saveToast";
 
 export function AddToPlaylistModal() {
@@ -77,7 +76,6 @@ export function AddToPlaylistModal() {
     try {
       const updated = await addVideoToStoredPlaylist(playlistId, video);
       if (!updated) throw new Error("Playlist not found");
-      noteVideoSaved(video);
 
       showSaveToast({
         destination,
@@ -99,7 +97,6 @@ export function AddToPlaylistModal() {
     try {
       const playlist = await createStoredPlaylist(name);
       await addVideoToStoredPlaylist(playlist.id, video);
-      noteVideoSaved(video);
       showSaveToast({
         destination: destinationFor(playlist.id, playlist.name),
         item,

@@ -4,7 +4,7 @@ import { useBlockedKeywordMatch, useFeedActionsStore } from '../../store/useFeed
 import { useBlockedRevealStore } from '../../lib/blockedContent';
 import { BlockedVideoCard } from './BlockedVideoCard';
 import { useLiveStore } from '../../store/useLiveStore';
-import { Plus, Ban, Bell, BellRing, Check, Info, ListStart, MoreVertical, Trash2, GripHorizontal, Sparkles, Eye, EyeOff, Clock, ListPlus, ListVideo, Download, User, Share2 } from 'lucide-react';
+import { Plus, Ban, Bell, BellRing, Check, Info, ListStart, MoreVertical, Trash2, GripHorizontal, Eye, EyeOff, Clock, ListPlus, ListVideo, Download, User, Share2 } from 'lucide-react';
 import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -157,7 +157,6 @@ function VideoCardComponent({
   const markWatched = useFeedActionsStore((s) => s.markWatched);
   const markUnwatched = useFeedActionsStore((s) => s.markUnwatched);
   const isMarkedWatched = useFeedActionsStore((s) => s.watchedVideoIds.has(video.id));
-  const moreLikeThis = useFeedActionsStore((s) => s.moreLikeThis);
   const showToast = useUiStore((s) => s.showToast);
   const openAddToPlaylist = usePlaylistModalStore((s) => s.openAddToPlaylist);
   const openVideoDownload = useDownloadStore((s) => s.openVideo);
@@ -583,13 +582,6 @@ function VideoCardComponent({
       icon: <User size={16} />,
       group: "go",
       onSelect: () => handleChannelNavigate(),
-    },
-    {
-      id: "more-like-this",
-      label: getString("menu_more_like_this"),
-      icon: <Sparkles size={16} />,
-      group: "feed",
-      onSelect: () => moreLikeThis(video),
     },
     isWatched
       ? {

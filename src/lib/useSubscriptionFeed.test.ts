@@ -14,7 +14,6 @@ vi.mock("./api/youtube", () => ({
   getChannelDetails: vi.fn(),
 }));
 vi.mock("./api/db", () => ({ getSetting: vi.fn().mockResolvedValue(null), setSetting: vi.fn().mockResolvedValue(undefined) }));
-vi.mock("./api/recommendation", () => ({ observeChannelUploads: vi.fn().mockResolvedValue(undefined) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

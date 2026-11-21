@@ -21,7 +21,9 @@ const SUBSCRIPTION_KEYS: [&str; 3] = [
     "subscription_notifications",
 ];
 
-/// Both engines with blocked and preferred topics, channels and artists (part RECOMMENDATIONS).
+/// Local feed/music action state (blocked channels, dismissed/feed actions) plus the legacy
+/// brain blobs old backups carry (part RECOMMENDATIONS). The engines that wrote the blobs are
+/// gone; the blobs are copied as inert settings so old profiles keep restoring.
 const RECOMMENDATION_KEYS: [&str; 6] = [
     "user_neuro_brain",
     "user_music_brain",

@@ -20,6 +20,7 @@ export function MusicPlaybackSettings() {
   const [pauseWhenMuted, setPauseWhenMuted] = useBoolPref(SETTINGS.MUSIC_PAUSE_WHEN_MUTED);
   const radioEnabled = useMusicPlayerStore((state) => state.radioEnabled);
   const toggleRadio = useMusicPlayerStore((state) => state.toggleRadio);
+  const [endlessRadio, setEndlessRadio] = useBoolPref(SETTINGS.MUSIC_ENDLESS_RADIO, true);
   const qualityDisabled = isSettingDisabledUntilWired(SETTINGS.MUSIC_AUDIO_QUALITY);
   const swipeOptions = [
     { value: 'PLAY_NEXT', label: getString('music_play_next') },
@@ -52,6 +53,9 @@ export function MusicPlaybackSettings() {
       </SettingItem>
       <SettingItem title={getString('music_autoplay')} description={getString('music_autoplay_desc')}>
         <ToggleSwitch checked={radioEnabled} onChange={() => toggleRadio()} />
+      </SettingItem>
+      <SettingItem title={getString('settings_music_endless_radio')} description={getString('settings_music_endless_radio_desc')}>
+        <ToggleSwitch checked={endlessRadio} onChange={setEndlessRadio} />
       </SettingItem>
       <SettingItem title={getString('settings_open_music_player_on_play')} description={getString('settings_open_music_player_on_play_desc')}>
         <ToggleSwitch checked={openPlayer} onChange={setOpenPlayer} />

@@ -211,3 +211,52 @@ pub(crate) fn apply_backend_setting(key: &str, value: Option<&str>) {
     }
 }
 
+/// Cards seen in a list the ranker does not learn from (the Watch page's related videos): kept
+/// only so "Hide videos you've already seen" can leave them out.
+#[tauri::command]
+pub async fn record_seen_videos(
+    ids: Vec<String>,
+    pool: State<'_, SqlitePool>,
+) -> Result<(), ErrorResponse> {
+    crate::db::seen_videos::remember(&pool, &ids, chrono::Utc::now().timestamp_millis())
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+/// Which of these videos were already seen.
+#[tauri::command]
+pub async fn seen_video_ids_among(
+    ids: Vec<String>,
+    pool: State<'_, SqlitePool>,
+) -> Result<Vec<String>, ErrorResponse> {
+    crate::db::seen_videos::among(&pool, &ids)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+/// Blocks a channel: its name is kept in the blocked-names table so Hidden
+/// channels can show it without a lookup, and Shorts seeds skip it.
+#[tauri::command]
+pub async fn block_channel(
+    channel_id: String,
+    channel_name: Option<String>,
+    pool: State<'_, SqlitePool>,
+) -> Result<(), ErrorResponse> {
+    if let Some(name) = channel_name {
+        crate::services::blocked_channel_names::remember(&pool, &channel_id, &name)
+            .await
+            .map_err(ErrorResponse::from)?;
+    }
+    Ok(())
+}
+
+/// Lets a blocked channel back into every feed.
+#[tauri::command]
+pub async fn unblock_channel(
+    channel_id: String,
+    pool: State<'_, SqlitePool>,
+) -> Result<(), ErrorResponse> {
+    crate::services::blocked_channel_names::forget(&pool, &channel_id)
+        .await
+        .map_err(ErrorResponse::from)
+}

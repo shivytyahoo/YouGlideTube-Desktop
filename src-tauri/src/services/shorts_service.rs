@@ -12,7 +12,7 @@ use crate::models::channel::ChannelItem;
 use crate::models::search::SearchVideosRequest;
 use crate::models::shorts::{ShortItem, ShortsFeed};
 use crate::models::video::VideoSummary;
-use crate::services::recommendation_service::{DiscoverySurface, RecommendationService};
+use sqlx::SqlitePool;
 use crate::services::youtube_service::YoutubeService;
 
 const YOUGLIDETUBE_DISCOVERY_CONTINUATION: &str = "youglidetube:shorts:discovery";
@@ -44,8 +44,6 @@ const REEL_LANE_TIMEOUT: Duration = Duration::from_secs(10);
 /// Discovery is useful for filling the pool, but it must stay fast.
 const DISCOVERY_LANE_TIMEOUT: Duration = Duration::from_secs(5);
 const SUBS_LANE_TIMEOUT: Duration = Duration::from_secs(5);
-/// Recommendation query generation can block behind local state writes.
-const DISCOVERY_QUERY_TIMEOUT: Duration = Duration::from_millis(800);
 /// Per-search ceiling; discovery searches run in parallel.
 const DISCOVERY_SEARCH_TIMEOUT: Duration = Duration::from_millis(3_500);
 
@@ -164,14 +162,43 @@ async fn advance(
 /// A reel's like count from its overlay text ("12K", "1,234 likes"): the number and its suffix
 /// only, since a word like "likes" would read as a thousands mark.
 fn like_count_of(text: &str) -> u64 {
-    crate::flow_neuro::rank::view_count_of(text.split_whitespace().next())
+    crate::api::innertube::json::count::parse_count(text.split_whitespace().next().unwrap_or(""))
+        .unwrap_or(0)
 }
 
-/// Builds and serves the personalised Shorts feed. Candidates come from three
-/// sources (reel sequence, topic discovery, subscription Shorts), then are ranked
-/// by the shared `RecommendationService` — the same brain as the video feed,
-/// which is where blocked topics, watched penalties and channel/topic diversity
-/// get enforced. Ranked overflow is buffered so `load_more` serves instantly.
+/// The Shorts ranker, now that the recommendation engine is gone: subscribed
+/// channels first, then by like count, then in gathered order. Dedup and the
+/// seen-set already ran, so this only orders.
+fn rank_shorts(
+    mut candidates: Vec<VideoSummary>,
+    subs_set: &HashSet<String>,
+    like_counts: &HashMap<String, u64>,
+) -> Vec<VideoSummary> {
+    let mut scored: Vec<(usize, u64, u64, VideoSummary)> = candidates
+        .drain(..)
+        .enumerate()
+        .map(|(index, video)| {
+            let is_sub = video
+                .channel_id
+                .as_deref()
+                .is_some_and(|id| subs_set.contains(id));
+            let likes = like_counts.get(&video.id).copied().unwrap_or(0);
+            (index, is_sub as u64, likes, video)
+        })
+        .collect();
+    // Subscribed first, then most-liked, then gathered order (stable).
+    scored.sort_by(|a, b| {
+        b.1.cmp(&a.1)
+            .then(b.2.cmp(&a.2))
+            .then(a.0.cmp(&b.0))
+    });
+    scored.into_iter().map(|(_, _, _, video)| video).collect()
+}
+
+/// Builds and serves the Shorts feed. Candidates come from four lanes (reel
+/// sequence, topic discovery, seed chains from watch history and library,
+/// subscription Shorts), then are ordered with subscribed channels first and
+/// the most-liked next. Ranked overflow is buffered so `load_more` serves instantly.
 pub struct ShortsService {
     recently_shown: Mutex<HashSet<String>>,
     /// Seeds whose reel chains opened lately, oldest first.
@@ -203,7 +230,7 @@ impl ShortsService {
     pub async fn get_feed(
         &self,
         yt: &YoutubeService,
-        rec: &RecommendationService,
+        pool: &SqlitePool,
         seed_video_id: Option<String>,
         user_subs: Vec<String>,
         region: Option<String>,
@@ -219,13 +246,13 @@ impl ShortsService {
         };
 
         let (mut items, mut continuation) = self
-            .gather_and_rank(yt, rec, &spec, &user_subs, region.clone())
+            .gather_and_rank(yt, pool, &spec, &user_subs, region.clone())
             .await?;
 
         if items.len() < PAGE_SIZE && continuation.is_some() {
             let spec = GatherSpec::continuation(continuation.clone());
             match self
-                .gather_and_rank(yt, rec, &spec, &user_subs, region)
+                .gather_and_rank(yt, pool, &spec, &user_subs, region)
                 .await
             {
                 Ok((mut more, next_continuation)) => {
@@ -261,7 +288,7 @@ impl ShortsService {
     pub async fn load_more(
         &self,
         yt: &YoutubeService,
-        rec: &RecommendationService,
+        pool: &SqlitePool,
         continuation: Option<String>,
         user_subs: Vec<String>,
         region: Option<String>,
@@ -277,7 +304,7 @@ impl ShortsService {
             let token = self.last_continuation.lock().unwrap().clone();
             let spec = GatherSpec::continuation(token);
             if let Ok((items, new_continuation)) = self
-                .gather_and_rank(yt, rec, &spec, &user_subs, region)
+                .gather_and_rank(yt, pool, &spec, &user_subs, region)
                 .await
             {
                 if new_continuation.is_some() {
@@ -307,11 +334,11 @@ impl ShortsService {
         }
     }
 
-    /// Gather candidates from the spec's sources, de-dup, then rank through the engine.
+    /// Gather candidates from the spec's sources, de-dup, then order them.
     async fn gather_and_rank(
         &self,
         yt: &YoutubeService,
-        rec: &RecommendationService,
+        pool: &SqlitePool,
         spec: &GatherSpec,
         user_subs: &[String],
         region: Option<String>,
@@ -327,7 +354,7 @@ impl ShortsService {
         });
         let discovery_fut = timeout(DISCOVERY_LANE_TIMEOUT, async {
             if spec.include_discovery {
-                gather_discovery(yt, rec).await
+                gather_discovery(yt).await
             } else {
                 Vec::new()
             }
@@ -335,7 +362,7 @@ impl ShortsService {
         // Discovery passes also follow one Short the viewer liked or watched through.
         let seed_fut = timeout(REEL_LANE_TIMEOUT, async {
             if spec.include_discovery {
-                self.gather_seed_chains(yt, rec, spec.is_opening(), seed_region)
+                self.gather_seed_chains(yt, pool, spec.is_opening(), seed_region)
                     .await
             } else {
                 Vec::new()
@@ -422,9 +449,7 @@ impl ShortsService {
                 (likes > 0).then(|| (id.clone(), likes))
             })
             .collect();
-        let ranked = rec
-            .rank_shorts_candidates(candidates, subs_set, &like_counts)
-            .await?;
+        let ranked = rank_shorts(candidates, &subs_set, &like_counts);
         tracing::info!("[shorts] ranked: {}", ranked.len());
         if ranked.is_empty() {
             return Ok((Vec::new(), continuation));
@@ -452,9 +477,11 @@ impl ShortsService {
     }
 
     /// New seeds for chains, resting the ones used lately unless too few others qualify.
-    async fn next_seeds(&self, rec: &RecommendationService, count: usize) -> Vec<String> {
+    /// Seeds are Shorts from watch history and the liked/saved library, minus
+    /// channels the viewer blocked.
+    async fn next_seeds(&self, pool: &SqlitePool, count: usize) -> Vec<String> {
         let cooled: HashSet<String> = self.recent_seeds.lock().unwrap().iter().cloned().collect();
-        let seeds = rec.short_seeds(count, &cooled).await;
+        let seeds = short_seeds(pool, count, &cooled).await;
         let mut recent = self.recent_seeds.lock().unwrap();
         for seed in &seeds {
             recent.retain(|id| id != seed);
@@ -471,7 +498,7 @@ impl ShortsService {
     async fn gather_seed_chains(
         &self,
         yt: &YoutubeService,
-        rec: &RecommendationService,
+        pool: &SqlitePool,
         opening: bool,
         region: Option<String>,
     ) -> Vec<ShortItem> {
@@ -483,7 +510,7 @@ impl ShortsService {
         if chains.is_empty() {
             let wanted = if opening { OPENING_SEEDS } else { 1 };
             chains.extend(
-                self.next_seeds(rec, wanted)
+                self.next_seeds(pool, wanted)
                     .await
                     .into_iter()
                     .map(SeedChain::new),
@@ -546,20 +573,49 @@ fn drain(buffer: &mut VecDeque<ShortItem>, count: usize) -> Vec<ShortItem> {
     buffer.drain(..take).collect()
 }
 
-/// Topic discovery: search the engine's learned-interest queries for on-topic
-/// Shorts so the pool is taste-aligned before ranking.
-async fn gather_discovery(yt: &YoutubeService, rec: &RecommendationService) -> Vec<VideoSummary> {
-    let mut queries = timeout(
-        DISCOVERY_QUERY_TIMEOUT,
-        rec.generate_discovery_queries(DiscoverySurface::Shorts, false),
-    )
-    .await
-    .ok()
-    .and_then(Result::ok)
-    .unwrap_or_default();
-    if queries.is_empty() {
-        queries = fallback_discovery_queries();
+/// Seed Shorts for the reel chains: Shorts from watch history and the liked/saved
+/// library, most recent first, minus blocked channels and seeds used lately.
+async fn short_seeds(pool: &SqlitePool, count: usize, cooled: &HashSet<String>) -> Vec<String> {
+    let blocked = crate::services::blocked_channel_names::stored(pool)
+        .await
+        .keys()
+        .cloned()
+        .collect::<HashSet<String>>();
+    let mut seeds: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut push = |id: &str, channel_id: Option<&str>| {
+        if id.is_empty() || cooled.contains(id) || !seen.insert(id.to_string()) {
+            return;
+        }
+        if channel_id.is_some_and(|c| blocked.contains(c)) {
+            return;
+        }
+        seeds.push(id.to_string());
+    };
+    if let Ok(history) = crate::db::watch_history::get_watch_history(pool, 200, 0).await {
+        for record in history.iter().filter(|r| !r.is_music).filter(|r| r.is_short_video()) {
+            push(&record.video_id, record.channel_id.as_deref());
+        }
     }
+    for fetch in [
+        crate::db::library::liked_videos(pool).await,
+        crate::db::library::saved_videos(pool).await,
+    ] {
+        if let Ok(entries) = fetch {
+            for (video, _) in entries {
+                if crate::data_model::brain::is_known_short(video.duration_seconds) {
+                    push(&video.id, video.channel_id.as_deref());
+                }
+            }
+        }
+    }
+    seeds.truncate(count);
+    seeds
+}
+
+/// Topic discovery: search the fixed fallback queries for on-topic Shorts.
+async fn gather_discovery(yt: &YoutubeService) -> Vec<VideoSummary> {
+    let queries = fallback_discovery_queries();
     tracing::info!(
         discovery_queries = queries.len(),
         "[shorts] gathered discovery queries"

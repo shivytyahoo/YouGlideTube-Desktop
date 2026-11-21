@@ -7,7 +7,7 @@ import { weekIsEstimated, weekTotals } from "./useWatchTimeWeek";
 const MINUTE = 60_000;
 
 describe("BreakClock", () => {
-  it("counts only the time Flow is in use", () => {
+  it("counts only the time the app is in use", () => {
     const clock = new BreakClock();
     clock.onShown(0);
     clock.onHidden(10 * MINUTE);

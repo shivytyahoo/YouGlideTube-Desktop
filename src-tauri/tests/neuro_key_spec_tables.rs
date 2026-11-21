@@ -4,8 +4,8 @@
 
 use std::collections::{HashMap, HashSet};
 
-use flow_desktop_lib::flow_neuro::keyspec::tables::{format_of, tables};
-use flow_desktop_lib::flow_neuro::keyspec::{VERSION, stemmer};
+use youglidetube_desktop_lib::data_model::keyspec::tables::{format_of, tables};
+use youglidetube_desktop_lib::data_model::keyspec::{VERSION, stemmer};
 use serde_json::Value;
 
 const FIXTURE: &str = include_str!("fixtures/neuro/key_spec_tables.json");

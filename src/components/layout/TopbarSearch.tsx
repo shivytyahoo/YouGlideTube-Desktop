@@ -16,7 +16,7 @@ import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import { useMusicHiddenFilter } from '../../store/useMusicActionsStore';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { useMusicEnabled } from '../../lib/useMusicContent';
-import { useSearchHistoryStore, useVisibleSearchHistory } from '../../store/useSearchHistoryStore';
+import { useSearchHistoryStore, useVisibleSearchHistory, type SearchHistoryScope } from '../../store/useSearchHistoryStore';
 import { useSettingsSearchStore } from '../../store/useSettingsSearchStore';
 import type { SearchFilterState } from '../../lib/searchFilterState';
 import { useRunSearch } from '../../lib/useRunSearch';
@@ -33,7 +33,9 @@ export function TopbarSearch() {
   const clearSettingsQuery = useSettingsSearchStore((s) => s.clearQuery);
 
   const region = useAppSettingsStore((s) => s.values[SETTINGS.TRENDING_REGION]);
-  const history = useVisibleSearchHistory();
+  // Searches run from a music page belong to music history, everywhere else to video.
+  const searchScope: SearchHistoryScope = location.pathname.startsWith('/music') ? 'music' : 'video';
+  const history = useVisibleSearchHistory(searchScope);
   const suggestionsEnabled = useAppSettingsStore((s) => s.values[SETTINGS.SEARCH_SUGGESTIONS_ENABLED] !== 'false');
   const deepGlideShowOnSearch = useAppSettingsStore((s) => s.values[SETTINGS.DEEP_GLIDE_SHOW_ON_SEARCH] === 'true');
   const deepGlideActive = useAppSettingsStore((s) => s.values[SETTINGS.DEEP_GLIDE_ACTIVE] === 'true');
@@ -119,18 +121,18 @@ export function TopbarSearch() {
   const runTextSearch = (query: string, searchFilters?: SearchFilterState) => {
     setText(query);
     close();
-    runSearch(query, searchFilters);
+    runSearch(query, searchFilters, searchScope);
   };
 
   const pick = (row: SuggestionRow) => {
-    if (row.kind === 'history') return runTextSearch(row.query, useSearchHistoryStore.getState().filtersOf(row.query));
+    if (row.kind === 'history') return runTextSearch(row.query, useSearchHistoryStore.getState().filtersOf(row.query, searchScope));
     if (row.kind === 'query') return runTextSearch(row.text);
     if (row.kind === 'more') {
       setAllHistory(true);
       return;
     }
     if (row.kind === 'link') return void openLink(row.parsed, text.trim());
-    recordSearch(text);
+    recordSearch(text, searchScope);
     close();
     const item = row.item;
     switch (item.type) {
@@ -255,7 +257,7 @@ export function TopbarSearch() {
       pick(active);
     } else if (event.key === 'Delete' && event.shiftKey && active.kind === 'history') {
       event.preventDefault();
-      removeSearch(active.query);
+      removeSearch(active.query, searchScope);
     }
   };
 
@@ -328,8 +330,8 @@ export function TopbarSearch() {
           onHover={setActiveKey}
           onPick={pick}
           onFill={fill}
-          onRemoveHistory={removeSearch}
-          onClearHistory={clearHistory}
+          onRemoveHistory={(query) => removeSearch(query, searchScope)}
+          onClearHistory={() => clearHistory(searchScope)}
           unsupportedLink={isUnsupportedLink(text)}
           deepGlide={deepGlideShowOnSearch ? { active: deepGlideActive, onToggle: (enabled) => { void setDeepGlideEnabled(enabled); } } : undefined}
         />

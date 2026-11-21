@@ -116,8 +116,6 @@ struct Inner {
     subs_cursor: Mutex<usize>,
     /// Followed channels asked for a missing length lately: channel id to when.
     priority_asked: Mutex<HashMap<String, u64>>,
-    /// The interest chips last shown, so a chip's key finds its topics.
-    chips: Mutex<Vec<crate::flow_neuro::interest_chips::InterestChip>>,
     /// Each chip's result with when it was fetched.
     chip_results: Mutex<HashMap<String, (chips::ChipFeed, u64)>>,
 }

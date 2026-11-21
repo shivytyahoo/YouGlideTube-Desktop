@@ -20,10 +20,8 @@ use crate::backup::exports;
 use crate::backup::import::save::{ImportReport, save_found};
 use crate::backup::import::{Found, ImportKind, read_import};
 use crate::backup::reader::{BackupFile, ReadError, read_backup_file};
-use crate::commands::backup::flush_brains;
 use crate::errors::{AppError, ErrorResponse};
 use crate::services::profile_service::ProfileService;
-use crate::services::recommendation_service::RecommendationService;
 use crate::services::youtube_service::YoutubeService;
 use crate::data_model::error::DataError;
 
@@ -66,7 +64,6 @@ pub async fn export_backup_file(
     kind: String,
     path: String,
     setting_keys: Vec<String>,
-    app: AppHandle,
     pool: State<'_, SqlitePool>,
     profiles: State<'_, ProfileService>,
 ) -> Result<ExportResult, ErrorResponse> {
@@ -74,7 +71,6 @@ pub async fn export_backup_file(
         "MASTER" | "BRAIN" | "APP_DATA" => {
             let extension = if kind == "APP_DATA" { "json" } else { "zip" };
             let target = save_path(&path, extension)?;
-            flush_brains(&app, false).await;
             write_backup(&pool, &profiles, &kind, &setting_keys, &target)
                 .await
                 .map_err(sync_err)?;
@@ -227,7 +223,6 @@ pub async fn import_other_app(
     library_name: String,
     pool: State<'_, SqlitePool>,
     youtube: State<'_, YoutubeService>,
-    recommendations: State<'_, RecommendationService>,
 ) -> Result<ImportOutcome, ErrorResponse> {
     let paths: Vec<PathBuf> = paths.iter().map(PathBuf::from).collect();
     let now = now_ms();
@@ -252,20 +247,6 @@ pub async fn import_other_app(
             });
         }
     };
-    if !saved.learn_from.is_empty()
-        && let Err(error) = recommendations
-            .bootstrap_from_history(saved.learn_from)
-            .await
-    {
-        tracing::warn!(%error, "[import] the engine could not learn from the history");
-    }
-    if !saved.channel_names.is_empty()
-        && let Err(error) = recommendations
-            .bootstrap_from_subscriptions(saved.channel_names)
-            .await
-    {
-        tracing::warn!(%error, "[import] the engine could not learn from the subscriptions");
-    }
     Ok(ImportOutcome::Done {
         report: saved.report,
     })

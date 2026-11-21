@@ -15,7 +15,6 @@ use tauri_plugin_notification::NotificationExt;
 use tokio::sync::Notify;
 
 use crate::backup::build::{now_ms, write_backup};
-use crate::commands::backup::flush_brains;
 use crate::db::settings::{get_setting, set_setting};
 use crate::services::profile_service::ProfileService;
 
@@ -65,9 +64,9 @@ pub fn effective_type(chosen: &str, profile_count: usize) -> &str {
 #[must_use]
 pub fn file_name(kind: &str) -> &'static str {
     match kind {
-        "BRAIN" => "flow_brain_backup.zip",
-        "MASTER" => "flow_master_backup.zip",
-        _ => "flow_backup.json",
+        "BRAIN" => "youglidetube_brain_backup.zip",
+        "MASTER" => "youglidetube_master_backup.zip",
+        _ => "youglidetube_backup.json",
     }
 }
 
@@ -164,7 +163,6 @@ async fn write_to_folder(
         .unwrap_or_else(|| "APP_DATA".into());
     let kind = effective_type(&chosen, count).to_string();
 
-    flush_brains(app, false).await;
     write_backup(
         pool,
         &profiles,
@@ -261,9 +259,9 @@ mod tests {
 
     #[test]
     fn each_kind_keeps_one_named_file() {
-        assert_eq!(file_name("APP_DATA"), "flow_backup.json");
-        assert_eq!(file_name("MASTER"), "flow_master_backup.zip");
-        assert_eq!(file_name("BRAIN"), "flow_brain_backup.zip");
+        assert_eq!(file_name("APP_DATA"), "youglidetube_backup.json");
+        assert_eq!(file_name("MASTER"), "youglidetube_master_backup.zip");
+        assert_eq!(file_name("BRAIN"), "youglidetube_brain_backup.zip");
     }
 
     #[test]

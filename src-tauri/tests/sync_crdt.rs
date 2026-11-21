@@ -9,8 +9,7 @@
 
 use std::str::FromStr;
 
-use flow_desktop_lib::data_model::canonical::{Collection, GCounter, Hlc, Lww, OrSet};
-use flow_desktop_lib::data_model::frames::{FrameType, SelectionFrame};
+use youglidetube_desktop_lib::data_model::canonical::{GCounter, Hlc, Lww, OrSet};
 
 #[test]
 fn hlc_roundtrips_through_string() {
@@ -125,34 +124,5 @@ fn lww_keeps_the_higher_stamp_and_is_idempotent() {
     assert_eq!(reg, before, "re-applying the same write is a no-op");
 }
 
-#[test]
-fn frame_type_byte_values_are_stable() {
-    assert_eq!(FrameType::Hello.to_u8(), 0x01);
-    assert_eq!(FrameType::Manifest.to_u8(), 0x10);
-    assert_eq!(FrameType::Error.to_u8(), 0x7F);
-    assert_eq!(FrameType::from_u8(0x12), Some(FrameType::ChunkAck));
-    assert_eq!(FrameType::from_u8(0x99), None);
-}
 
-#[test]
-fn collection_serializes_snake_case() {
-    let s = SelectionFrame {
-        send: vec![Collection::WatchHistory, Collection::FlowNeuroBrain],
-        accept: vec![Collection::Likes],
-    };
-    let v = serde_json::to_value(&s).unwrap();
-    assert_eq!(v["send"][0], "watch_history");
-    assert_eq!(v["send"][1], "flow_neuro_brain");
-    assert_eq!(v["accept"][0], "likes");
-}
 
-#[test]
-fn selection_drops_collections_this_build_does_not_know() {
-    // One unknown name used to fail the whole frame and end the session.
-    let s: SelectionFrame = serde_json::from_str(
-        r#"{"send":["watch_history","future_thing","likes"],"accept":["future_thing"]}"#,
-    )
-    .unwrap();
-    assert_eq!(s.send, vec![Collection::WatchHistory, Collection::Likes]);
-    assert!(s.accept.is_empty());
-}

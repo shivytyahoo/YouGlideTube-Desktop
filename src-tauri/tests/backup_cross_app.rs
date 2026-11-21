@@ -16,10 +16,10 @@ use sqlx::SqlitePool;
 use sqlx::sqlite::SqlitePoolOptions;
 use zip::write::{SimpleFileOptions, ZipWriter};
 
-use flow_desktop_lib::backup::archive::{Archive, Slice, write_archive, write_json};
-use flow_desktop_lib::backup::build::build_slice;
-use flow_desktop_lib::backup::reader::{BackupFile, ReadError, read_backup_file};
-use flow_desktop_lib::commands::backup::{export_backup, import_backup};
+use youglidetube_desktop_lib::backup::archive::{Archive, Slice, write_archive, write_json};
+use youglidetube_desktop_lib::backup::build::build_slice;
+use youglidetube_desktop_lib::backup::reader::{BackupFile, ReadError, read_backup_file};
+use youglidetube_desktop_lib::commands::backup::{export_backup, import_backup};
 
 #[allow(dead_code)] // Mirrors whole classes; not every field is asserted on.
 mod android {
@@ -905,11 +905,11 @@ async fn a_backup_never_holds_a_private_setting() {
     const SECRET: &str = "hunter2-do-not-leak";
     let pool = memory_pool().await;
     seed_desktop(&pool).await;
-    for key in flow_desktop_lib::backup::NEVER_BACKED_UP {
+    for key in youglidetube_desktop_lib::backup::NEVER_BACKED_UP {
         set_setting(&pool, key, SECRET).await;
     }
     // Asked for outright, as a wrong key list from the frontend would.
-    let mut keys: Vec<String> = flow_desktop_lib::backup::NEVER_BACKED_UP
+    let mut keys: Vec<String> = youglidetube_desktop_lib::backup::NEVER_BACKED_UP
         .iter()
         .map(ToString::to_string)
         .collect();
@@ -1155,7 +1155,7 @@ async fn a_restored_note_goes_through_the_merge() {
     let restore = |pool: SqlitePool, note: Value| async move {
         let mut data = android_app_data();
         data["notes"] = json!([note]);
-        let slice = flow_desktop_lib::backup::app_data::from_app_data(&data, 1);
+        let slice = youglidetube_desktop_lib::backup::app_data::from_app_data(&data, 1);
         import_backup(
             &pool,
             &json!({ "collections": { "notes": slice.collections["notes"] } }),

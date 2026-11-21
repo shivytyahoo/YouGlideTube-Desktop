@@ -3,21 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./api/db", () => ({ addWatchRecord: vi.fn(() => Promise.resolve()) }));
 vi.mock("./deepGlide", () => ({ shouldRecordWatchHistory: () => true }));
 vi.mock("./recap/recapQueue", () => ({ recapView: vi.fn() }));
-vi.mock("./api/shorts", () => ({
-  reportShortView: vi.fn(() => Promise.resolve()),
-  recordSeenShorts: vi.fn(() => Promise.resolve()),
-}));
 
 import { addWatchRecord } from "./api/db";
-import { recordSeenShorts, reportShortView } from "./api/shorts";
 import { recapView } from "./recap/recapQueue";
-import {
-  SEEN_SHORT_DWELL_MS,
-  finishShortView,
-  noteShortEnded,
-  noteShortProgress,
-  startShortView,
-} from "./shortViews";
+import { finishShortView, noteShortProgress, startShortView } from "./shortViews";
 import type { ShortItem } from "../types/shorts";
 
 const short = (id: string): ShortItem => ({
@@ -30,41 +19,21 @@ const short = (id: string): ShortItem => ({
 
 describe("shortViews", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-    vi.mocked(reportShortView).mockClear();
-    vi.mocked(recordSeenShorts).mockClear();
     vi.mocked(addWatchRecord).mockClear();
     vi.mocked(recapView).mockClear();
   });
   afterEach(() => {
     finishShortView();
-    vi.useRealTimers();
   });
 
-  it("reports one viewing when the next Short starts", () => {
+  it("records one viewing when the next Short starts", () => {
     startShortView(short("a"));
     noteShortProgress("a", 4000, 30000);
     noteShortProgress("a", 6000, 30000);
     startShortView(short("b"));
-    expect(reportShortView).toHaveBeenCalledTimes(1);
-    expect(reportShortView).toHaveBeenCalledWith(
-      expect.objectContaining({ videoId: "a", positionMs: 6000, durationMs: 30000, completed: false }),
-    );
-  });
-
-  it("counts a loop or an end as played out", () => {
-    startShortView(short("a"));
-    noteShortProgress("a", 29500, 30000);
-    noteShortProgress("a", 200, 30000);
-    finishShortView();
-    expect(reportShortView).toHaveBeenLastCalledWith(expect.objectContaining({ completed: true }));
-
-    startShortView(short("b"));
-    noteShortProgress("b", 1000, 20000);
-    noteShortEnded("b");
-    finishShortView();
-    expect(reportShortView).toHaveBeenLastCalledWith(
-      expect.objectContaining({ videoId: "b", completed: true }),
+    expect(recapView).toHaveBeenCalledTimes(1);
+    expect(recapView).toHaveBeenCalledWith(
+      expect.objectContaining({ videoId: "a", watchedMs: 6000, counted: true, skipped: false }),
     );
   });
 
@@ -101,15 +70,6 @@ describe("shortViews", () => {
     startShortView(short("a"));
     noteShortProgress("z", 5000, 30000);
     finishShortView();
-    expect(reportShortView).not.toHaveBeenCalled();
-  });
-
-  it("marks a Short seen only once it stayed on screen", () => {
-    startShortView(short("a"));
-    vi.advanceTimersByTime(SEEN_SHORT_DWELL_MS - 1);
-    startShortView(short("b"));
-    vi.advanceTimersByTime(SEEN_SHORT_DWELL_MS);
-    expect(recordSeenShorts).toHaveBeenCalledTimes(1);
-    expect(recordSeenShorts).toHaveBeenCalledWith(["b"]);
+    expect(recapView).not.toHaveBeenCalled();
   });
 });

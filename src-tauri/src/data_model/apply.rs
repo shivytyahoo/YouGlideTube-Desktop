@@ -16,8 +16,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use sqlx::{Sqlite, SqlitePool, Transaction};
 
-use crate::flow_neuro::key_migration::{after_sync, spelled_before};
-use crate::flow_neuro::scoring::UserBrain;
+use crate::data_model::key_migration::{after_sync, spelled_before};
+use crate::data_model::brain::UserBrain;
 use crate::data_model::music_brain::MusicBrain;
 use crate::data_model::brain_attrib::{
     self, MUSIC_BASELINE_KEY, MusicBaseline, NEURO_BASELINE_KEY, NeuroBaseline, attribution,
@@ -646,7 +646,7 @@ async fn apply_flow_neuro(
     let mut effective = brainmap::merged_flow_to_userbrain(&merged, &base);
     after_sync(&mut effective, &spelled);
     // The merged state keeps every entry any device ever had; this device's limits apply again.
-    crate::flow_neuro::caps::apply_all(&mut effective, now_ms());
+    crate::data_model::caps::apply_all(&mut effective, now_ms());
     set_setting(tx, NEURO_BRAIN_KEY, &serde_json::to_string(&effective)?).await?;
     set_setting(
         tx,

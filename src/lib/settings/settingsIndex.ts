@@ -133,6 +133,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     { title: "music_equalizer", summary: "settings_music_equalizer_desc" },
     { title: "music_loudness_normalization", summary: "music_loudness_normalization_desc" },
     { title: "music_playback_speed", summary: "settings_music_speed_desc" },
+    { title: "settings_music_endless_radio", summary: "settings_music_endless_radio_desc", keywords: ["radio", "automix", "station"] },
     { title: "music_crossfade", summary: "music_crossfade_desc", keywords: ["fade", "transition", "blend", "gapless", "mix"] },
     { title: "settings_music_crossfade_length", keywords: ["duration", "seconds", "milliseconds", "crossfade"] },
     { title: "settings_crossfade_auto", summary: "settings_crossfade_auto_desc", keywords: ["crossfade"] },

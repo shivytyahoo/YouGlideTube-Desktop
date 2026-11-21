@@ -52,7 +52,7 @@ function RecentSearches() {
     <section className="min-w-0">
       <SectionTitle
         title={getString('search_home_recent')}
-        action={<button type="button" onClick={clear} className={linkButton}>{getString('search_clear_history')}</button>}
+        action={<button type="button" onClick={() => clear()} className={linkButton}>{getString('search_clear_history')}</button>}
       />
       <ul className="flex flex-col rounded-2xl border border-outline-variant bg-surface-container-low p-1.5">
         {shown.map((entry) => {

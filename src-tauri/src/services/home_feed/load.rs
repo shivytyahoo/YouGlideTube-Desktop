@@ -16,16 +16,17 @@ use super::inputs::Inputs;
 use super::lanes::{self, Raw};
 use super::mixer::FeedSource;
 use super::origin::{Origin, OriginKind, Provenance, queries_by_id};
-use super::seeds::{GraphCandidate, SeedInput, SeedSource, merge_candidates};
+use super::seeds::{GraphCandidate, SeedInput, merge_candidates, select_with_long_term};
 use super::sources::{
     channel_uploads, refresh_subscription_store, rotating_window, subscription_window_size,
 };
 use super::{HomeFeedService, cache, channel_memory, kind_checks, neighbours, now_ms};
-use crate::flow_neuro::scoring::classify_persona;
-use crate::services::recommendation_service::{DiscoverySurface, RecommendationService};
 use crate::services::youtube_service::YoutubeService;
 
 const WAVE1_QUERIES: usize = 3;
+/// The discovery searches, in order: a fixed starter list (the engine's own empty-brain fallback).
+/// There is no server-browse home feed in this codebase.
+pub(super) const STARTER_QUERIES: [&str; 5] = ["Music", "Science", "Technology", "Education", "Nature"];
 const MAX_RELATED_SEEDS: usize = 4;
 const MAX_SAVED_SEEDS: usize = 5;
 const SAVED_RELATED_SLOTS: usize = 8;
@@ -39,17 +40,14 @@ const CHANNEL_GAP: usize = 10;
 /// Followed-channel cards past the first page's rhythm wait for later pages while it keeps this many.
 const FIRST_PAGE_MIN_SIZE: usize = 30;
 const SUBSCRIPTION_STORE_REFRESH_MS: u64 = 30 * 60_000;
-const FOLLOWED_SOURCES_PER_LOAD: usize = 2;
 const TOP_UP_CONCURRENCY: usize = 6;
 const PRIORITY_RETRY_MS: u64 = 30 * 60_000;
 const REFRESH_CONCURRENCY: usize = 3;
 
-/// The related lists of `seed_ids`, merged into graph candidates. A watched or liked seed's list
-/// also teaches co-watch.
+/// The related lists of `seed_ids`, merged into graph candidates.
 pub(super) async fn related_graph(
     service: &HomeFeedService,
     yt: &YoutubeService,
-    rec: &RecommendationService,
     pool: &SqlitePool,
     seeds: &[SeedInput],
     seed_ids: &[String],
@@ -78,13 +76,6 @@ pub(super) async fn related_graph(
     let mut candidates = Vec::new();
     for (seed_id, cards) in lists {
         let seed = by_id.get(seed_id.as_str());
-        if let Some(seed) = seed
-            && matches!(seed.source, SeedSource::WatchHistory | SeedSource::Liked)
-            && !cards.is_empty()
-        {
-            rec.note_related_of(&seed.id, &seed.channel_id, &cards)
-                .await;
-        }
         let seed_score = seed.map_or(0.0, |s| s.score(now));
         let count = cards.len();
         candidates.extend(
@@ -124,14 +115,6 @@ pub(super) fn seed_titles(
         .collect()
 }
 
-/// Reports each search's results, so one that keeps returning shown videos rests.
-pub(super) async fn report_searches(rec: &RecommendationService, searches: &[(String, Vec<Card>)]) {
-    for (query, cards) in searches {
-        let ids: Vec<String> = cards.iter().map(|c| c.id().to_string()).collect();
-        rec.report_discovery_results(query, &ids).await;
-    }
-}
-
 /// `HomeSnapshot::error` when the device's own data could not be read.
 const LOCAL_DATA_FAILED: &str = "local";
 /// `HomeSnapshot::error` when no source could be reached.
@@ -160,15 +143,10 @@ impl HomeFeedService {
 
     pub(super) async fn load(&self, app: &AppHandle, generation: u64) {
         let yt = app.state::<YoutubeService>();
-        let rec = app.state::<RecommendationService>();
         let pool = app.state::<SqlitePool>();
         let now = now_ms();
-        let wave1 = self.start_discovery(&rec).await;
-        let Ok(brain) = rec.get_brain_snapshot().await else {
-            self.settle_without_feed(app, generation, Some(LOCAL_DATA_FAILED));
-            return;
-        };
-        let Ok(inputs) = Inputs::load(&pool, &brain, now).await else {
+        let wave1 = self.start_discovery();
+        let Ok(inputs) = Inputs::load(&pool, now).await else {
             self.settle_without_feed(app, generation, Some(LOCAL_DATA_FAILED));
             return;
         };
@@ -183,13 +161,11 @@ impl HomeFeedService {
         }
         let ((searches, searches_failed), (related_seeds, related)) = tokio::join!(
             self.search_all(&yt, &wave1, now),
-            self.related_lane(&yt, &rec, &pool, &inputs, now)
+            self.related_lane(&yt, &pool, &inputs, now)
         );
         let nothing_reached = searches_failed && related.is_empty();
-        report_searches(&rec, &searches).await;
 
-        let taste = TasteProfile::of(&brain, &classify_persona(&brain));
-        let recently_shown = rec.recently_shown().await;
+        let taste = TasteProfile::default();
         let followed = inputs.boosted_channels();
         let Local {
             store,
@@ -199,28 +175,28 @@ impl HomeFeedService {
             neighbour_store,
             neighbour_list,
             raw_neighbours,
-        } = local_sources(&rec, &pool, &inputs, &brain, &followed, now).await;
-        let neighbour_channels_with_uploads: HashSet<String> = raw_neighbours
-            .iter()
-            .map(|c| c.channel_id().to_string())
-            .collect();
+        } = local_sources(&pool, &inputs, &followed, now).await;
         let query_of = queries_by_id(&searches);
         let lanes = lanes::build(
-            &rec,
             Raw::new(&store, &searches, raw_memory, related, raw_neighbours, now),
             &inputs,
-            &recently_shown,
+            &inputs.seen,
             &taste,
             now,
-        )
-        .await;
+        );
         let on_screen: HashSet<String> = self
             .snapshot()
             .cards
             .iter()
             .map(|c| c.id().to_string())
             .collect();
-        let mix = lanes::assemble(&lanes, &on_screen, followed.len(), brain.total_interactions);
+        // How much the viewer has watched stands in for how settled their taste is.
+        let mix = lanes::assemble(
+            &lanes,
+            &on_screen,
+            followed.len(),
+            i32::try_from(inputs.history.len()).unwrap_or(i32::MAX),
+        );
         if mix.cards.is_empty() {
             // Nothing to show because no search could be reached is a failure, not an empty feed.
             let error = nothing_reached.then_some(NETWORK_FAILED);
@@ -260,10 +236,6 @@ impl HomeFeedService {
         let _ = cache::save_last_feed(&pool, &laid_out, &origins, now).await;
         save_unused(&pool, &lanes, &laid_out, now).await;
 
-        let off_topic: HashSet<String> = neighbour_channels_with_uploads
-            .difference(&lanes.relevant_neighbour_channels)
-            .cloned()
-            .collect();
         self.start_after_paint(
             app,
             AfterPaint {
@@ -271,11 +243,7 @@ impl HomeFeedService {
                 taste,
                 inputs,
                 store,
-                neighbours: neighbour_list
-                    .into_iter()
-                    .filter(|n| !off_topic.contains(&n.channel_id))
-                    .collect(),
-                off_topic,
+                neighbours: neighbour_list,
                 remembered,
                 memory_entries,
                 neighbour_store,
@@ -284,12 +252,9 @@ impl HomeFeedService {
     }
 
     /// A refresh starts the discovery tree at its roots; returns the searches of wave 1.
-    async fn start_discovery(&self, rec: &RecommendationService) -> Vec<String> {
+    fn start_discovery(&self) -> Vec<String> {
         self.inner.search_pages.reset();
-        let queries = rec
-            .generate_discovery_queries(DiscoverySurface::Home, true)
-            .await
-            .unwrap_or_default();
+        let queries: Vec<String> = STARTER_QUERIES.iter().map(|q| (*q).to_string()).collect();
         let wave1: Vec<String> = queries.iter().take(WAVE1_QUERIES).cloned().collect();
         let mut discovery = self.inner.discovery.lock().unwrap();
         discovery.queries = queries;
@@ -301,7 +266,6 @@ impl HomeFeedService {
     async fn related_lane(
         &self,
         yt: &YoutubeService,
-        rec: &RecommendationService,
         pool: &SqlitePool,
         inputs: &Inputs,
         now: u64,
@@ -309,11 +273,16 @@ impl HomeFeedService {
         let disliked = inputs_disliked(inputs);
         let recent = inputs.recent_seeds(&disliked);
         let long_term = inputs.long_term_seeds(&disliked);
-        let ids = rec
-            .select_related_seeds(&recent, MAX_RELATED_SEEDS, &long_term)
-            .await;
+        let ids = select_with_long_term(
+            &recent,
+            MAX_RELATED_SEEDS,
+            &long_term,
+            now,
+            &HashSet::new(),
+            &disliked,
+        );
         let all: Vec<SeedInput> = recent.into_iter().chain(long_term).collect();
-        let graph = related_graph(self, yt, rec, pool, &all, &ids, now).await;
+        let graph = related_graph(self, yt, pool, &all, &ids, now).await;
         (all, graph)
     }
 
@@ -448,7 +417,6 @@ impl HomeFeedService {
 
     async fn after_paint(&self, app: &AppHandle, mut after: AfterPaint) {
         let yt = app.state::<YoutubeService>();
-        let rec = app.state::<RecommendationService>();
         let pool = app.state::<SqlitePool>();
         let followed = after.inputs.boosted_channels();
         // A newer load replaces this one, and its late work with it.
@@ -457,21 +425,20 @@ impl HomeFeedService {
         self.drop_late_shorts(app, &yt, &pool, &mut after, &followed)
             .await;
         if current() {
-            self.saved_interest(app, &yt, &rec, &pool, &after, &followed)
+            self.saved_interest(app, &yt, &pool, &after, &followed)
                 .await;
         }
         if current() {
-            self.wave2(app, &yt, &rec, &after, &followed).await;
+            self.wave2(app, &yt, &after, &followed).await;
         }
         if current() {
-            self.subscription_top_up(app, &yt, &rec, &pool, &after, &followed)
+            self.subscription_top_up(app, &yt, &pool, &after, &followed)
                 .await;
         }
         if current() {
             self.channel_memory_refresh(
                 app,
                 &yt,
-                &rec,
                 &pool,
                 &after,
                 &after.inputs.subscriptions.ids(),
@@ -479,7 +446,7 @@ impl HomeFeedService {
             .await;
         }
         if current() {
-            self.neighbour_refresh(&yt, &rec, &pool, &after).await;
+            self.neighbour_refresh(&yt, &pool, &after).await;
         }
     }
 
@@ -487,7 +454,6 @@ impl HomeFeedService {
         &self,
         app: &AppHandle,
         yt: &YoutubeService,
-        rec: &RecommendationService,
         pool: &SqlitePool,
         after: &AfterPaint,
         followed: &HashSet<String>,
@@ -506,9 +472,7 @@ impl HomeFeedService {
             .into_iter()
             .filter(|s| !cooled.contains(&s.id))
             .collect();
-        let ids = rec
-            .select_related_seeds(&seeds, MAX_SAVED_SEEDS, &long_term)
-            .await;
+        let ids = select_with_long_term(&seeds, MAX_SAVED_SEEDS, &long_term, now, &cooled, &disliked);
         if ids.is_empty() {
             return;
         }
@@ -525,7 +489,7 @@ impl HomeFeedService {
             .iter()
             .map(|c| c.id().to_string())
             .collect();
-        let candidates: Vec<GraphCandidate> = related_graph(self, yt, rec, pool, &all, &ids, now)
+        let candidates: Vec<GraphCandidate> = related_graph(self, yt, pool, &all, &ids, now)
             .await
             .into_iter()
             .filter(|g| {
@@ -538,8 +502,7 @@ impl HomeFeedService {
                     && !on_screen.contains(g.card.id())
             })
             .collect();
-        let enriched: Vec<Card> = lanes::rank_related(rec, &candidates, followed, &after.taste)
-            .await
+        let enriched: Vec<Card> = lanes::rank_related(&candidates, followed, &after.taste)
             .into_iter()
             .take(SAVED_RELATED_SLOTS)
             .collect();
@@ -565,7 +528,6 @@ impl HomeFeedService {
         &self,
         app: &AppHandle,
         yt: &YoutubeService,
-        rec: &RecommendationService,
         after: &AfterPaint,
         followed: &HashSet<String>,
     ) {
@@ -586,7 +548,6 @@ impl HomeFeedService {
         }
         let now = now_ms();
         let (searches, _) = self.search_all(yt, &queries, now).await;
-        report_searches(rec, &searches).await;
         let on_screen: HashSet<String> = self
             .snapshot()
             .cards
@@ -610,13 +571,9 @@ impl HomeFeedService {
             return;
         }
         let ranked = lanes::share(
-            rec,
-            after
-                .taste
-                .demote(lanes::rank(rec, valid, followed, true).await),
+            after.taste.demote(lanes::rank(valid, followed)),
             followed,
-        )
-        .await;
+        );
         let picks: Vec<Card> = ranked.into_iter().take(WAVE2_LIMIT).collect();
         let query_of = queries_by_id(&searches);
         let origins = picks
@@ -684,7 +641,6 @@ impl HomeFeedService {
         &self,
         app: &AppHandle,
         yt: &YoutubeService,
-        rec: &RecommendationService,
         pool: &SqlitePool,
         after: &AfterPaint,
         followed: &HashSet<String>,
@@ -706,9 +662,6 @@ impl HomeFeedService {
         if uploads.is_empty() {
             return;
         }
-        let _ = rec
-            .observe_channel_uploads(uploads.iter().map(|c| c.video.clone()).collect())
-            .await;
         let _ = cache::merge_subscription_uploads(
             pool,
             &uploads
@@ -745,8 +698,7 @@ impl HomeFeedService {
             })
             .collect();
         let mut seen = HashSet::new();
-        let late: Vec<Card> = lanes::rank(rec, candidates, followed, false)
-            .await
+        let late: Vec<Card> = lanes::rank(candidates, followed)
             .into_iter()
             .filter(|c| seen.insert(c.channel_id().to_string()))
             .take(LATE_SUBS_MAX)
@@ -819,7 +771,6 @@ impl HomeFeedService {
         &self,
         app: &AppHandle,
         yt: &YoutubeService,
-        rec: &RecommendationService,
         pool: &SqlitePool,
         after: &AfterPaint,
         followed: &HashSet<String>,
@@ -846,12 +797,13 @@ impl HomeFeedService {
             let _ = channel_memory::save_uploads(pool, &channel, &name, &kept, now).await;
             fresh.extend(kept);
         }
-        let recently_shown = rec.recently_shown().await;
-        let hidden = |c: &Card| after.inputs.exclusions.hides(c) || recently_shown.contains(c.id());
+        let hidden = |c: &Card| {
+            after.inputs.exclusions.hides(c) || after.inputs.seen.contains(c.id())
+        };
         let showable: Vec<Card> =
             super::filters::keep_showable(fresh, &after.inputs.watched, &hidden, now, false)
                 .collect();
-        let ranked = lanes::rank(rec, showable, followed, false).await;
+        let ranked = lanes::rank(showable, followed);
         let late: Vec<Card> = {
             let feed = self.inner.feed.lock().unwrap();
             let on_screen: HashSet<&str> = feed.snapshot.cards.iter().map(Card::id).collect();
@@ -891,12 +843,10 @@ impl HomeFeedService {
     async fn neighbour_refresh(
         &self,
         yt: &YoutubeService,
-        rec: &RecommendationService,
         pool: &SqlitePool,
         after: &AfterPaint,
     ) {
         let now = now_ms();
-        let _ = neighbours::drop_off_topic(pool, &after.off_topic).await;
         let queue = neighbours::refresh_queue(&after.neighbours, &after.neighbour_store, now);
         let queue: Vec<neighbours::Neighbour> = queue.into_iter().cloned().collect();
         let fetched = crate::api::http::bounded_join(queue, REFRESH_CONCURRENCY, |n| async move {
@@ -922,31 +872,6 @@ impl HomeFeedService {
                 let _ = neighbours::save_uploads(pool, &channel, &name, &kept, now).await;
             }
         }
-        // The related lists of two recent uploads of followed channels, each used once, teach which
-        // channels sit beside the viewer's own.
-        let known = rec.co_watch_source_ids();
-        let mut seen = HashSet::new();
-        let mut recent: Vec<&Card> = after
-            .store
-            .iter()
-            .filter(|c| !known.contains(c.id()) && !c.is_short() && !c.video.is_live)
-            .filter(|c| {
-                c.age_ms(now)
-                    .is_some_and(|age| age <= neighbours::UPLOAD_WINDOW_MS)
-            })
-            .collect();
-        recent.sort_by_key(|c| std::cmp::Reverse(c.published_at_ms));
-        for upload in recent
-            .into_iter()
-            .filter(|c| seen.insert(c.channel_id().to_string()))
-            .take(FOLLOWED_SOURCES_PER_LOAD)
-        {
-            let related = self.inner.related.get(yt, pool, upload.id(), now).await;
-            if !related.is_empty() {
-                rec.note_related_of(upload.id(), upload.channel_id(), &related)
-                    .await;
-            }
-        }
     }
 }
 
@@ -963,10 +888,8 @@ pub(super) struct Local {
 }
 
 pub(super) async fn local_sources(
-    rec: &RecommendationService,
     pool: &SqlitePool,
     inputs: &Inputs,
-    brain: &crate::flow_neuro::scoring::UserBrain,
     followed: &HashSet<String>,
     now: u64,
 ) -> Local {
@@ -985,22 +908,13 @@ pub(super) async fn local_sources(
         &inputs.liked_channels(),
         &memory_entries,
         &inputs.subscriptions.ids(),
-        &brain.blocked_channels,
-        &brain.suppressed_channels,
+        &inputs.blocked_channels,
+        &inputs.suppressed_channels,
         now,
     );
     let raw_memory = channel_memory::uploads(&remembered, &memory_entries.entries, now);
     let neighbour_store = neighbours::load(pool).await.unwrap_or_default();
-    let neighbour_list: Vec<neighbours::Neighbour> = rec
-        .neighbour_channels(&inputs.subscriptions.names)
-        .await
-        .into_iter()
-        .filter(|n| {
-            !neighbour_store
-                .get(&n.channel_id)
-                .is_some_and(|s| s.dropped)
-        })
-        .collect();
+    let neighbour_list = neighbours::stored_neighbours(&neighbour_store);
     let raw_neighbours: Vec<Card> = neighbour_list
         .iter()
         .filter_map(|n| neighbour_store.get(&n.channel_id))
@@ -1119,7 +1033,6 @@ pub(super) struct AfterPaint {
     inputs: Inputs,
     store: Vec<Card>,
     neighbours: Vec<neighbours::Neighbour>,
-    off_topic: HashSet<String>,
     remembered: Vec<channel_memory::Remembered>,
     memory_entries: channel_memory::State,
     neighbour_store: HashMap<String, neighbours::Stored>,

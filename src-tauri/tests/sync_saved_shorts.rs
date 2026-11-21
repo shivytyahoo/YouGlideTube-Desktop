@@ -1,14 +1,12 @@
 //! Android's `saved_shorts` playlist and the desktop's Saved Shorts library are one list on the
 //! wire, so they merge track by track in both directions.
 
-use flow_desktop_lib::data_model::apply::{BACKUP_RESTORE_PEER_PREFIX, apply_payload};
-use flow_desktop_lib::data_model::canonical::{Collection, Playlist};
-use flow_desktop_lib::data_model::changes::{self, Change};
-use flow_desktop_lib::data_model::codec::sha256_hex;
-use flow_desktop_lib::data_model::export::{export_collections, export_for_backup};
-use flow_desktop_lib::data_model::local_edits::{diff_blob, is_collection_setting, record_blob_write};
-use flow_desktop_lib::data_model::protocol::StagedCollection;
-use flow_desktop_lib::data_model::saved_shorts::{
+use youglidetube_desktop_lib::data_model::apply::{BACKUP_RESTORE_PEER_PREFIX, apply_payload};
+use youglidetube_desktop_lib::data_model::canonical::{Collection, Playlist};
+use youglidetube_desktop_lib::data_model::collection::sha256_hex;
+use youglidetube_desktop_lib::data_model::export::{export_collections, export_for_backup};
+use youglidetube_desktop_lib::data_model::collection::StagedCollection;
+use youglidetube_desktop_lib::data_model::saved_shorts::{
     PEER_KEEPS_LIST_SETTING_KEY, SAVED_SHORTS_SETTING_KEY, adopt_synced_playlist, library_blob,
     parse_library,
 };
@@ -76,7 +74,6 @@ async fn setting(pool: &SqlitePool, key: &str) -> Option<String> {
 }
 
 async fn write_like_the_app(pool: &SqlitePool, key: &str, value: &str) {
-    record_blob_write(pool, key, value).await.unwrap();
     sqlx::query("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
         .bind(key)
         .bind(value)
@@ -342,22 +339,6 @@ async fn a_merge_keeps_what_android_does_not_carry() {
     assert_eq!(entries[0]["channelAvatarUrl"], "https://x/a.jpg");
 }
 
-#[test]
-fn the_library_setting_counts_as_synced_and_its_edits_are_recorded() {
-    assert!(is_collection_setting(SAVED_SHORTS_SETTING_KEY));
-    let edits = diff_blob(
-        SAVED_SHORTS_SETTING_KEY,
-        r#"[{"id":"a"},{"id":"b"}]"#,
-        r#"[{"id":"b"}]"#,
-        5,
-    );
-    let change = |key: &str| edits.iter().find(|c| c.key == key);
-    assert!(change("saved_shorts|a").is_some_and(|c: &Change| c.deleted));
-    assert_eq!(
-        changes::PLAYLIST_ITEMS,
-        change("saved_shorts|a").unwrap().collection
-    );
-}
 
 #[test]
 fn reading_and_writing_the_library_round_trips() {
@@ -418,10 +399,3 @@ async fn a_playlist_an_earlier_sync_brought_in_moves_to_the_library_once() {
     assert_eq!(setting(&pool, SAVED_SHORTS_SETTING_KEY).await, before);
 }
 
-#[test]
-fn app_settings_wait_for_the_next_sync() {
-    let key = flow_desktop_lib::data_model::settings_map::desktop_keys()
-        .next()
-        .expect("a synced app setting");
-    assert!(!is_collection_setting(key));
-}

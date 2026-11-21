@@ -5,15 +5,15 @@
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqlitePoolOptions;
 
-use flow_desktop_lib::flow_neuro::keyspec::KeySpec;
-use flow_desktop_lib::data_model::apply::apply_payload;
-use flow_desktop_lib::data_model::canonical::{
+use youglidetube_desktop_lib::data_model::keyspec::KeySpec;
+use youglidetube_desktop_lib::data_model::apply::apply_payload;
+use youglidetube_desktop_lib::data_model::canonical::{
     Collection, FlowNeuroBrainSnapshot, GCounter, Hlc, Like, LikeKind, LikeState,
     MusicBrainSnapshot, Playlist, PlaylistItem, PlaylistOrigin, SettingEntry, SubscribedChannel,
     SubscriptionGroup, WatchHistoryRecord,
 };
-use flow_desktop_lib::data_model::mapping;
-use flow_desktop_lib::data_model::protocol::StagedCollection;
+use youglidetube_desktop_lib::data_model::mapping;
+use youglidetube_desktop_lib::data_model::collection::StagedCollection;
 
 const OUR: &str = "dlocal";
 const PEER: &str = "dpeer";
@@ -851,7 +851,7 @@ async fn history_goes_out_with_a_thumbnail_that_never_reads_as_a_change() {
     let pool = memory_pool().await;
     seed(&pool).await;
     let out =
-        flow_desktop_lib::data_model::export::export_collections(&pool, OUR, &[Collection::WatchHistory])
+        youglidetube_desktop_lib::data_model::export::export_collections(&pool, OUR, &[Collection::WatchHistory])
             .await
             .unwrap();
     let sent: Vec<WatchHistoryRecord> = String::from_utf8(out[0].ndjson.clone())

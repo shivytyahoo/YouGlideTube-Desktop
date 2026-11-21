@@ -14,8 +14,8 @@ const recapListening = new RecapMusicSession();
 
 /** The one tracker the audio element's events feed. */
 export const musicListens = new MusicListenTracker({
-  // A library file keeps its own history: as on Android, it teaches MusicBrain nothing and
-  // stays out of the shared history that syncs.
+  // A library file keeps its own history: as on Android, it stays out of the shared
+  // history that syncs.
   recordListen: (track, listenedSeconds, durationSeconds) => {
     if (isLocalMediaId(track.videoId ?? track.id)) return;
     void recordSongHistory(track, listenedSeconds, durationSeconds);

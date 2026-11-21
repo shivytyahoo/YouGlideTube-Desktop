@@ -8,7 +8,6 @@ vi.mock("./api/db", () => ({
   getWatchRecords: (ids: string[]) => records(ids),
 }));
 vi.mock("./api/youtube", () => ({ getPlaylistDetails: vi.fn() }));
-vi.mock("./api/recommendation", () => ({ logInteraction: vi.fn(async () => undefined) }));
 
 import { countsAsWatched, noteWatchLaterFinished, noteWatchLaterProgress, sweepWatchedFromWatchLater } from "./watchLaterCleanup";
 import { WATCH_LATER_PLAYLIST_ID, getStoredPlaylistById } from "./playlistLibrary";

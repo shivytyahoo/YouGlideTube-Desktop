@@ -15,7 +15,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::flow_neuro::scoring::UserBrain;
+use crate::data_model::brain::UserBrain;
 use crate::data_model::music_brain::MusicBrain;
 use crate::data_model::brainmap;
 use crate::data_model::canonical::{

@@ -94,7 +94,7 @@ describe("the break reminder", () => {
     expect(notifications).toHaveLength(2);
   });
 
-  it("doesn't count time Flow isn't in use", () => {
+  it("doesn't count time the app isn't in use", () => {
     settings.values = { [SETTINGS.BREAK_REMINDER]: "true", [SETTINGS.BREAK_FREQUENCY]: "30" };
     focused = false;
     mount();

@@ -1,3 +1,4 @@
+import { isDeepGlideCurrentlyActive } from "../deepGlide";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { invokeBackend } from "./errors";
 import { isTauriEnv } from "./env";
@@ -115,4 +116,12 @@ export async function getHomeChips(): Promise<HomeChips> {
 export async function getHomeChipFeed(key: string, refresh: boolean): Promise<ChipFeed> {
   if (!(await isTauriEnv())) return { cards: [], mixes: [], failed: false };
   return invokeBackend<ChipFeed>("home_chip_feed", { key, refresh });
+}
+
+/** Counts cards the viewer actually saw, once per app session, so the Home
+ * feed can note neighbour impressions and the seen-set stays accurate. */
+export async function recordFeedImpressions(videos: VideoSummary[]): Promise<void> {
+  if (isDeepGlideCurrentlyActive()) return;
+  if (!(await isTauriEnv())) return;
+  return invokeBackend<void>("record_feed_impressions", { videos });
 }

@@ -1,35 +1,21 @@
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { create } from "zustand";
-import { getSetting, setSetting } from "../lib/api/db";
 import { recapArtistSaidNo } from "../lib/recap/recapQueue";
 import { useMusicPlayerStore } from "./useMusicPlayerStore";
 import type { SongItem } from "../types/music";
 
-// Global music feedback state, the music-section twin of `useFeedActionsStore`. Track-card
-// menus call the actions here; every music surface (home shelves, radio, queue, collection
-// and artist lists, search) filters against the sets — so a dismiss/block takes effect
-// everywhere at once and persists across restarts. Mirrors the escalating semantics of the
-// video side: a first "not interested" soft-suppresses the artist; a second (while still
-// suppressed) promotes to a permanent "don't recommend" block, which is also enforced in the
-// backend MusicBrain so blocked artists are never even ranked.
-const STORE_KEY = "music_actions_state_v1";
-const DISMISSED_CAP = 4000;
-const BLOCKED_CAP = 1000;
-const SUPPRESSED_CAP = 1000;
-const ARTIST_SUPPRESSION_MS = 14 * 24 * 60 * 60 * 1000;
+// Music feedback, as the Android app builds it: "Not interested" and "Don't recommend
+// {artist}" are artist-level and session-only. They live in memory, reset on relaunch,
+// never escalate and never persist — the server feed stays the source of truth, the
+// exclusion only keeps an artist out of this session's shelves, radio and queue.
+const EXCLUDED_CAP = 1000;
 
-/** Resolves a stable artist key — id when present, else a normalized name. Mirrors the
- *  backend's `artist_key` so frontend filtering and backend blocking agree. */
+/** Resolves a stable artist key — id when present, else a normalized name. */
 export function musicArtistKey(artist?: { id?: string | null; name?: string | null } | null): string {
   if (!artist) return "";
   const id = (artist.id ?? "").trim();
   if (id) return id;
   return (artist.name ?? "").trim().toLowerCase();
-}
-
-/** The track identity used for per-track dismissals (prefers the playable videoId). */
-export function trackKeyOf(song: SongItem): string {
-  return song.videoId ?? song.id;
 }
 
 function addCapped(set: Set<string>, value: string, cap: number): Set<string> {
@@ -39,196 +25,102 @@ function addCapped(set: Set<string>, value: string, cap: number): Set<string> {
   return next.size > cap ? new Set([...next].slice(next.size - cap)) : next;
 }
 
-function addCappedMap<V>(map: Map<string, V>, key: string, value: V, cap: number): Map<string, V> {
-  if (!key) return map;
-  const next = new Map(map);
-  next.set(key, value);
-  return next.size > cap ? new Map([...next].slice(next.size - cap)) : next;
-}
-
-function activeSuppressed(entries: Map<string, number>): Map<string, number> {
-  const cutoff = Date.now() - ARTIST_SUPPRESSION_MS;
-  return new Map([...entries].filter(([, ts]) => ts >= cutoff));
-}
-
 interface MusicActionsState {
-  dismissedTrackIds: Set<string>;
-  /** key → display name, so the management UI can render and unblock. */
-  blockedArtists: Map<string, string>;
-  suppressedArtistKeys: Map<string, number>;
+  /** Artists excluded for this session only; gone on relaunch. */
+  excludedArtistKeys: Set<string>;
   loaded: boolean;
+  /** Nothing to read back: the exclusions live only in memory. Kept so app start and
+   *  profile switches can await the store the same way other stores are awaited. */
   load: () => Promise<void>;
-  notInterested: (song: SongItem) => Promise<void>;
-  blockArtist: (artist: { id?: string | null; name: string }) => Promise<void>;
-  unblockArtist: (key: string) => Promise<void>;
+  /** Hides the song's primary artist for this session. */
+  notInterested: (song: SongItem) => void;
+  /** Hides an artist for this session. */
+  blockArtist: (artist: { id?: string | null; name: string }) => void;
+  /** Lifts a session exclusion again. */
+  unblockArtist: (key: string) => void;
 }
 
-/** Builds the hide predicate from a snapshot of the sets (shared by the hook and the
+/** Builds the hide predicate from a snapshot of the set (shared by the hook and the
  *  player-store sync, which can't use React hooks). */
-function buildHiddenPredicate(state: {
-  dismissedTrackIds: Set<string>;
-  blockedArtists: Map<string, string>;
-  suppressedArtistKeys: Map<string, number>;
-}): (song: SongItem) => boolean {
-  const dismissed = state.dismissedTrackIds;
-  const blocked = state.blockedArtists;
-  const active = activeSuppressed(state.suppressedArtistKeys);
-  return (song: SongItem) => {
-    if (dismissed.has(trackKeyOf(song))) return true;
-    for (const artist of song.artists ?? []) {
-      const key = musicArtistKey(artist);
-      if (key && (blocked.has(key) || active.has(key))) return true;
-    }
-    return false;
-  };
+function buildHiddenPredicate(excluded: Set<string>): (song: SongItem) => boolean {
+  return (song: SongItem) => isSongHidden(excluded, song);
+}
+
+/** True when any of a song's artists is excluded. */
+export function isSongHidden(excluded: Set<string>, song: SongItem): boolean {
+  return (song.artists ?? []).some((artist) => {
+    const key = musicArtistKey(artist);
+    return key.length > 0 && excluded.has(key);
+  });
+}
+
+/** True when an artist entity is excluded. */
+export function isArtistHidden(
+  excluded: Set<string>,
+  artist: { id?: string | null; name?: string | null },
+): boolean {
+  const key = musicArtistKey(artist);
+  return key.length > 0 && excluded.has(key);
 }
 
 export const useMusicActionsStore = create<MusicActionsState>((set, get) => {
-  const persist = () => {
-    const { dismissedTrackIds, blockedArtists, suppressedArtistKeys } = get();
-    const activeS = activeSuppressed(suppressedArtistKeys);
-    void setSetting(
-      STORE_KEY,
-      JSON.stringify({
-        dismissed: [...dismissedTrackIds],
-        blocked: [...blockedArtists.entries()],
-        suppressed: [...activeS.entries()],
-      }),
-    ).catch((e) => console.warn("Failed to persist music actions", e));
-  };
-
   // Push the current hide predicate into the player store so radio autoplay skips hidden
   // tracks, and prune any already-queued tracks that just became hidden.
   const syncPlayer = () => {
-    const predicate = buildHiddenPredicate(get());
+    const predicate = buildHiddenPredicate(get().excludedArtistKeys);
     const player = useMusicPlayerStore.getState();
     player.setHiddenPredicate?.(predicate);
     player.pruneQueue?.(predicate);
   };
 
   return {
-    dismissedTrackIds: new Set(),
-    blockedArtists: new Map(),
-    suppressedArtistKeys: new Map(),
+    excludedArtistKeys: new Set(),
     loaded: false,
 
     load: async () => {
       if (get().loaded) return;
-      try {
-        const raw = await getSetting(STORE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw) as {
-            dismissed?: string[];
-            blocked?: [string, string][];
-            suppressed?: [string, number][];
-          };
-          set({
-            dismissedTrackIds: new Set(parsed.dismissed ?? []),
-            blockedArtists: new Map(
-              (parsed.blocked ?? []).filter(([key]) => typeof key === "string" && key.length > 0),
-            ),
-            suppressedArtistKeys: activeSuppressed(
-              new Map(
-                (parsed.suppressed ?? []).filter(
-                  ([key, ts]) => typeof key === "string" && key.length > 0 && Number.isFinite(ts),
-                ),
-              ),
-            ),
-            loaded: true,
-          });
-        } else {
-          set({ loaded: true });
-        }
-      } catch (e) {
-        console.warn("Failed to load music actions", e);
-        set({ loaded: true });
-      }
+      set({ loaded: true });
       syncPlayer();
     },
 
-    notInterested: async (song) => {
-      const trackId = trackKeyOf(song);
+    notInterested: (song) => {
       const primary = song.artists?.[0] ?? null;
       const key = musicArtistKey(primary);
-      const escalate = key.length > 0 && activeSuppressed(get().suppressedArtistKeys).has(key);
-
-      if (escalate && primary) {
-        // Second "not interested" on a still-suppressed artist → permanent block.
-        set((s) => ({ dismissedTrackIds: addCapped(s.dismissedTrackIds, trackId, DISMISSED_CAP) }));
-        await get().blockArtist({ id: primary.id, name: primary.name });
-        return;
-      }
-
-      set((s) => ({
-        dismissedTrackIds: addCapped(s.dismissedTrackIds, trackId, DISMISSED_CAP),
-        suppressedArtistKeys: key
-          ? addCappedMap(s.suppressedArtistKeys, key, Date.now(), SUPPRESSED_CAP)
-          : s.suppressedArtistKeys,
-      }));
-      persist();
+      if (!key) return;
+      set((s) => ({ excludedArtistKeys: addCapped(s.excludedArtistKeys, key, EXCLUDED_CAP) }));
       syncPlayer();
-      if (primary && key) {
-        recapArtistSaidNo(primary.id ?? null, primary.name, false);
-      }
+      recapArtistSaidNo(primary?.id ?? null, primary?.name ?? "", false);
     },
 
-    blockArtist: async ({ id, name }) => {
+    blockArtist: ({ id, name }) => {
       const key = musicArtistKey({ id, name });
       if (!key) return;
-      set((s) => {
-        const blocked = addCappedMap(s.blockedArtists, key, name || key, BLOCKED_CAP);
-        const suppressed = new Map(s.suppressedArtistKeys);
-        suppressed.delete(key);
-        return { blockedArtists: blocked, suppressedArtistKeys: suppressed };
-      });
-      persist();
+      set((s) => ({ excludedArtistKeys: addCapped(s.excludedArtistKeys, key, EXCLUDED_CAP) }));
       syncPlayer();
       recapArtistSaidNo(id ?? null, name, true);
     },
 
-    unblockArtist: async (key) => {
+    unblockArtist: (key) => {
       if (!key) return;
       set((s) => {
-        const blocked = new Map(s.blockedArtists);
-        blocked.delete(key);
-        return { blockedArtists: blocked };
+        if (!s.excludedArtistKeys.has(key)) return s;
+        const excludedArtistKeys = new Set(s.excludedArtistKeys);
+        excludedArtistKeys.delete(key);
+        return { excludedArtistKeys };
       });
-      persist();
       syncPlayer();
     },
   };
 });
 
-/** Reactive predicate for music feeds: true when a song should be hidden (its track was
- *  dismissed, or any of its artists is blocked or actively suppressed). */
+/** Reactive predicate for music feeds: true when any of a song's artists is excluded. */
 export function useMusicHiddenFilter(): (song: SongItem) => boolean {
-  const dismissed = useMusicActionsStore((s) => s.dismissedTrackIds);
-  const blocked = useMusicActionsStore((s) => s.blockedArtists);
-  const suppressed = useMusicActionsStore((s) => s.suppressedArtistKeys);
-  const active = useMemo(() => activeSuppressed(suppressed), [suppressed]);
-  return useCallback(
-    (song: SongItem) => {
-      if (dismissed.has(trackKeyOf(song))) return true;
-      for (const artist of song.artists ?? []) {
-        const key = musicArtistKey(artist);
-        if (key && (blocked.has(key) || active.has(key))) return true;
-      }
-      return false;
-    },
-    [dismissed, blocked, active],
-  );
+  const excluded = useMusicActionsStore((s) => s.excludedArtistKeys);
+  return useCallback((song: SongItem) => isSongHidden(excluded, song), [excluded]);
 }
 
 /** Reactive predicate for artist entities (artist cards / shelves). */
 export function useMusicArtistHidden(): (artist: { id?: string | null; name?: string | null }) => boolean {
-  const blocked = useMusicActionsStore((s) => s.blockedArtists);
-  const suppressed = useMusicActionsStore((s) => s.suppressedArtistKeys);
-  const active = useMemo(() => activeSuppressed(suppressed), [suppressed]);
-  return useCallback(
-    (artist) => {
-      const key = musicArtistKey(artist);
-      return key.length > 0 && (blocked.has(key) || active.has(key));
-    },
-    [blocked, active],
-  );
+  const excluded = useMusicActionsStore((s) => s.excludedArtistKeys);
+  return useCallback((artist) => isArtistHidden(excluded, artist), [excluded]);
 }

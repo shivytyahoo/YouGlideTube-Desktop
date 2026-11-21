@@ -16,7 +16,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use crate::flow_neuro::scoring::{
+use crate::data_model::brain::{
     ChannelStrike, ContentVector, FeedEntry, RejectionSignal, TimeBucket, TopicEvidence, UserBrain,
 };
 use crate::data_model::music_brain::{Affinity, MusicBrain, TrackMeta};

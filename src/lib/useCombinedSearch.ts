@@ -21,7 +21,6 @@ import {
 import { DEFAULT_ADVANCED_FILTERS, MUSIC_ONLY_CATEGORIES, type SearchFilterState } from './searchFilterState';
 import { useMusicEnabled } from './useMusicContent';
 import type { PlaylistSummary, SearchFeature, ShortVideoSummary } from '../types/video';
-import { learnFromSearch } from './api/recommendation';
 
 export type { CombinedSearchResults, TopResult } from './searchResults';
 
@@ -210,7 +209,6 @@ export function useCombinedSearch(
 
       if (mode === 'reset' && q !== learnedQueryRef.current && (category === 'all' || category === 'videos' || category === 'live')) {
         learnedQueryRef.current = q;
-        void learnFromSearch(q).catch((err) => console.warn('Failed to learn from a search', err));
       }
 
       if (mode === 'reset') {

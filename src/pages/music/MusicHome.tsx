@@ -12,6 +12,7 @@ import { Button } from '../../components/ui/Button';
 import { useMusicChipFilter, useMusicHome } from '../../lib/useMusicHome';
 import { useMusicMoreSections } from '../../lib/useMusicMoreSections';
 import { useMusicLibraryShelves } from '../../lib/useMusicLibraryShelves';
+import { useMusicSessionShelves } from '../../lib/useMusicSessionShelves';
 import { useLastFmDiscovery } from '../../lib/useLastFmDiscovery';
 import { isShelfShown, parseHiddenShelves } from '../../lib/musicHomeShelves';
 import { useMusicCharts } from '../../lib/useMusicCharts';
@@ -56,6 +57,7 @@ export default function MusicHome() {
   const moods = useMusicMoods();
   const moreSections = useMusicMoreSections(data?.chips ?? NO_CHIPS, moods.groups);
   const libraryShelves = useMusicLibraryShelves();
+  const sessionShelves = useMusicSessionShelves();
   const [hiddenShelvesRaw] = usePreference(SETTINGS.MUSIC_HOME_HIDDEN_SHELVES);
   const hiddenShelves = useMemo(() => parseHiddenShelves(hiddenShelvesRaw), [hiddenShelvesRaw]);
   const lastFm = useLastFmDiscovery(!hiddenShelves.has('LASTFM_DISCOVER'));
@@ -187,7 +189,7 @@ export default function MusicHome() {
   };
 
   const renderBody = () => {
-    const hasLocal = libraryShelves.length > 0 || moreSections.length > 0 || lastFm.sections.length > 0;
+    const hasLocal = libraryShelves.length > 0 || sessionShelves.sections.length > 0 || moreSections.length > 0 || lastFm.sections.length > 0;
     if (error && !data && !hasLocal) {
       return (
         <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
@@ -231,13 +233,17 @@ export default function MusicHome() {
       );
     }
 
+    const quickPickSongs = songsOf(
+      visible(sessionShelves.quickPicks.map((song) => ({ type: 'song' as const, ...song }))),
+    );
     const feed = composeMusicFeed(
       [
         ...libraryShelves.map((section) => ({ ...section, items: visible(section.items) })),
+        ...sessionShelves.sections.map((section) => ({ ...section, items: visible(section.items) })),
         ...recommendedSections([...moreSections, ...lastFm.sections]),
       ],
       recommendedSections([...(data?.sections ?? []), ...charts]),
-      'new', [], { hasMoods: moodItems.length > 0 },
+      sessionShelves.maturity, quickPickSongs, { hasMoods: moodItems.length > 0 },
     ).filter((entry) => isShelfShown(entry, hiddenShelves));
 
     const headerActions = (section: MusicFeedSection, items: YTItem[]) => {
@@ -306,7 +312,18 @@ export default function MusicHome() {
               />
             );
           }
-          if (entry.kind === 'quickPicks') return null;
+          if (entry.kind === 'quickPicks') {
+            const items = quickPickSongs.slice(0, 20).map((song) => ({ type: 'song' as const, ...song }));
+            if (items.length === 0) return null;
+            return (
+              <MusicShelf
+                key="quick-picks"
+                title={getString('music_quick_picks')}
+                items={items}
+                renderItem={(item) => renderCard(item, quickPickSongs, getString('music_quick_picks'))}
+              />
+            );
+          }
           return <div key={entry.section.id}>{renderShelf(entry.section)}</div>;
         })}
       </div>
@@ -325,7 +342,7 @@ export default function MusicHome() {
       {renderBody()}
       <div ref={feedEndRef} className="h-px w-full" />
 
-      {error && (data || libraryShelves.length > 0 || moreSections.length > 0 || lastFm.sections.length > 0) && (
+      {error && (data || libraryShelves.length > 0 || sessionShelves.sections.length > 0 || moreSections.length > 0 || lastFm.sections.length > 0) && (
         <div className="mt-5 flex items-center gap-3 text-sm text-chrome-neutral-400">
           <span>{getString('music_error_generic')}</span>
           <Button variant="secondary" onClick={() => void reload()}>{getString('music_retry')}</Button>

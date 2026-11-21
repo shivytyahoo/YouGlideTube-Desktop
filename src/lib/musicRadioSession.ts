@@ -1,8 +1,17 @@
 import type { SongItem } from "../types/music";
 import { getMusicQueueContinuation, getMusicWatchQueue } from "./api/music";
 import { growPool, nextAnchor, nextBatch, radioAnchors } from "./musicRadioPlanner";
+import { SETTINGS } from "./settings/schema";
+import { useAppSettingsStore } from "../store/useAppSettingsStore";
 
 type QueuePage = Awaited<ReturnType<typeof getMusicWatchQueue>>;
+
+/** Endless radio keeps the station going once its anchors run out; off, it ends dry. */
+const endlessRadioEnabled = (): boolean =>
+  useAppSettingsStore.getState().values[SETTINGS.MUSIC_ENDLESS_RADIO] !== "false";
+
+/** Refills that grow nothing in a row before the station counts as dry. */
+const MAX_EMPTY_REFILLS = 8;
 
 const videoIdOf = (track: SongItem): string => track.videoId ?? track.id;
 
@@ -46,6 +55,8 @@ class RadioSession {
   private usedAnchors = new Set<string>();
   private pool: SongItem[] = [];
   private dry = false;
+  /** Refills in a row that grew the pool by nothing; a dry station stops spinning. */
+  private emptyRefills = 0;
   /** Every id the station has queued or been seeded with, so none comes back. */
   private readonly seen = new Set<string>();
 
@@ -57,6 +68,7 @@ class RadioSession {
     this.usedAnchors = new Set();
     this.pool = [];
     this.dry = false;
+    this.emptyRefills = 0;
     this.seen.clear();
     for (const id of seedIds) this.seen.add(id);
   }
@@ -105,23 +117,48 @@ class RadioSession {
       const id = videoIdOf(track);
       return isPlayableAudio(track) && !ctx.queueIds.has(id) && !this.seen.has(id) && !ctx.isHidden(track);
     });
-    if (candidates.length === 0) return false;
+    if (candidates.length === 0) {
+      this.noteEmptyRefill();
+      return false;
+    }
     // The pool is consumed from its head, in recall order, so a later top-up
     // never reorders songs already chosen.
     const ranked = candidates;
     if (generation !== this.generation) return false;
     const before = this.pool;
     this.pool = growPool(before, ranked, new Set([...ctx.queueIds, ...this.seen]), ctx.stationTracks);
+    if (this.pool === before) this.noteEmptyRefill();
+    else this.emptyRefills = 0;
     return this.pool !== before;
+  }
+
+  /** A refill that grew nothing: enough in a row and the station counts as dry, so an
+   *  endless station that only replays what it already played still ends. */
+  private noteEmptyRefill(): void {
+    this.emptyRefills += 1;
+    if (this.emptyRefills >= MAX_EMPTY_REFILLS) this.dry = true;
   }
 
   private nextSource(ctx: RadioRefillContext): PageSource | null {
     if (this.continuation) return { kind: "continuation", token: this.continuation };
     if (!this.started) return { kind: "seed", seedId: videoIdOf(ctx.seed) };
     const anchorId = nextAnchor(this.anchors, this.usedAnchors) ?? this.tailAnchor(ctx);
-    if (!anchorId) return null;
-    this.usedAnchors.add(anchorId);
-    return { kind: "anchor", anchorId };
+    if (anchorId) {
+      this.usedAnchors.add(anchorId);
+      return { kind: "anchor", anchorId };
+    }
+    // Endless radio: start a new round from the station's anchors instead of going dry.
+    // The seed stays spent: its page is what started the station, so it only replays
+    // tracks the station already played.
+    if (endlessRadioEnabled()) {
+      this.usedAnchors = new Set(this.anchors.slice(0, 1));
+      const again = nextAnchor(this.anchors, this.usedAnchors) ?? this.tailAnchor(ctx);
+      if (again) {
+        this.usedAnchors.add(again);
+        return { kind: "anchor", anchorId: again };
+      }
+    }
+    return null;
   }
 
   private async fetch(source: PageSource): Promise<QueuePage> {

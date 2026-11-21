@@ -22,7 +22,6 @@ pub mod pip;
 pub mod process;
 pub mod profiles;
 pub mod recap;
-pub mod recommendation;
 pub mod scrobble;
 pub mod shorts;
 pub mod subscription_posts;

@@ -94,7 +94,7 @@ pub(super) fn ilst_box(metadata: &EmbeddedMetadata) -> Vec<u8> {
     if let Some(atom) = metadata.cover.as_deref().and_then(cover_atom) {
         atoms.push(atom);
     }
-    for (name, value) in tags.flow_fields() {
+    for (name, value) in tags.youglidetube_fields() {
         atoms.push(freeform_atom(name, &value));
     }
     container(b"ilst", &atoms)

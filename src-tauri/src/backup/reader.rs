@@ -21,7 +21,7 @@ use crate::backup::archive::{
 };
 use crate::backup::import::{ImportKind, open_zip};
 use crate::commands::backup::RECAP_STATS_ENTRY;
-use crate::flow_neuro::scoring::UserBrain;
+use crate::data_model::brain::UserBrain;
 use crate::data_model::brainmap::{musicbrain_to_snapshot, userbrain_to_snapshot};
 use crate::data_model::canonical::Hlc;
 

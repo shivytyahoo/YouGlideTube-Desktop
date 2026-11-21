@@ -1,8 +1,11 @@
 //! The Home feed: the page asks for a snapshot and reports what is in view; every later change
 //! arrives as the `home-feed` event.
 
+use sqlx::SqlitePool;
 use tauri::{AppHandle, State};
 
+use crate::db::seen_videos;
+use crate::models::video::VideoSummary;
 use crate::services::home_feed::chips::{ChipFeed, HomeChips};
 use crate::services::home_feed::{HomeFeedService, HomeSnapshot};
 
@@ -40,7 +43,7 @@ pub async fn home_feed_clear(app: AppHandle, home: State<'_, HomeFeedService>) -
     Ok(())
 }
 
-/// The chips to offer: the viewer's interests, and which of the fixed ones have anything to show.
+/// The chips to offer: which of the fixed ones have anything to show.
 #[tauri::command]
 pub async fn home_feed_chips(
     app: AppHandle,
@@ -58,4 +61,20 @@ pub async fn home_chip_feed(
     home: State<'_, HomeFeedService>,
 ) -> Result<ChipFeed, ()> {
     Ok(home.chip_feed(&app, &key, refresh).await)
+}
+
+/// Counts cards the viewer actually saw: neighbour impressions for the feed, and the seen-set for
+/// keeping fresh uploads off the top. (The engine used to learn from these too; it is gone.)
+#[tauri::command]
+pub async fn record_feed_impressions(
+    app: AppHandle,
+    videos: Vec<VideoSummary>,
+    home: State<'_, HomeFeedService>,
+    pool: State<'_, SqlitePool>,
+) -> Result<(), ()> {
+    let ids: Vec<String> = videos.iter().map(|video| video.id.clone()).collect();
+    home.note_impressions(&app, &ids).await;
+    let now = chrono::Utc::now().timestamp_millis();
+    let _ = seen_videos::remember(&pool, &ids, now).await;
+    Ok(())
 }

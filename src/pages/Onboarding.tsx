@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { completeOnboarding } from "../lib/api/recommendation";
+import { setSetting } from "../lib/api/db";
 import { Logo } from "../components/common/Logo";
 import WelcomeStep from "../components/onboarding/WelcomeStep";
 import SignInStep from "../components/onboarding/SignInStep";
@@ -36,7 +36,7 @@ export const Onboarding: React.FC = () => {
 
   const finish = async () => {
     try {
-      await completeOnboarding([]);
+      await setSetting("onboarding_completed", "true");
       navigate("/");
     } catch (e) {
       console.error("Failed to complete onboarding", e);

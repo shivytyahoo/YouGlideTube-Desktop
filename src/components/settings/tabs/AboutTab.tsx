@@ -123,19 +123,6 @@ export function AboutTab() {
         <LinkRow icon={<Globe size={16} />} label={getString('about_link_desktop')} value="github.com/shivytyahoo/YouGlideTube-Desktop" href="https://github.com/shivytyahoo/YouGlideTube-Desktop" />
       </SettingsGroup>
 
-      <SettingsGroup title={getString('about_credits')}>
-        <div className="px-5 py-4">
-          <p className="text-xs text-chrome-neutral-400 leading-relaxed">{getString('about_credits_intro')}</p>
-        </div>
-        <LinkRow icon={<Globe size={16} />} label="Flow Desktop" value={getString('about_credits_flow')} href="https://github.com/Flow-Tube/Flow-Desktop" />
-        <LinkRow icon={<Globe size={16} />} label="NewPipe" value={getString('about_credits_newpipe')} href="https://github.com/TeamNewPipe/NewPipe" />
-        <LinkRow icon={<Globe size={16} />} label="Morphe Manager" value={getString('about_credits_morphe')} href="https://github.com/MorpheApp/morphe-manager" />
-        <LinkRow icon={<Globe size={16} />} label="SponsorBlock" value={getString('about_credits_sponsorblock')} href="https://github.com/ajayyy/SponsorBlock" />
-        <LinkRow icon={<Globe size={16} />} label="DeArrow" value={getString('about_credits_dearrow')} href="https://github.com/ajayyy/DeArrow" />
-        <LinkRow icon={<Globe size={16} />} label="Return YouTube Dislike" value={getString('about_credits_rytd')} href="https://github.com/Anarios/return-youtube-dislike" />
-        <LinkRow icon={<Globe size={16} />} label="shivytyahoo" value={getString('about_credits_creator')} href="https://github.com/shivytyahoo" />
-      </SettingsGroup>
-
       <SettingsGroup title={getString('settings_group_updates')}>
         {updateSupport && !updateSupport.supported && updateSupport.reason ? (
           <div className="px-5 py-4">

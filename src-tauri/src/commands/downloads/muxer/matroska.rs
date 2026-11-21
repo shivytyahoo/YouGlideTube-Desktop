@@ -424,7 +424,7 @@ fn tags_element(metadata: &EmbeddedMetadata) -> MatroskaSpec {
     push("URL", tags.source_url());
     push("LYRICS", tags.lyrics.clone());
     push("ENCODER", Some("YouGlideTube".to_string()));
-    for (name, value) in tags.flow_fields() {
+    for (name, value) in tags.youglidetube_fields() {
         push(&format!("YOUGLIDETUBE_{}", name.to_ascii_uppercase()), Some(value));
     }
     let mut children = vec![MatroskaSpec::Targets(Master::Full(vec![

@@ -29,7 +29,7 @@ export class LyricsClock {
       this.shown = Number.NaN;
       return this.lastPosition;
     }
-    const speed = musicAudioEngine.getSpeed();
+    const speed = musicAudioEngine.getEffectiveRate();
     const estimate = this.lastPosition + (nowMs - this.lastUpdate) * speed;
     const elapsed = Math.max(0, nowMs - this.lastRead) * speed;
     this.lastRead = nowMs;

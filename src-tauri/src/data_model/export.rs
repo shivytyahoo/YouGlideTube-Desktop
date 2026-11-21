@@ -16,7 +16,7 @@ use serde::Serialize;
 use serde_json::Value;
 use sqlx::SqlitePool;
 
-use crate::flow_neuro::scoring::UserBrain;
+use crate::data_model::brain::UserBrain;
 use crate::data_model::music_brain::MusicBrain;
 use crate::data_model::apply::{MUSIC_BRAIN_KEY, MUSIC_MERGED_KEY, NEURO_BRAIN_KEY, NEURO_MERGED_KEY};
 use crate::data_model::brain_attrib::{

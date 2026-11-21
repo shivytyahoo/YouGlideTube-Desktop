@@ -6,10 +6,9 @@ use sqlx::SqlitePool;
 use tauri::State;
 
 use crate::errors::{AppError, ErrorResponse};
-use crate::recap::model::{MusicMonth, RecapEntry, TOPICS_PER_VIEW, VideoMonth};
+use crate::recap::model::{MusicMonth, RecapEntry, VideoMonth};
 use crate::recap::store;
 use crate::recap::summary::{RecapPeriod, RecapSource, RecapSummary, daily_time, summarize};
-use crate::services::recommendation_service::RecommendationService;
 
 fn now_ms() -> i64 {
     chrono::Utc::now().timestamp_millis()
@@ -20,25 +19,10 @@ fn now_ms() -> i64 {
 pub async fn recap_record_batch(
     entries: Vec<RecapEntry>,
     pool: State<'_, SqlitePool>,
-    recommendation: State<'_, RecommendationService>,
 ) -> Result<(), ErrorResponse> {
-    let mut topics = HashMap::new();
-    for entry in &entries {
-        if let RecapEntry::View { event, .. } = entry
-            && event.counted
-            && !topics.contains_key(&event.video_id)
-        {
-            let read = recommendation
-                .video_topics(
-                    &event.title,
-                    &event.channel_name,
-                    event.description.as_deref(),
-                    TOPICS_PER_VIEW,
-                )
-                .await;
-            topics.insert(event.video_id.clone(), read);
-        }
-    }
+    // No per-video topics: the recommendation engine is gone, and recap works
+    // fine without them (the ledger still records every view).
+    let topics: HashMap<String, Vec<String>> = HashMap::new();
     let seen: &[String] = &[];
     store::apply_batch(&pool, &entries, &topics, &seen, now_ms())
         .await

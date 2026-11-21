@@ -3,11 +3,18 @@ import { crossfadeLengthLabel } from "../../lib/audio/crossfadeLabels";
 import { getString } from "../../lib/i18n/index";
 import { SETTINGS } from "../../lib/settings/schema";
 import { useBoolPref, useNumberPref } from "../../lib/usePreference";
+import { Button } from "../ui/Button";
 import { Chip } from "../ui/Chip";
 import { Slider } from "../ui/Slider";
 import { ToggleSwitch } from "../ui/ToggleSwitch";
 
 const SPEED_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+
+const formatSpeed = (rate: number) => getString("music_speed_value", Number(rate.toFixed(2)));
+
+/** Semitones with their sign, so -3 reads as a drop and +3 as a lift. */
+const formatPitch = (semitones: number) =>
+  getString("music_pitch_value", semitones > 0 ? `+${semitones}` : String(semitones));
 
 /** The offered length closest to the saved one, so the slider moves through Android's steps. */
 const lengthIndex = (seconds: number): number => {
@@ -15,14 +22,14 @@ const lengthIndex = (seconds: number): number => {
   return distances.indexOf(Math.min(...distances));
 };
 
-const formatSpeed = (rate: number) => getString("music_speed_value", Number(rate.toFixed(2)));
-
-/** Music audio settings beside the equalizer: loudness normalization, speed and crossfade. */
+/** Music audio settings beside the equalizer: loudness normalization, speed, pitch and crossfade. */
 export function MusicAudioOptions() {
   const [normalization, setNormalization] = useBoolPref(SETTINGS.MUSIC_LOUDNESS_NORMALIZATION);
   const [speed, setSpeed] = useNumberPref(SETTINGS.MUSIC_PLAYBACK_SPEED);
+  const [pitch, setPitch] = useNumberPref(SETTINGS.MUSIC_PLAYBACK_PITCH);
   const [crossfade, setCrossfade] = useBoolPref(SETTINGS.MUSIC_CROSSFADE_ENABLED);
   const [crossfadeSeconds, setCrossfadeSeconds] = useNumberPref(SETTINGS.MUSIC_CROSSFADE_SECONDS);
+  const audioChanged = speed !== 1 || pitch !== 0;
 
   return (
     <div className="flex flex-col gap-3">
@@ -55,6 +62,36 @@ export function MusicAudioOptions() {
           aria-label={getString("music_playback_speed")}
         />
       </div>
+
+      <div className="flex flex-col gap-2">
+        <span className="flex items-center justify-between">
+          <span className="text-sm text-chrome-neutral-200">{getString("music_pitch")}</span>
+          <span className="font-mono text-xs text-chrome-neutral-400">{formatPitch(pitch)}</span>
+        </span>
+        <Slider
+          min={-12}
+          max={12}
+          step={1}
+          value={pitch}
+          onChange={(semitones) => setPitch(Math.round(semitones))}
+          aria-label={getString("music_pitch")}
+        />
+      </div>
+
+      {audioChanged ? (
+        <div className="flex justify-end">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setSpeed(1);
+              setPitch(0);
+            }}
+          >
+            {getString("music_reset_audio")}
+          </Button>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-3">

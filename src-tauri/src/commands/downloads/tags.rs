@@ -103,7 +103,7 @@ impl DownloadTags {
 
     /// The flat YouGlideTube key/value pairs, in Android's order. Lyrics are left out.
     #[must_use]
-    pub fn flow_fields(&self) -> Vec<(&'static str, String)> {
+    pub fn youglidetube_fields(&self) -> Vec<(&'static str, String)> {
         let mut fields = vec![
             ("schema", TAG_SCHEMA_VERSION.to_string()),
             ("kind", self.kind.name().to_string()),
@@ -234,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn flow_fields_start_with_identity_and_skip_empties() {
+    fn youglidetube_fields_start_with_identity_and_skip_empties() {
         let tags = DownloadTags {
             kind: TagKind::Music,
             video_id: "id1".into(),
@@ -243,7 +243,7 @@ mod tests {
             track_number: Some(2),
             ..DownloadTags::default()
         };
-        let fields = tags.flow_fields();
+        let fields = tags.youglidetube_fields();
         assert_eq!(fields[0], ("schema", "1".to_string()));
         assert_eq!(fields[1], ("kind", "MUSIC".to_string()));
         assert!(fields.contains(&("artists", r#"["A","B"]"#.to_string())));

@@ -13,7 +13,6 @@ import { useAppSettingsStore } from '../store/useAppSettingsStore';
 import type { SubscribedChannel } from '../store/useSubscriptionStore';
 import type { ChannelDetails, VideoSummary } from '../types/video';
 import { mapWithConcurrency } from './concurrency';
-import { observeChannelUploads } from './api/recommendation';
 import { mergeCollaborations, mergeScopedFeed } from './subscriptionFeedMerge';
 
 export interface ScanProgress {
@@ -93,9 +92,6 @@ function rememberFinishedFeed(key: string, feed: SubscriptionRssFeed): void {
     cachedAt: Date.now(),
   });
   void persistFeed(key, feed);
-  void observeChannelUploads(recentUploadsPerChannel(feed.videos)).catch((err) =>
-    console.warn('Failed to learn from subscription uploads', err),
-  );
 }
 
 /** The startup pass, which a page opened meanwhile waits for instead of scanning twice. */

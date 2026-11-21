@@ -30,7 +30,7 @@ export function crossfadeTick(position: number): void {
   if (musicAudioEngine.isFadingThrough()) return;
   const state = useMusicPlayerStore.getState();
   const settings = crossfadeSettings();
-  const speed = musicAudioEngine.getSpeed();
+  const speed = musicAudioEngine.getEffectiveRate();
   const pausesAtEnd = useSleepTimerStore.getState().mode === "endOfSong";
   const start = crossfadeStart(state, settings, position, speed, pausesAtEnd);
   if (!start) {
@@ -67,6 +67,7 @@ export function bindMusicAudioSettings(): void {
     if (player.normalizationEnabled !== enabled) player.setNormalizationEnabled(enabled);
   };
   const applySpeed = () => musicAudioEngine.setSpeed(Number(getSettingValue(SETTINGS.MUSIC_PLAYBACK_SPEED)));
+  const applyPitch = () => musicAudioEngine.setPitch(Number(getSettingValue(SETTINGS.MUSIC_PLAYBACK_PITCH)));
   const applyCrossfade = () => {
     musicAudioEngine.setCrossfadeEnabled(crossfadeSettings().seconds > 0);
     musicAudioEngine.setCrossfadeCurve(getSettingValue(SETTINGS.MUSIC_CROSSFADE_CURVE) as CrossfadeCurve);
@@ -74,11 +75,13 @@ export function bindMusicAudioSettings(): void {
 
   applyNormalization();
   applySpeed();
+  applyPitch();
   applyCrossfade();
   useAppSettingsStore.subscribe((state, previous) => {
     if (state.values === previous.values) return;
     applyNormalization();
     applySpeed();
+    applyPitch();
     applyCrossfade();
   });
   useCrossfadePauseStore.subscribe(applyCrossfade);

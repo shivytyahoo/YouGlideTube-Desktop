@@ -176,6 +176,7 @@ pub async fn prune(pool: &SqlitePool) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::music::Artist;
 
     fn song(id: &str, artist: &str) -> SongItem {
         SongItem {
@@ -197,15 +198,6 @@ mod tests {
         }
     }
 
-    fn artist(id: &str) -> YTItem {
-        YTItem::Artist(ArtistItem {
-            id: id.into(),
-            title: id.into(),
-            thumbnail: None,
-            channel_id: None,
-            is_profile: false,
-        })
-    }
 
     async fn pool() -> SqlitePool {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()

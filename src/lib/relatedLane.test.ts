@@ -6,7 +6,7 @@ const video = (id: string): RelatedContentItem => ({
   id,
   itemType: "video",
   title: `Video ${id}`,
-  channelName: "Flow",
+  channelName: "Glide",
   videoId: id,
   playlistId: null,
   isMix: false,

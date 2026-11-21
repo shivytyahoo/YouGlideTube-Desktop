@@ -1,16 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
-  markNotInterested: vi.fn(),
   blockChannel: vi.fn(),
   unblockChannel: vi.fn(),
-  logInteraction: vi.fn(),
 }));
-vi.mock("../lib/api/recommendation", () => api);
 vi.mock("../lib/api/db", () => ({
   getSetting: vi.fn(async () => null),
   setSetting: vi.fn(async () => undefined),
   addWatchRecord: vi.fn(async () => undefined),
+  blockChannel: (...args: unknown[]) => api.blockChannel(...args),
+  unblockChannel: (...args: unknown[]) => api.unblockChannel(...args),
 }));
 
 import { matchBlockedKeyword, normalizeKeyword, useFeedActionsStore } from "./useFeedActionsStore";
@@ -62,7 +61,6 @@ describe("feed actions", () => {
       blockedChannelIds: new Set(),
       suppressedChannelIds: new Map(),
     });
-    api.markNotInterested.mockReset().mockResolvedValue(undefined);
     api.blockChannel.mockReset().mockResolvedValue(undefined);
     api.unblockChannel.mockReset().mockResolvedValue(undefined);
   });
@@ -90,17 +88,16 @@ describe("feed actions", () => {
     const state = useFeedActionsStore.getState();
     expect(state.blockedChannelIds.size).toBe(0);
     expect(api.blockChannel).not.toHaveBeenCalled();
-    expect(api.markNotInterested).toHaveBeenCalledTimes(2);
     expect(state.suppressedChannelIds.has("UC1")).toBe(true);
     expect([...state.dismissedVideoIds]).toEqual(["a", "b"]);
   });
 
-  it("rolls not interested back when the backend fails", async () => {
-    api.markNotInterested.mockRejectedValue(new Error("db"));
-    await expect(useFeedActionsStore.getState().notInterested(card("a"))).rejects.toThrow("db");
+  it("marks not interested locally, with no backend call", async () => {
+    await useFeedActionsStore.getState().notInterested(card("a"));
     const state = useFeedActionsStore.getState();
-    expect(state.dismissedVideoIds.size).toBe(0);
-    expect(state.suppressedChannelIds.size).toBe(0);
+    expect(state.dismissedVideoIds.has("a")).toBe(true);
+    expect(state.suppressedChannelIds.has("UC1")).toBe(true);
+    expect(api.blockChannel).not.toHaveBeenCalled();
   });
 
   it("keeps the channel's name with the block", async () => {

@@ -30,6 +30,8 @@ export const MUSIC_HOME_SHELVES = [
   { id: "POPULAR_ARTISTS", title: "music_popular_artists" },
   { id: "MIXED_FOR_YOU", title: "music_mixed_for_you" },
   { id: "MOODS_AND_GENRES", title: "music_moods_and_genres" },
+  { id: "RECOMMENDED", title: "music_recommended" },
+  { id: "TOP_ALBUMS", title: "music_top_albums" },
   { id: "LASTFM_DISCOVER", title: "music_home_lastfm_discover" },
 ] as const satisfies ReadonlyArray<{ id: string; title: StringKey }>;
 
@@ -55,6 +57,8 @@ const SHELF_BY_SECTION: Record<string, MusicHomeShelfId> = {
   "popular-songs": "CHARTS",
   "popular-artists": "POPULAR_ARTISTS",
   "mixed-for-you": "MIXED_FOR_YOU",
+  recommended: "RECOMMENDED",
+  "top-albums": "TOP_ALBUMS",
   "lastfm-discover": "LASTFM_DISCOVER",
 };
 

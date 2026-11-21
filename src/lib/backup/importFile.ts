@@ -1,7 +1,6 @@
 import { ArchiveRestore } from "lucide-react";
 import { getSetting, setSetting, addWatchRecordsBulk } from "../api/db";
 import { readBackupFile, type UnreadableReason } from "../api/backup";
-import { bootstrapFromHistory, bootstrapFromSubscriptions } from "../api/recommendation";
 import { parseSubscriptionExport } from "../api/youtube";
 import { confirmAction } from "../dialogs";
 import { getString, type StringKey } from "../i18n/index";
@@ -224,7 +223,6 @@ export async function importFile(
         counts.subscriptions++;
         report({ percent: 60 + Math.round((counts.subscriptions / parsedSubs.length) * 15) });
       }
-      await bootstrapFromSubscriptions(parsedSubs.map((sub) => sub.name).filter(Boolean));
     }
   }
 
@@ -257,23 +255,13 @@ export async function importFile(
         counts.history += chunk.length;
         report({ percent: 75 + Math.round((counts.history / valid.length) * 20) });
       }
-
-      await bootstrapFromHistory(valid.map((record) => ({
-        videoId: record.videoId,
-        title: record.title,
-        channelName: record.channelName ?? "",
-        channelId: record.channelId ?? null,
-        durationSeconds: record.totalDurationSeconds ?? null,
-        watchedAt: Date.parse(record.watchDate) || 0,
-        isMusic: Boolean(record.isMusic),
-      })));
       void useHistoryStore.getState().load(true);
     }
   }
 
   // Defense against the Deep Glide restore trap: an imported active flag without its
   // (internal, never-exported) activation timestamp would otherwise mute watch-history
-  // recording and FlowNeuro learning indefinitely.
+  // recording indefinitely.
   await setSettingValue(SETTINGS.DEEP_GLIDE_ACTIVE, "false");
   await setSettingValue(SETTINGS.DEEP_GLIDE_ACTIVATED_AT, "0");
 

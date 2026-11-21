@@ -6,7 +6,6 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use super::card::Card;
 use super::mixer::FeedSource;
-use crate::flow_neuro::scoring::{FlowPersona, UserBrain};
 
 /// Format words often tied to low-effort filler; they only demote, and only without a matching
 /// interest.
@@ -25,43 +24,29 @@ const FORMAT_MARKERS: [&str; 12] = [
     "all parts",
 ];
 const DURATION_COMFORT_DEFAULT_SEC: u64 = 3600;
-const DURATION_COMFORT_SKIMMER_SEC: u64 = 1500;
 const FIT_PENALTY_WEIGHT: f64 = 0.6;
 const OTHER_RUN: usize = 2;
 const MAX_SUBS_RUN: usize = 2;
 
-/// The viewer's comfort with long videos and the subjects that excuse a filler format.
+/// The viewer's comfort with long videos and the subjects that excuse a filler format. There is
+/// no recommendation engine behind it, so the profile is neutral — every card fits the same — and
+/// Home is ordered by its sources (subscriptions, related, discovery) instead of a learned profile.
+#[derive(Debug)]
 pub struct TasteProfile {
     comfort_seconds: u64,
     affinity_topics: HashSet<String>,
 }
 
-impl TasteProfile {
-    #[must_use]
-    pub fn of(brain: &UserBrain, persona: &FlowPersona) -> Self {
-        let comfort_seconds = match persona {
-            FlowPersona::DeepDiver
-            | FlowPersona::Scholar
-            | FlowPersona::Binger
-            | FlowPersona::Audiophile => 0,
-            FlowPersona::Skimmer => DURATION_COMFORT_SKIMMER_SEC,
-            _ => DURATION_COMFORT_DEFAULT_SEC,
-        };
-        let affinity_topics = brain
-            .topic_affinities
-            .iter()
-            .filter(|(_, weight)| **weight > 0.0)
-            .map(|(key, _)| key)
-            .chain(&brain.preferred_topics)
-            .map(|topic| topic.to_lowercase())
-            .filter(|topic| !topic.trim().is_empty())
-            .collect();
+impl Default for TasteProfile {
+    fn default() -> Self {
         Self {
-            comfort_seconds,
-            affinity_topics,
+            comfort_seconds: DURATION_COMFORT_DEFAULT_SEC,
+            affinity_topics: HashSet::new(),
         }
     }
+}
 
+impl TasteProfile {
     /// 0 for a good fit, towards 1 for a poor one.
     #[allow(clippy::cast_precision_loss)]
     fn fit_penalty(&self, card: &Card) -> f64 {

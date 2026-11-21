@@ -1,6 +1,6 @@
-//! Home's chips, from the Android app's `HomeChipFeeds`: one per heavy interest, "New to you",
-//! "Recently uploaded", "Mixes", "Live" and "Watched". Each is its own list, fetched when the chip
-//! is chosen and kept for as long as it stays true.
+//! Home's chips, from the Android app's `HomeChipFeeds`: "New to you", "Recently uploaded",
+//! "Mixes", "Live" and "Watched". Each is its own list, fetched when the chip is chosen and kept
+//! for as long as it stays true. There are no interest chips: they were the engine's, and it is gone.
 
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
@@ -18,11 +18,11 @@ use super::chips_rewatch::{
 };
 use super::inputs::Inputs;
 use super::lanes;
-use super::load::{inputs_disliked, local_sources};
+use super::load::{STARTER_QUERIES, inputs_disliked, local_sources};
+use super::seeds::select_with_long_term;
 use super::{HomeFeedService, now_ms};
-use crate::flow_neuro::interest_chips::{InterestChip, interest_queries};
+use crate::data_model::interest_chips::InterestChip;
 use crate::models::search::SearchVideosRequest;
-use crate::services::recommendation_service::RecommendationService;
 use crate::services::youtube_service::YoutubeService;
 
 pub const NEW_TO_YOU: &str = "new";
@@ -30,7 +30,6 @@ pub const RECENTLY_UPLOADED: &str = "recent";
 pub const MIXES: &str = "mixes";
 pub const LIVE: &str = "live";
 pub const WATCHED: &str = "watched";
-const INTEREST_PREFIX: &str = "interest:";
 const MAX_VIDEOS: usize = 40;
 const EXPLORATION_QUERIES: usize = 3;
 /// Watches whose related lists New to you also draws on.
@@ -58,6 +57,7 @@ impl ChipFeed {
 
 /// The chips to offer beside the fixed ones. A chip whose latest result was empty stays away until
 /// that result expires, and Mixes and Watched only appear once there is enough to fill them.
+/// `interests` is always empty now: the interest chips were the engine's, and it is gone.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HomeChips {
@@ -69,7 +69,6 @@ pub struct HomeChips {
 
 #[derive(Clone)]
 enum Chip {
-    Interest(InterestChip),
     NewToYou,
     RecentlyUploaded,
     Mixes,
@@ -80,7 +79,7 @@ enum Chip {
 impl Chip {
     fn ttl_ms(&self) -> u64 {
         match self {
-            Self::Interest(_) | Self::NewToYou => 2 * HOUR_MS,
+            Self::NewToYou => 2 * HOUR_MS,
             Self::RecentlyUploaded => HOUR_MS,
             Self::Mixes => 6 * HOUR_MS,
             Self::Live => 10 * MINUTE_MS,
@@ -157,15 +156,12 @@ fn freshness_order(ranked: Vec<Card>, now: u64) -> Vec<Card> {
 impl HomeFeedService {
     /// The chips to offer, worked out from local state alone: no chip's content is fetched here.
     pub async fn chips(&self, app: &AppHandle) -> HomeChips {
-        let rec = app.state::<RecommendationService>();
         let pool = app.state::<SqlitePool>();
-        let interests = rec.interest_chips().await;
-        self.inner.chips.lock().unwrap().clone_from(&interests);
         let now = now_ms();
-        let (has_mixes, has_watched) = match known_inputs(&rec, &pool, now).await {
+        let (has_mixes, has_watched) = match known_inputs(&pool, now).await {
             Some(inputs) => (
-                rewatch_seeds(&rec, &inputs, now).await.len() >= MIXES_MIN,
-                watched_cards(&rec, &inputs, WATCHED_MIN, now).await.len() >= WATCHED_MIN,
+                rewatch_seeds(&inputs, now).len() >= MIXES_MIN,
+                watched_cards(&inputs, WATCHED_MIN, now).len() >= WATCHED_MIN,
             ),
             None => (false, false),
         };
@@ -188,7 +184,7 @@ impl HomeFeedService {
             .map(|(key, _, _)| key)
             .collect();
         HomeChips {
-            interests,
+            interests: Vec::new(),
             has_mixes,
             has_watched,
             empty,
@@ -228,35 +224,24 @@ impl HomeFeedService {
             MIXES => Some(Chip::Mixes),
             LIVE => Some(Chip::Live),
             WATCHED => Some(Chip::Watched),
-            _ => {
-                let representative = key.strip_prefix(INTEREST_PREFIX)?;
-                self.inner
-                    .chips
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .find(|chip| chip.key == representative)
-                    .cloned()
-                    .map(Chip::Interest)
-            }
+            _ => None,
         }
     }
 
     async fn fetch_chip(&self, app: &AppHandle, chip: &Chip, now: u64) -> Option<ChipFeed> {
-        let rec = app.state::<RecommendationService>();
         let pool = app.state::<SqlitePool>();
         match chip {
             Chip::Mixes => {
-                let inputs = known_inputs(&rec, &pool, now).await?;
-                let mixes = self.fetch_mixes(app, &rec, &inputs, now).await?;
+                let inputs = known_inputs(&pool, now).await?;
+                let mixes = self.fetch_mixes(app, &inputs, now).await?;
                 return Some(ChipFeed {
                     mixes,
                     ..ChipFeed::default()
                 });
             }
             Chip::Watched => {
-                let inputs = known_inputs(&rec, &pool, now).await?;
-                let cards = watched_cards(&rec, &inputs, MAX_VIDEOS, now).await;
+                let inputs = known_inputs(&pool, now).await?;
+                let cards = watched_cards(&inputs, MAX_VIDEOS, now);
                 return Some(ChipFeed {
                     cards,
                     ..ChipFeed::default()
@@ -276,13 +261,12 @@ impl HomeFeedService {
     async fn fetch_mixes(
         &self,
         app: &AppHandle,
-        rec: &RecommendationService,
         inputs: &Inputs,
         now: u64,
     ) -> Option<Vec<HomeMix>> {
         let yt = app.state::<YoutubeService>();
         let pool = app.state::<SqlitePool>();
-        let seeds = rewatch_seeds(rec, inputs, now).await;
+        let seeds = rewatch_seeds(inputs, now);
         let disliked = inputs_disliked(inputs);
         let lists = join_all(
             seeds
@@ -308,29 +292,18 @@ impl HomeFeedService {
 
     async fn fetch_videos(&self, app: &AppHandle, chip: &Chip, now: u64) -> Option<Vec<Card>> {
         let yt = app.state::<YoutubeService>();
-        let rec = app.state::<RecommendationService>();
         let pool = app.state::<SqlitePool>();
-        let known = known(&rec, &pool, now).await?;
+        let known = known(&pool, now).await?;
         match chip {
             Chip::Mixes | Chip::Watched => None,
-            Chip::Live => self.live_videos(&yt, &rec, &known, now).await,
-            Chip::Interest(interest) => interest_videos(&yt, &rec, &known, interest, now).await,
-            Chip::NewToYou => self.new_to_you_videos(&yt, &rec, &pool, &known, now).await,
-            Chip::RecentlyUploaded => self.recent_videos(&yt, &rec, &known, now).await,
+            Chip::Live => self.live_videos(&yt, &known, now).await,
+            Chip::NewToYou => self.new_to_you_videos(&yt, &pool, &known, now).await,
+            Chip::RecentlyUploaded => self.recent_videos(&yt, &known, now).await,
         }
     }
 
-    async fn live_videos(
-        &self,
-        yt: &YoutubeService,
-        rec: &RecommendationService,
-        known: &Known,
-        now: u64,
-    ) -> Option<Vec<Card>> {
-        let queries = {
-            let chips = self.inner.chips.lock().unwrap();
-            live_queries(&chips)
-        };
+    async fn live_videos(&self, yt: &YoutubeService, known: &Known, now: u64) -> Option<Vec<Card>> {
+        let queries = vec![LIVE_FALLBACK_QUERY.to_string()];
         let found = search_all(
             yt,
             &queries,
@@ -356,22 +329,30 @@ impl HomeFeedService {
             .chain(found.unwrap_or_default())
             .filter(|c| c.video.is_live && !c.video.is_upcoming)
             .collect();
-        Some(ranked(rec, known, live).await)
+        Some(ranked(known, live))
     }
 
     async fn new_to_you_videos(
         &self,
         yt: &YoutubeService,
-        rec: &RecommendationService,
         pool: &SqlitePool,
         known: &Known,
         now: u64,
     ) -> Option<Vec<Card>> {
-        let queries = rec.exploration_queries(EXPLORATION_QUERIES).await;
+        let queries: Vec<String> = STARTER_QUERIES
+            .iter()
+            .take(EXPLORATION_QUERIES)
+            .map(|q| (*q).to_string())
+            .collect();
         let disliked = inputs_disliked(&known.inputs);
-        let seeds = rec
-            .select_related_seeds(&known.inputs.recent_seeds(&disliked), RELATED_SEEDS, &[])
-            .await;
+        let seeds = select_with_long_term(
+            &known.inputs.recent_seeds(&disliked),
+            RELATED_SEEDS,
+            &[],
+            now,
+            &HashSet::new(),
+            &disliked,
+        );
         let plain = SearchVideosRequest::default();
         let (found, related) = tokio::join!(
             search_all(yt, &queries, &plain, now),
@@ -388,7 +369,6 @@ impl HomeFeedService {
         let mut channels = HashSet::new();
         Some(
             ranked(
-                rec,
                 known,
                 found
                     .unwrap_or_default()
@@ -396,7 +376,6 @@ impl HomeFeedService {
                     .chain(related)
                     .collect(),
             )
-            .await
             .into_iter()
             .filter(|c| !c.channel_id().is_empty() && !known.channels.contains(c.channel_id()))
             .filter(|c| channels.insert(c.channel_id().to_string()))
@@ -404,21 +383,11 @@ impl HomeFeedService {
         )
     }
 
-    async fn recent_videos(
-        &self,
-        yt: &YoutubeService,
-        rec: &RecommendationService,
-        known: &Known,
-        now: u64,
-    ) -> Option<Vec<Card>> {
-        let queries: Vec<String> = self
-            .inner
-            .chips
-            .lock()
-            .unwrap()
+    async fn recent_videos(&self, yt: &YoutubeService, known: &Known, now: u64) -> Option<Vec<Card>> {
+        let queries: Vec<String> = STARTER_QUERIES
             .iter()
             .take(2)
-            .filter_map(|chip| interest_queries(chip).into_iter().next())
+            .map(|q| (*q).to_string())
             .collect();
         let found = search_all(
             yt,
@@ -439,91 +408,24 @@ impl HomeFeedService {
             .filter(|c| !c.video.is_live)
             .filter(|c| c.age_ms(now).is_some_and(|age| age <= RECENT_WINDOW_MS))
             .collect();
-        Some(freshness_order(ranked(rec, known, this_week).await, now))
+        Some(freshness_order(ranked(known, this_week), now))
     }
 }
 
-async fn interest_videos(
-    yt: &YoutubeService,
-    rec: &RecommendationService,
-    known: &Known,
-    interest: &InterestChip,
-    now: u64,
-) -> Option<Vec<Card>> {
-    let found = search_all(
-        yt,
-        &interest_queries(interest),
-        &SearchVideosRequest::default(),
-        now,
-    )
-    .await?;
-    let topics: HashSet<String> = interest.topics.iter().cloned().collect();
-    let stored = rec
-        .about(
-            known.uploads.iter().map(|c| c.video.clone()).collect(),
-            &topics,
-        )
-        .await;
-    let stored_ids: HashSet<String> = stored.into_iter().map(|v| v.id).collect();
-    let mut pool: Vec<Card> = found
-        .into_iter()
-        .chain(
-            known
-                .uploads
-                .iter()
-                .filter(|c| stored_ids.contains(c.id()))
-                .cloned(),
-        )
-        .collect();
-    // A theme stays in its category: a "Gaming" chip shows no cooking channel.
-    if let Some(category) = &interest.category {
-        let videos: Vec<_> = pool.iter().map(|c| c.video.clone()).collect();
-        let outside = rec.outside_category(&videos, category);
-        pool.retain(|c| !outside.contains(c.id()));
-    }
-    Some(ranked(rec, known, pool).await)
-}
-
-/// The searches behind the Live chip: the top interests', or a plain one without any.
-fn live_queries(interests: &[InterestChip]) -> Vec<String> {
-    let queries: Vec<String> = interests
-        .iter()
-        .take(2)
-        .filter_map(|chip| interest_queries(chip).into_iter().next())
-        .collect();
-    if queries.is_empty() {
-        vec![LIVE_FALLBACK_QUERY.to_string()]
-    } else {
-        queries
-    }
-}
-
-async fn known_inputs(rec: &RecommendationService, pool: &SqlitePool, now: u64) -> Option<Inputs> {
-    let brain = rec.get_brain_snapshot().await.ok()?;
-    Inputs::load(pool, &brain, now).await.ok()
+async fn known_inputs(pool: &SqlitePool, now: u64) -> Option<Inputs> {
+    Inputs::load(pool, now).await.ok()
 }
 
 /// Watched videos worth seeing again, best first, with what the device already knows of them.
-async fn watched_cards(
-    rec: &RecommendationService,
-    inputs: &Inputs,
-    limit: usize,
-    now: u64,
-) -> Vec<Card> {
+fn watched_cards(inputs: &Inputs, limit: usize, now: u64) -> Vec<Card> {
     let disliked = inputs_disliked(inputs);
-    let videos = inputs
-        .history
-        .iter()
-        .map(|record| history_card(record).video)
-        .collect::<Vec<_>>();
-    let taste = rec.taste_affinity(&videos).await;
     let known: HashMap<&str, &crate::models::video::VideoSummary> = inputs
         .likes
         .iter()
         .chain(&inputs.saved)
         .map(|(video, _)| (video.id.as_str(), video))
         .collect();
-    watch_again(&inputs.history, &taste, &disliked, now)
+    watch_again(&inputs.history, &HashMap::new(), &disliked, now)
         .into_iter()
         .map(history_card)
         .filter(|card| !inputs.exclusions.hides_rewatch(card))
@@ -542,43 +444,30 @@ async fn watched_cards(
         .collect()
 }
 
-/// The seeds of the mixes: strong watches and likes, one per interest, nothing rejected.
-async fn rewatch_seeds(
-    rec: &RecommendationService,
-    inputs: &Inputs,
-    now: u64,
-) -> Vec<super::chips_rewatch::MixSeed> {
+/// The seeds of the mixes: strong watches and likes, one per channel, nothing rejected.
+fn rewatch_seeds(inputs: &Inputs, now: u64) -> Vec<super::chips_rewatch::MixSeed> {
     let candidates = mix_candidates(&inputs.history, &inputs.likes, now);
-    let clusters = rec
-        .interest_keys(
-            &candidates
-                .iter()
-                .map(|candidate| candidate.video.clone())
-                .collect::<Vec<_>>(),
-        )
-        .await;
     let hidden = |video: &crate::models::video::VideoSummary| {
         inputs.exclusions.hides_rewatch(&Card {
             video: video.clone(),
             published_at_ms: 0,
         })
     };
-    mix_seeds(candidates, &clusters, &hidden)
+    mix_seeds(candidates, &HashMap::new(), &hidden)
 }
 
-async fn known(rec: &RecommendationService, pool: &SqlitePool, now: u64) -> Option<Known> {
-    let inputs = known_inputs(rec, pool, now).await?;
-    let brain = rec.get_brain_snapshot().await.ok()?;
+async fn known(pool: &SqlitePool, now: u64) -> Option<Known> {
+    let inputs = known_inputs(pool, now).await?;
     let followed = inputs.subscriptions.ids();
-    let local = local_sources(rec, pool, &inputs, &brain, &followed, now).await;
+    let local = local_sources(pool, &inputs, &followed, now).await;
     let mut channels: HashSet<String> = inputs
         .history
         .iter()
         .filter_map(|record| record.channel_id.clone())
         .collect();
     channels.extend(followed);
-    channels.extend(brain.blocked_channels.iter().cloned());
-    channels.extend(brain.suppressed_channels.keys().cloned());
+    channels.extend(inputs.blocked_channels.iter().cloned());
+    channels.extend(inputs.suppressed_channels.keys().cloned());
     channels.extend(local.remembered.iter().map(|r| r.channel_id.clone()));
     channels.extend(
         local
@@ -597,8 +486,8 @@ async fn known(rec: &RecommendationService, pool: &SqlitePool, now: u64) -> Opti
     })
 }
 
-/// The chip's hygiene, then the engine's ranking: no Shorts, nothing watched or hidden.
-async fn ranked(rec: &RecommendationService, known: &Known, cards: Vec<Card>) -> Vec<Card> {
+/// The chip's hygiene, then the source order: no Shorts, nothing watched or hidden.
+fn ranked(known: &Known, cards: Vec<Card>) -> Vec<Card> {
     let mut seen = HashSet::new();
     let pool: Vec<Card> = cards
         .into_iter()
@@ -608,7 +497,7 @@ async fn ranked(rec: &RecommendationService, known: &Known, cards: Vec<Card>) ->
         .filter(|c| !known.inputs.exclusions.hides(c))
         .collect();
     let avatars: HashMap<String, String> = known.inputs.subscriptions.avatars.clone();
-    let mut ranked = lanes::rank(rec, pool, &known.inputs.boosted_channels(), false).await;
+    let mut ranked = lanes::rank(pool, &known.inputs.boosted_channels());
     ranked.truncate(MAX_VIDEOS);
     for card in &mut ranked {
         if card.video.channel_avatar_url.is_none()
@@ -624,22 +513,6 @@ async fn ranked(rec: &RecommendationService, known: &Known, cards: Vec<Card>) ->
 mod tests {
     use super::*;
     use crate::services::home_feed::filters::tests::card;
-
-    #[test]
-    fn live_searches_follow_the_top_interests_and_fall_back_to_a_plain_one() {
-        assert_eq!(live_queries(&[]), [LIVE_FALLBACK_QUERY]);
-        let chip = |key: &str| InterestChip {
-            key: key.to_string(),
-            label: key.to_string(),
-            topics: vec![key.to_string()],
-            category: None,
-            parts: Vec::new(),
-        };
-        assert_eq!(
-            live_queries(&[chip("chess"), chip("bread"), chip("rust")]),
-            ["chess", "bread"]
-        );
-    }
 
     #[test]
     fn down_the_list_a_fresh_upload_passes_an_older_one_ranked_just_above() {

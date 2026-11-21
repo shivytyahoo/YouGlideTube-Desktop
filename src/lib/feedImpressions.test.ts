@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({ recordFeedImpressions: vi.fn(), recordSeenVideos: vi.fn() }));
-vi.mock("./api/recommendation", () => api);
+vi.mock("./api/homeFeed", () => ({ recordFeedImpressions: (...args: unknown[]) => api.recordFeedImpressions(...args) }));
+vi.mock("./api/db", () => ({ recordSeenVideos: (...args: unknown[]) => api.recordSeenVideos(...args) }));
 
 import { noteImpression, noteSeen, resetImpressionsForTest } from "./feedImpressions";
 

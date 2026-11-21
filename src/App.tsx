@@ -16,7 +16,7 @@ import { useWatchLaterStore } from "./store/useWatchLaterStore";
 import { startWatchProgress } from "./store/useWatchProgressStore";
 import { useSubscriptionStore } from "./store/useSubscriptionStore";
 import { useNotificationStore } from "./store/useNotificationStore";
-import { getOnboardingStatus } from "./lib/api/recommendation";
+import { getSetting } from "./lib/api/db";
 import { useStartupHealth } from "./lib/useStartupHealth";
 import { useStartupSubscriptionRefresh } from "./lib/useStartupSubscriptionRefresh";
 import { useImageProxyBootstrap } from "./lib/useImageProxy";
@@ -160,7 +160,7 @@ function App() {
     if (!IS_MAIN_WINDOW) return;
     const checkOnboarding = async () => {
       try {
-        const completed = await getOnboardingStatus();
+        const completed = (await getSetting("onboarding_completed")) === "true";
         if (!completed && location.pathname !== "/onboarding") {
           navigate("/onboarding");
         }

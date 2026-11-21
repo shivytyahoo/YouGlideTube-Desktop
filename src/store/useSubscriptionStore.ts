@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { getSetting, setSetting } from "../lib/api/db";
-import { noteSubscription } from "../lib/api/recommendation";
 
 export interface SubscribedChannel {
   id: string;
@@ -178,7 +177,6 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     set({ subscriptions: updated });
     await persistSubscriptions(updated);
     if (options?.learn) {
-      void noteSubscription(cleanId, channelName, true).catch((err) => console.warn("Failed to learn a subscription", err));
     }
   },
 
@@ -187,7 +185,6 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     const cleanId = cleanChannelId(channelId);
     const removed = subscriptions.find((c) => c.id === cleanId) ?? null;
     const groupNames = subscriptionGroups.filter((group) => group.channelIds.includes(cleanId)).map((group) => group.name);
-    const channelName = removed?.name ?? "";
     const updated = subscriptions.filter((c) => c.id !== cleanId);
     const updatedGroups = subscriptionGroups.map((group, index) =>
       cleanGroup(
@@ -204,7 +201,6 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     set({ subscriptionGroups: updatedGroups });
     await persistGroups(updatedGroups);
     if (options?.learn) {
-      void noteSubscription(cleanId, channelName, false).catch((err) => console.warn("Failed to learn an unsubscribe", err));
     }
     return removed ? { channel: removed, groupNames } : null;
   },
@@ -225,7 +221,6 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       await persistGroups(updatedGroups);
     }
     if (options?.learn) {
-      void noteSubscription(channel.id, channel.name, true).catch((err) => console.warn("Failed to learn a subscription", err));
     }
   },
 

@@ -27,7 +27,7 @@ impl WatchHistoryRecord {
     #[must_use]
     pub fn is_short_video(&self) -> bool {
         self.is_short
-            || crate::flow_neuro::scoring::is_known_short(
+            || crate::data_model::brain::is_known_short(
                 self.total_duration_seconds
                     .and_then(|seconds| u64::try_from(seconds).ok()),
             )
@@ -195,29 +195,6 @@ pub async fn watch_progress(pool: &SqlitePool) -> AppResult<Vec<(String, i64, i6
          WHERE is_music = 0 AND is_short = 0
            AND total_duration_seconds > 0
            AND watch_duration_seconds * 100 >= total_duration_seconds * 3",
-    )
-    .fetch_all(pool)
-    .await
-    .map_err(AppError::from)
-}
-
-/// Titles of the latest videos watched, songs left out, newest first.
-pub async fn recent_video_titles(pool: &SqlitePool, limit: i64) -> AppResult<Vec<String>> {
-    sqlx::query_scalar::<_, String>(
-        "SELECT title FROM watch_history WHERE is_music = 0 ORDER BY watch_date DESC, created_at DESC LIMIT ?",
-    )
-    .bind(limit)
-    .fetch_all(pool)
-    .await
-    .map_err(AppError::from)
-}
-
-/// Channel names from the watch history, each channel's latest spelling.
-pub async fn channel_names(pool: &SqlitePool) -> AppResult<Vec<(String, String)>> {
-    sqlx::query_as::<_, (String, String)>(
-        "SELECT channel_id, channel_name FROM watch_history \
-         WHERE channel_id IS NOT NULL AND channel_id != '' AND channel_name IS NOT NULL AND channel_name != '' \
-         GROUP BY channel_id HAVING watch_date = MAX(watch_date)",
     )
     .fetch_all(pool)
     .await

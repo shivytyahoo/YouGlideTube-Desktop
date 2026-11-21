@@ -6,7 +6,7 @@ const videoIdOf = (t: SongItem): string => t.videoId ?? t.id;
 
 /**
  * Saves a listen of `listenedSeconds` actually played (not the playhead) to the
- * shared history, as a music row so it never feeds the video brain.
+ * shared history, as a music row so it never counts as a video play.
  */
 export async function recordSongHistory(
   track: SongItem,

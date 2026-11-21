@@ -103,6 +103,43 @@ describe("music speed", () => {
   });
 });
 
+describe("music pitch", () => {
+  afterEach(() => {
+    musicAudioEngine.setPitch(0);
+    musicAudioEngine.setSpeed(1);
+  });
+
+  it("shifts the rate by semitones and lets the pitch move with it", () => {
+    const fresh = elements();
+    musicAudioEngine.attach(fresh);
+    musicAudioEngine.setSpeed(1);
+    musicAudioEngine.setPitch(12);
+    expect(fresh[0].playbackRate).toBeCloseTo(2);
+    expect(fresh[0].preservesPitch).toBe(false);
+    expect(musicAudioEngine.getEffectiveRate()).toBeCloseTo(2);
+  });
+
+  it("keeps the pitch steady at zero shift", () => {
+    const fresh = elements();
+    musicAudioEngine.attach(fresh);
+    musicAudioEngine.setSpeed(1.5);
+    musicAudioEngine.setPitch(0);
+    expect(fresh[0].playbackRate).toBe(1.5);
+    expect(fresh[0].preservesPitch).toBe(true);
+    expect(musicAudioEngine.getEffectiveRate()).toBe(1.5);
+  });
+
+  it("combines tempo and pitch, and clamps the shift", () => {
+    const fresh = elements();
+    musicAudioEngine.attach(fresh);
+    musicAudioEngine.setSpeed(1.5);
+    musicAudioEngine.setPitch(-12);
+    expect(fresh[0].playbackRate).toBeCloseTo(0.75);
+    musicAudioEngine.setPitch(99);
+    expect(musicAudioEngine.getPitch()).toBe(12);
+  });
+});
+
 describe("sleep timer fade-out", () => {
   it("steps the element volume down without WebAudio, and puts it back after", () => {
     musicAudioEngine.setVolume(0.8);

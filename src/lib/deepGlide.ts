@@ -82,7 +82,7 @@ export function shouldShowDeepGlideOnSearch(): boolean {
   return getSettingValue(SETTINGS.DEEP_GLIDE_SHOW_ON_SEARCH) === "true";
 }
 
-/** Deep Flow keeps a session out of every history unless it was told to save them. */
+/** Deep Glide keeps a session out of every history unless it was told to save them. */
 export function deepGlideAllowsHistory(): boolean {
   return !isDeepGlideCurrentlyActive() || shouldSaveHistoryInDeepGlide();
 }

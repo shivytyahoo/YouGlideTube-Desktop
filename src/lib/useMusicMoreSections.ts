@@ -14,9 +14,8 @@ const GENRE_MIXES = 3;
 const GENRE_MIX_SIZE = 14;
 
 /**
- * Preferred genre order while MusicBrain has no genre signal of its own, the same
- * mainstream set Android uses. The names come from YouTube's own genre list; any
- * that YouTube does not offer are skipped.
+ * Preferred genre order, the same mainstream set Android uses. The names come from
+ * YouTube's own genre list; any that YouTube does not offer are skipped.
  */
 const PREFERRED_GENRES = ['pop', 'rock', 'hip-hop', 'r&b', 'dance & electronic'];
 

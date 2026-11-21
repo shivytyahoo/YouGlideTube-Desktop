@@ -6,12 +6,12 @@
 //! client's identity disagreeing with itself between the request and the media
 //! fetch that follows it.
 
-use flow_desktop_lib::api::innertube::core::clients::{
+use youglidetube_desktop_lib::api::innertube::core::clients::{
     self, ANDROID, ANDROID_CREATOR, ANDROID_VR, ANDROID_VR_1_43_32, ANDROID_VR_NO_AUTH,
     AttestationPlatform, IOS, IPADOS, MWEB, TVHTML5_SIMPLY_EMBEDDED_PLAYER, VISIONOS, WEB,
     WEB_REMIX,
 };
-use flow_desktop_lib::api::innertube::music::clients::DIRECT_AUDIO_CLIENTS;
+use youglidetube_desktop_lib::api::innertube::music::clients::DIRECT_AUDIO_CLIENTS;
 
 #[test]
 fn non_web_clients_never_carry_a_botguard_token() {

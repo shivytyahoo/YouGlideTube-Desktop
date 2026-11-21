@@ -20,6 +20,7 @@ import type { MusicWatchTarget, SongItem } from '../../types/music';
 import { artistMixQueue } from '../../lib/artistMix';
 import { openExternal } from '../../lib/openExternal';
 import { shuffled } from '../../lib/musicRecall';
+import { useArtistSessionHistory } from '../../lib/useArtistSessionHistory';
 import { shareLink } from '../../lib/clipboard';
 import { youtubeMusicArtistUrl } from '../../lib/youtubeUrl';
 
@@ -245,6 +246,7 @@ export default function ArtistPage() {
   const isPlaying = useMusicPlayerStore((state) => state.isPlaying);
   const { data, loading, error, reload } = useArtistPage(artistId);
   usePublishTitle(data?.header?.title);
+  const artistHistory = useArtistSessionHistory(data?.header?.title ?? '');
 
   const followId = (data?.header.id || artistId || '').replace('channel:', '');
   const following = useSubscriptionStore((state) => state.subscriptions.some((channel) => channel.id === followId));
@@ -358,6 +360,33 @@ export default function ArtistPage() {
       />
 
       <main className="mx-auto flex max-w-[1600px] flex-col gap-12 px-8 pt-8">
+        {artistHistory.length > 0 ? (
+          <section data-artist-section="your-history">
+            <SectionTitle title={getString('music_artist_your_history')} />
+            <div className="mt-4 grid gap-x-12 gap-y-2 lg:grid-cols-2">
+              {artistHistory.slice(0, 10).map((song, index) => {
+                const songId = videoIdOf(song);
+                const isCurrentSong = currentTrackId === songId;
+
+                return (
+                  <AlbumTrackRow
+                    key={`${songId}-${index}`}
+                    track={song}
+                    index={index}
+                    isCurrent={isCurrentSong}
+                    isPlaying={isPlaying}
+                    showArtwork
+                    showStreamsColumn={false}
+                    compactActions
+                    onPlay={() => playFrom(artistHistory, song)}
+                    onAddToQueue={addToQueue}
+                  />
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
         {topSongs.length > 0 ? (
           <section data-artist-section="popular">
             <SectionTitle

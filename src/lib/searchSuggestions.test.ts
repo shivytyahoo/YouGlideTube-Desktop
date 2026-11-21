@@ -122,7 +122,7 @@ describe("history and links", () => {
     expect(side).toEqual([]);
   });
 
-  it("tells a link Flow can't open from plain text", () => {
+  it("tells a link the app can't open from plain text", () => {
     expect(isUnsupportedLink("https://example.com/watch")).toBe(true);
     expect(isUnsupportedLink("www.example.com/page")).toBe(true);
     expect(isUnsupportedLink("node.js/express")).toBe(false);

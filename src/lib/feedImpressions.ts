@@ -1,4 +1,5 @@
-import { recordFeedImpressions, recordSeenVideos } from "./api/recommendation";
+import { recordFeedImpressions } from "./api/homeFeed";
+import { recordSeenVideos } from "./api/db";
 import type { VideoSummary } from "../types/video";
 
 /** How long a card has to stay on screen before it counts as seen. */
@@ -48,16 +49,16 @@ const sightings = sessionBatcher(
 );
 
 /**
- * Counts a card the viewer actually saw, once per app session: the ranker's fatigue
- * penalties should follow what was on screen, not every list that was painted.
+ * Counts a card the viewer actually saw, once per app session: only what was
+ * on screen counts, not every list that was painted.
  */
 export function noteImpression(video: VideoSummary) {
   impressions.note(video);
 }
 
 /**
- * Counts a card seen in a list the ranker does not learn from, such as the Watch page's
- * related videos. Only "Hide videos you've already seen" reads it.
+ * Counts a card seen in a list such as the Watch page's related videos.
+ * Only "Hide videos you've already seen" reads it.
  */
 export function noteSeen(video: VideoSummary) {
   sightings.note(video);

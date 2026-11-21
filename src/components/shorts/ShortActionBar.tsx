@@ -15,7 +15,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useVideoReactions } from "../../lib/useVideoReactions";
-import { logInteraction } from "../../lib/api/recommendation";
 import { useExitGhost } from "../../lib/useExitGhost";
 import { useUiStore } from "../../store/useUiStore";
 import { showSaveFailedToast, showSaveToast } from "../../lib/saveToast";
@@ -28,7 +27,7 @@ import {
 } from "../../lib/savedShortsLibrary";
 import { dontRecommendLabel } from "../../lib/dontRecommendLabel";
 import { getString } from "../../lib/i18n/index";
-import { formatCount, isMusicVideo } from "../../lib/utils";
+import { formatCount } from "../../lib/utils";
 import { youtubeShortsUrl } from "../../lib/youtubeUrl";
 import { copyText, shareLink } from "../../lib/clipboard";
 import type { ShortItem, ShortsPanelState } from "../../types/shorts";
@@ -160,21 +159,6 @@ export function ShortActionBar({
 
   const moreLikeThis = () => {
     setMenuOpen(false);
-    // Music played in the Shorts player never teaches the video engine.
-    if (!isMusicVideo(video)) {
-      void logInteraction(
-        video.id,
-        video.title,
-        video.channelName,
-        resolvedChannelId ?? "",
-        null,
-        video.durationSeconds ?? null,
-        false,
-        true,
-        "LIKED",
-        1,
-      ).catch((error) => console.warn("Failed to log more like this", error));
-    }
     onMoreLikeThis();
     showToast({ variant: "success", message: getString("shorts_showing_more_like_this") });
   };

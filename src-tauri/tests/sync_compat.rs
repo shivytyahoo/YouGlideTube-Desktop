@@ -1,18 +1,15 @@
-//! Cross-platform tolerance tests for the sync wire model.
+//! Cross-platform tolerance tests for the backup data model.
 //!
-//! These lock the two things that made phone→desktop sync fail in the field: the FlowNeuro brain
-//! envelope Flow for Android actually sends (issue #46) and the LAN address the QR advertises when
-//! a VPN or container bridge is present (issue #41). The Android payloads below are shaped exactly
-//! as `sync/canonical/Canonical.kt` + `sync/mapping/BrainMapper.kt` serialize them.
+//! These lock the FlowNeuro brain envelope Flow for Android actually sends (issue #46).
+//! The Android payloads below are shaped exactly as `sync/canonical/Canonical.kt` +
+//! `sync/mapping/BrainMapper.kt` serialize them. The LAN-address half of this file died with
+//! the P2P sync engine.
 //!
 //! They live in an integration test for the same reason as `sync_crdt.rs`: the in-crate unit-test
 //! harness fails to launch on Windows against Tauri's cdylib.
 
-use std::net::IpAddr;
-
-use flow_desktop_lib::data_model::canonical::{FlowNeuroBrainSnapshot, GCounter, Hlc, Lww, OrSet};
-use flow_desktop_lib::data_model::merge::merge_flow_neuro;
-use flow_desktop_lib::data_model::transport::rank_lan_candidates;
+use youglidetube_desktop_lib::data_model::canonical::{FlowNeuroBrainSnapshot, GCounter, Hlc, Lww, OrSet};
+use youglidetube_desktop_lib::data_model::merge::merge_flow_neuro;
 
 const ANDROID_DEVICE: &str = "d68ec770-8084-4f42-9914-132eca886f13";
 const ANDROID_HLC: &str = "1784462799000:0:d68ec770";
@@ -261,78 +258,3 @@ fn the_canonical_grouped_envelope_still_round_trips_byte_for_byte() {
     assert!(!canonical.contains("perDevice"));
 }
 
-// ---- LAN address selection ---------------------------------------------------------------------
-
-fn iface(name: &str, ip: &str) -> (String, IpAddr) {
-    (name.to_string(), ip.parse().unwrap())
-}
-
-#[test]
-fn a_vpn_tunnel_address_never_wins_over_the_real_lan() {
-    // Issue #41: with Mullvad up the QR advertised the tunnel address, which exists only inside the
-    // tunnel — the phone dialled it and nothing ever reached the desktop.
-    let candidates = rank_lan_candidates(vec![
-        iface("lo", "127.0.0.1"),
-        iface("wg0-mullvad", "10.64.0.2"),
-        iface("wlan0", "192.168.1.113"),
-    ]);
-    assert_eq!(candidates[0].ip, "192.168.1.113");
-    assert_eq!(candidates[0].interface, "wlan0");
-    assert!(!candidates[0].virtual_iface);
-    // The tunnel is still offered as a fallback, just last.
-    assert_eq!(candidates.len(), 2);
-    assert!(candidates[1].virtual_iface);
-}
-
-#[test]
-fn a_physical_ten_dot_lan_beats_a_virtual_adapter_in_a_preferred_range() {
-    let candidates = rank_lan_candidates(vec![
-        iface("vboxnet0", "192.168.56.1"),
-        iface("eth0", "10.220.141.9"),
-    ]);
-    assert_eq!(candidates[0].ip, "10.220.141.9");
-}
-
-#[test]
-fn container_bridges_and_overlay_ranges_rank_below_a_real_lan() {
-    let candidates = rank_lan_candidates(vec![
-        iface("tailscale0", "100.101.102.103"),
-        iface("docker0", "172.17.0.1"),
-        iface("enp3s0", "172.16.4.20"),
-    ]);
-    // 172.16/12 is a legitimate private LAN — the old code skipped the whole range outright.
-    assert_eq!(candidates[0].ip, "172.16.4.20");
-}
-
-#[test]
-fn unusable_addresses_are_dropped_entirely() {
-    let candidates = rank_lan_candidates(vec![
-        iface("lo", "127.0.0.1"),
-        iface("eth0", "169.254.31.7"),
-        iface("eth1", "0.0.0.0"),
-    ]);
-    assert!(candidates.is_empty());
-}
-
-#[test]
-fn a_host_with_only_a_tunnel_still_gets_an_address() {
-    // Better to advertise something the user can sanity-check against the log than to refuse.
-    let candidates = rank_lan_candidates(vec![iface("tun0", "10.64.0.2")]);
-    assert_eq!(candidates.len(), 1);
-    assert_eq!(candidates[0].ip, "10.64.0.2");
-    assert!(candidates[0].virtual_iface);
-}
-
-#[test]
-fn windows_friendly_names_of_virtual_adapters_are_recognised() {
-    // Windows reports friendly names, not `vboxnet0` / `zt...`, so these used to rank as physical
-    // and could win the QR over the real Wi-Fi address.
-    let candidates = rank_lan_candidates(vec![
-        iface("VirtualBox Host-Only Network", "192.168.56.1"),
-        iface("ZeroTier One [8056c2e21c000001]", "192.168.191.4"),
-        iface("VMware Network Adapter VMnet8", "192.168.79.1"),
-        iface("Wi-Fi", "10.0.0.23"),
-    ]);
-    assert_eq!(candidates[0].interface, "Wi-Fi");
-    assert!(candidates[1..].iter().all(|c| c.virtual_iface));
-}

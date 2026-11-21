@@ -97,6 +97,8 @@ class MusicAudioEngine {
   private eqSpec: EqGraphSpec = EQ_GRAPH_OFF;
   private eqEngaged = false;
   private speed = 1;
+  /** Semitones, -12..12: 0 keeps the pitch untouched, anything else shifts it with the rate. */
+  private pitch = 0;
   private crossfadeEnabled = false;
   private crossfadeCurve: CrossfadeCurve = "EQUAL_POWER";
   private armedFadeSeconds: number | null = null;
@@ -137,7 +139,7 @@ class MusicAudioEngine {
       this.slots[i as 0 | 1].el = el;
     }
     this.graphReady = false;
-    this.applySpeed();
+    this.applyRate();
     this.engageWhilePlaying();
     this.applyGain();
   }
@@ -487,7 +489,7 @@ class MusicAudioEngine {
     }
     this.applyGain();
     // A speed change made during the fade was held back on Linux; apply it now.
-    this.applySpeed();
+    this.applyRate();
   }
 
   /** Drop whatever the standby element holds, returning the track it was. */
@@ -601,29 +603,47 @@ class MusicAudioEngine {
     return true;
   }
 
-  // --- speed --------------------------------------------------------------
+  // --- speed + pitch ------------------------------------------------------
 
   getSpeed(): number {
     return this.speed;
   }
 
+  getPitch(): number {
+    return this.pitch;
+  }
+
   setSpeed(rate: number): void {
     this.speed = Math.max(0.5, Math.min(2, rate));
-    this.applySpeed();
+    this.applyRate();
+  }
+
+  setPitch(semitones: number): void {
+    this.pitch = Math.max(-12, Math.min(12, Math.round(semitones)));
+    this.applyRate();
+  }
+
+  /** The rate the elements actually play at: tempo times the pitch shift. */
+  getEffectiveRate(): number {
+    return this.speed * Math.pow(2, this.pitch / 12);
   }
 
   /**
    * WebKitGTK flushes its GStreamer pipeline on every `playbackRate` write, so the rate is only
    * written when it differs, and on Linux not while two elements are crossfading. The default
-   * rate carries it across loads, which reset `playbackRate` to it.
+   * rate carries it across loads, which reset `playbackRate` to it. With no pitch shift the
+   * element keeps the pitch steady; a shift turns that off so the rate moves the pitch too.
    */
-  private applySpeed(): void {
+  private applyRate(): void {
     if (IS_LINUX_RUNTIME && this.fading) return;
+    const rate = this.getEffectiveRate();
+    const preserve = this.pitch === 0;
     for (const slot of this.slots) {
       const el = slot.el;
       if (!el) continue;
-      if (el.defaultPlaybackRate !== this.speed) el.defaultPlaybackRate = this.speed;
-      if (el.playbackRate !== this.speed) el.playbackRate = this.speed;
+      if (el.preservesPitch !== preserve) el.preservesPitch = preserve;
+      if (el.defaultPlaybackRate !== rate) el.defaultPlaybackRate = rate;
+      if (el.playbackRate !== rate) el.playbackRate = rate;
     }
   }
 

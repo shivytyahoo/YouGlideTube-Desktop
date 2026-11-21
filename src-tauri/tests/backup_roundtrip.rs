@@ -7,13 +7,13 @@
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqlitePoolOptions;
 
-use flow_desktop_lib::backup::archive::{Archive, write_archive};
-use flow_desktop_lib::backup::build::build_slice;
-use flow_desktop_lib::backup::reader::{BackupFile, read_backup_file};
-use flow_desktop_lib::commands::backup::{
+use youglidetube_desktop_lib::backup::archive::{Archive, write_archive};
+use youglidetube_desktop_lib::backup::build::build_slice;
+use youglidetube_desktop_lib::backup::reader::{BackupFile, read_backup_file};
+use youglidetube_desktop_lib::commands::backup::{
     RECAP_STATS_ENTRY, SUBSCRIPTION_CHANNELS_KEY, export_backup, import_backup,
 };
-use flow_desktop_lib::sync::canonical::Collection;
+use youglidetube_desktop_lib::data_model::canonical::Collection;
 
 async fn memory_pool() -> SqlitePool {
     let pool = SqlitePoolOptions::new()

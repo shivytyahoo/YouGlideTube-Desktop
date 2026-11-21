@@ -40,15 +40,15 @@ describe('music feed order', () => {
     expect(order).toContain('quickPicks');
   });
 
-  it('leads an established home with Quick Picks, the Similar to groups and community', () => {
+  it('leads an established home with Quick Picks, Daily Discover, the Similar to groups and community', () => {
     const feed = composeMusicFeed(
       [personal('from-community'), personal('popular-songs'), personal('similar-queen'),
         personal('performances-queen'), personal('daily-discover')],
       [], 'mature', [song('pick')], { sessionSeed: 3 },
     );
-    expect(names(feed).slice(0, 4)).toEqual([
-      'quickPicks', 'similar-queen:similar-queen', 'performances-queen:performances-queen',
-      'from-community:from-community',
+    expect(names(feed).slice(0, 5)).toEqual([
+      'quickPicks', 'daily-discover:daily-discover', 'similar-queen:similar-queen',
+      'performances-queen:performances-queen', 'from-community:from-community',
     ]);
   });
 
@@ -67,6 +67,45 @@ describe('music feed order', () => {
     const group = (id: string) => feedGroupOf({ kind: 'section', section: { ...personal(id), origin: 'personal' } });
     expect(group('similar-UCq')).toBe(group('performances-UCq'));
     expect(group('artist-albums-UCq')).toBe('similar:UCq');
+  });
+
+  it('puts the server Listen again shelf third, behind the library shelves', () => {
+    const feed = composeMusicFeed(
+      [personal('your-playlists'), personal('your-subscriptions')],
+      [remote('Listen again')],
+      'warming', [], { sessionSeed: 1 },
+    );
+    expect(names(feed).slice(0, 3)).toEqual([
+      'your-playlists:your-playlists', 'your-subscriptions:your-subscriptions',
+      'listen-again:Listen again',
+    ]);
+  });
+
+  it('keeps one Listen again when the session and the server both have one', () => {
+    const feed = composeMusicFeed(
+      [personal('listen-again')],
+      [remote('Listen again')],
+      'mature', [], { sessionSeed: 1 },
+    );
+    expect(names(feed).filter((name) => name.startsWith('listen-again'))).toHaveLength(1);
+  });
+
+  it('skips the session block on a first-run home', () => {
+    const feed = composeMusicFeed(
+      [personal('daily-discover'), personal('similar-queen')],
+      [remote('Top songs', 'chartSongs')],
+      'cold_start', [song('pick')], { hasMoods: true, sessionSeed: 7 },
+    );
+    const order = names(feed);
+    expect(order.slice(0, 2)).toEqual(['remote:Top songs', 'moods']);
+    expect(order.indexOf('daily-discover:daily-discover')).toBeGreaterThan(1);
+    expect(order.indexOf('similar-queen:similar-queen')).toBeGreaterThan(1);
+    expect(order).toContain('quickPicks');
+  });
+
+  it('treats the Vibes row as the from-community lead', () => {
+    const group = (id: string) => feedGroupOf({ kind: 'section', section: { ...personal(id), origin: 'personal' } });
+    expect(group('vibes')).toBe('from-community');
   });
 });
 

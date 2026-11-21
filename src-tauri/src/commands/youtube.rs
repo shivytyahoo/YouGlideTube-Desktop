@@ -1,12 +1,14 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
+use sqlx::SqlitePool;
 use tauri::State;
 use tracing::{debug, info};
 
 use crate::api::innertube::core::clients;
 use crate::api::innertube::extractors::resolve::ResolvedEndpoint;
-use crate::errors::ErrorResponse;
+use crate::errors::{AppResult, ErrorResponse};
 use crate::models::channel::{ChannelAbout, ChannelDetails, ChannelPage, ChannelTabResponse};
 use crate::models::comment::CommentsResponse;
 use crate::models::explore::{ExploreGrid, ExplorePage, ExploreTarget};
@@ -20,7 +22,6 @@ use crate::security::validation::{
     validate_browse_id, validate_channel_id, validate_page_token, validate_playlist_id,
     validate_search_query, validate_video_id,
 };
-use crate::services::recommendation_service::RecommendationService;
 use crate::services::subscription_feed::{self, SubscriptionRssFeed};
 use crate::services::youtube_service::YoutubeService;
 use crate::streaming::codec::VideoCodecFamily;
@@ -352,16 +353,13 @@ pub async fn get_video_details(
 pub async fn get_related_videos(
     video_id: String,
     youtube_service: State<'_, YoutubeService>,
-    recommendation_service: State<'_, RecommendationService>,
 ) -> Result<RelatedPage, ErrorResponse> {
     validate_video_id(&video_id).map_err(ErrorResponse::from)?;
 
-    let related = youtube_service
+    youtube_service
         .get_related_videos(&video_id)
         .await
-        .map_err(ErrorResponse::from)?;
-    recommendation_service.note_related(&video_id, &related.items);
-    Ok(related)
+        .map_err(ErrorResponse::from)
 }
 
 /// A listed video's length, views, upload date and category, from one small
@@ -1266,13 +1264,119 @@ pub async fn get_return_youtube_dislike(
 
 #[tauri::command]
 pub async fn get_subscription_rotation_feed(
+    pool: State<'_, SqlitePool>,
     youtube_service: State<'_, YoutubeService>,
-    recommendation_service: State<'_, RecommendationService>,
 ) -> Result<Vec<VideoSummary>, ErrorResponse> {
-    recommendation_service
-        .get_subscription_rotation_feed(&youtube_service)
+    subscription_rotation_feed(&pool, &youtube_service)
         .await
         .map_err(ErrorResponse::from)
+}
+
+/// The subscription rotation lane: 5 subscribed channels at a time, their latest
+/// videos shuffled, the cursor advancing so the next load shows other channels.
+/// Server data only — no local recommendation engine involved.
+pub async fn subscription_rotation_feed(
+pool: &SqlitePool,
+youtube_service: &YoutubeService,
+) -> AppResult<Vec<VideoSummary>> {
+    #[derive(serde::Deserialize)]
+    struct SubscribedChannel {
+        id: String,
+    }
+
+    let subs_json = match crate::db::settings::get_setting(pool, "subscriptions").await? {
+        Some(s) => s,
+        None => return Ok(Vec::new()),
+    };
+
+    let mut channel_ids = Vec::new();
+    if let Ok(channels) = serde_json::from_str::<Vec<SubscribedChannel>>(&subs_json) {
+        channel_ids = channels.into_iter().map(|c| c.id).collect();
+    } else if let Ok(ids) = serde_json::from_str::<Vec<String>>(&subs_json) {
+        channel_ids = ids;
+    } else if let Ok(val) = serde_json::from_str::<serde_json::Value>(&subs_json) {
+        if let Some(arr) = val.as_array() {
+            for item in arr {
+                if let Some(id) = item.as_str() {
+                    channel_ids.push(id.to_string());
+                } else if let Some(id) = item.get("id").and_then(|v| v.as_str()) {
+                    channel_ids.push(id.to_string());
+                }
+            }
+        }
+    }
+
+    if channel_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let cursor_str = crate::db::settings::get_setting(pool, "homeSubsRotationCursor")
+        .await?
+        .unwrap_or_else(|| "0".to_string());
+    let mut cursor: usize = cursor_str.parse().unwrap_or(0);
+
+    let total_subs = channel_ids.len();
+    if cursor >= total_subs {
+        cursor = 0;
+    }
+
+    let batch_size = 5;
+    let mut batch_channels = Vec::new();
+    for i in 0..batch_size {
+        let idx = (cursor + i) % total_subs;
+        let cid = &channel_ids[idx];
+        if !batch_channels.contains(cid) {
+            batch_channels.push(cid.clone());
+        }
+    }
+
+    let mut futures = Vec::new();
+    for cid in &batch_channels {
+        futures.push(youtube_service.get_channel_tab(
+            cid,
+            Some(crate::api::innertube::extractors::channel::VIDEOS_TAB_PARAMS.to_string()),
+            None,
+            None,
+        ));
+    }
+
+    let results = futures_util::future::join_all(futures).await;
+    let mut candidates = Vec::new();
+    let mut seen_ids = HashSet::new();
+
+    for res in results {
+        if let Ok(resp) = res {
+            for item in resp.items {
+                if let crate::models::channel::ChannelItem::Video(video) = item {
+                    if seen_ids.insert(video.id.clone()) {
+                        candidates.push(video);
+                    }
+                }
+            }
+        }
+    }
+
+    if !candidates.is_empty() {
+        let mut lcg_seed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u32;
+        for i in (1..candidates.len()).rev() {
+            lcg_seed = lcg_seed.wrapping_mul(1103515245).wrapping_add(12345) & 0x7fffffff;
+            let j = (lcg_seed as usize) % (i + 1);
+            candidates.swap(i, j);
+        }
+    }
+
+    let next_cursor = (cursor + batch_channels.len()) % total_subs;
+    crate::db::settings::set_setting(
+        pool,
+        "homeSubsRotationCursor",
+        &next_cursor.to_string(),
+    )
+    .await?;
+
+    Ok(candidates)
 }
 
 /// Feed duration fills run beside whatever the user is playing, so they stay

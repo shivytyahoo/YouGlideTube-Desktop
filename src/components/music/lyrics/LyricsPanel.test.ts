@@ -7,7 +7,7 @@ import type { LyricsEntry } from "../../../lib/lyrics/types";
 
 const audio = { time: 0, duration: 200, speed: 1 };
 vi.mock("../../../lib/audio/musicAudioEngine", () => ({
-  musicAudioEngine: { getCurrentTime: () => audio.time, getDuration: () => audio.duration, getSpeed: () => audio.speed },
+  musicAudioEngine: { getCurrentTime: () => audio.time, getDuration: () => audio.duration, getSpeed: () => audio.speed, getEffectiveRate: () => audio.speed },
 }));
 vi.mock("../../../lib/platform", () => ({ IS_LINUX_RUNTIME: false }));
 

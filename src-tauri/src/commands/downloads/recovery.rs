@@ -62,7 +62,7 @@ fn is_mp4_extension(ext: &str) -> bool {
 fn read_file_tags(path: &Path) -> Option<(HashMap<String, String>, Option<i64>)> {
     let ext = extension(path)?;
     let (fields, duration) = if is_mp4_extension(&ext) {
-        let read = muxer::retag::read_mp4_flow_tags(path).ok()?;
+        let read = muxer::retag::read_mp4_youglidetube_tags(path).ok()?;
         (read.fields, read.duration_seconds)
     } else {
         (muxer::matroska::read_flow_tags(path).ok()?, None)
@@ -206,7 +206,7 @@ fn retag_file(record: &DownloadRecord) -> Option<bool> {
     if !path.is_file() || !extension(path).is_some_and(|ext| is_mp4_extension(&ext)) {
         return Some(false);
     }
-    let Ok(read) = muxer::retag::read_mp4_flow_tags(path) else {
+    let Ok(read) = muxer::retag::read_mp4_youglidetube_tags(path) else {
         return Some(false);
     };
     if read.fields.contains_key("videoid") {
@@ -459,7 +459,7 @@ mod tests {
                 skipped: 1
             }
         );
-        let read = muxer::retag::read_mp4_flow_tags(&untagged).unwrap();
+        let read = muxer::retag::read_mp4_youglidetube_tags(&untagged).unwrap();
         assert_eq!(read.fields.get("videoid").map(String::as_str), Some(ID));
         assert_eq!(
             retag_older_downloads(&pool).await.unwrap(),

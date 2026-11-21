@@ -1,17 +1,20 @@
 //! Deletions and edits made on this device reach peers and win against older peer copies, peer
 //! tombstones are relayed, and playlists keep their identity across renames.
 
+#[path = "common/mod.rs"]
+mod common;
+
+use common::local_edits;
 use serde_json::{Value, json};
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqlitePoolOptions;
 
-use flow_desktop_lib::data_model::apply::apply_payload;
-use flow_desktop_lib::data_model::canonical::{
+use youglidetube_desktop_lib::data_model::apply::apply_payload;
+use youglidetube_desktop_lib::data_model::canonical::{
     Collection, Hlc, Like, LikeKind, LikeState, Playlist, SubscriptionGroup, WatchHistoryRecord,
 };
-use flow_desktop_lib::data_model::export::export_collections;
-use flow_desktop_lib::data_model::local_edits;
-use flow_desktop_lib::data_model::protocol::StagedCollection;
+use youglidetube_desktop_lib::data_model::export::export_collections;
+use youglidetube_desktop_lib::data_model::collection::StagedCollection;
 
 const DESK: &str = "ddesk";
 const PEER: &str = "dpeer";

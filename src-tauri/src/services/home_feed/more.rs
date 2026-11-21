@@ -15,13 +15,11 @@ use super::card::Card;
 use super::filters::{RECENT_CHANNEL_WINDOW, keep_showable};
 use super::inputs::Inputs;
 use super::lanes;
-use super::load::{inputs_disliked, related_graph, report_searches, seed_titles};
+use super::load::{inputs_disliked, related_graph, seed_titles};
 use super::mixer::Page;
 use super::origin::{Origin, OriginKind, queries_by_id};
-use super::seeds::{SeedInput, feed_seed_inputs};
+use super::seeds::{SeedInput, feed_seed_inputs, select_with_long_term};
 use super::{HomeFeedService, cache, channel_memory, now_ms};
-use crate::flow_neuro::scoring::classify_persona;
-use crate::services::recommendation_service::{DiscoverySurface, RecommendationService};
 use crate::services::youtube_service::YoutubeService;
 
 /// Fewer cards than this wait for the run's next attempt instead of showing on their own.
@@ -174,31 +172,26 @@ impl HomeFeedService {
         last: bool,
     ) -> (Outcome, Option<Held>) {
         let yt = app.state::<YoutubeService>();
-        let rec = app.state::<RecommendationService>();
         let pool = app.state::<SqlitePool>();
         let now = now_ms();
-        let (Ok(brain), feed_cards) = (rec.get_brain_snapshot().await, self.snapshot().cards)
-        else {
-            return (Outcome::Failed, held);
-        };
-        let Ok(inputs) = Inputs::load(&pool, &brain, now).await else {
+        let feed_cards = self.snapshot().cards;
+        let Ok(inputs) = Inputs::load(&pool, now).await else {
             return (Outcome::Failed, held);
         };
         self.inner
             .search_pages
             .set_upload_date(super::sources::upload_filter(inputs.max_video_age_ms));
-        let taste = TasteProfile::of(&brain, &classify_persona(&brain));
+        let taste = TasteProfile::default();
         let followed = inputs.boosted_channels();
         let mut attempt = Attempt::start(&feed_cards, held.unwrap_or_default());
 
-        self.fill_from_memory(&rec, &pool, &inputs, &brain, &followed, now, &mut attempt)
+        self.fill_from_memory(&pool, &inputs, &followed, now, &mut attempt)
             .await;
-        self.fill_from_reserve(&rec, &pool, &inputs, &followed, now, &mut attempt)
+        self.fill_from_reserve(&pool, &inputs, &followed, now, &mut attempt)
             .await;
         if !attempt.full() {
             self.fill_from_related(
                 &yt,
-                &rec,
                 &pool,
                 &inputs,
                 &feed_cards,
@@ -211,17 +204,8 @@ impl HomeFeedService {
             .await;
         }
         if !attempt.full() {
-            self.fill_from_search(
-                &yt,
-                &rec,
-                &pool,
-                &inputs,
-                &followed,
-                &taste,
-                now,
-                &mut attempt,
-            )
-            .await;
+            self.fill_from_search(&yt, &pool, &inputs, &followed, &taste, now, &mut attempt)
+                .await;
         }
         if !attempt.full() {
             let backlog: Vec<Card> = {
@@ -241,7 +225,6 @@ impl HomeFeedService {
         if !attempt.full() && self.prefetch_current(generation) {
             self.fill_from_related(
                 &yt,
-                &rec,
                 &pool,
                 &inputs,
                 &feed_cards,
@@ -275,13 +258,10 @@ impl HomeFeedService {
         (outcome, held)
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn fill_from_memory(
         &self,
-        rec: &RecommendationService,
         pool: &SqlitePool,
         inputs: &Inputs,
-        brain: &crate::flow_neuro::scoring::UserBrain,
         followed: &HashSet<String>,
         now: u64,
         attempt: &mut Attempt,
@@ -292,12 +272,11 @@ impl HomeFeedService {
             &inputs.liked_channels(),
             &entries,
             followed,
-            &brain.blocked_channels,
-            &brain.suppressed_channels,
+            &inputs.blocked_channels,
+            &inputs.suppressed_channels,
             now,
         );
-        let recently_shown = rec.recently_shown().await;
-        let hidden = |c: &Card| inputs.exclusions.hides(c) || recently_shown.contains(c.id());
+        let hidden = |c: &Card| inputs.exclusions.hides(c) || inputs.seen.contains(c.id());
         let candidates: Vec<Card> = keep_showable(
             channel_memory::uploads(&remembered, &entries.entries, now),
             &inputs.watched,
@@ -312,8 +291,7 @@ impl HomeFeedService {
             .iter()
             .map(|c| c.channel_id().to_string())
             .collect();
-        let pick = lanes::rank(rec, candidates, followed, false)
-            .await
+        let pick = lanes::rank(candidates, followed)
             .into_iter()
             .find(|c| {
                 !attempt.page.used_ids.contains(c.id())
@@ -332,7 +310,6 @@ impl HomeFeedService {
 
     async fn fill_from_reserve(
         &self,
-        rec: &RecommendationService,
         pool: &SqlitePool,
         inputs: &Inputs,
         followed: &HashSet<String>,
@@ -359,8 +336,7 @@ impl HomeFeedService {
             true,
         )
         .collect();
-        let ranked =
-            lanes::share(rec, lanes::rank(rec, cards, followed, true).await, followed).await;
+        let ranked = lanes::share(lanes::rank(cards, followed), followed);
         let search_pages = &self.inner.search_pages;
         let served = attempt.add_all(&ranked, |card| {
             if related.contains(card.id()) {
@@ -382,7 +358,6 @@ impl HomeFeedService {
     async fn fill_from_related(
         &self,
         yt: &YoutubeService,
-        rec: &RecommendationService,
         pool: &SqlitePool,
         inputs: &Inputs,
         feed_cards: &[Card],
@@ -407,14 +382,12 @@ impl HomeFeedService {
             .filter(|s| seen.insert(s.id.clone()))
             .collect();
         let long_term = inputs.long_term_seeds(&disliked);
-        let ids = rec
-            .select_related_seeds(&seeds, max_seeds, &long_term)
-            .await;
+        let ids = select_with_long_term(&seeds, max_seeds, &long_term, now, &HashSet::new(), &disliked);
         if ids.is_empty() {
             return;
         }
         let all: Vec<SeedInput> = seeds.into_iter().chain(long_term).collect();
-        let candidates: Vec<_> = related_graph(self, yt, rec, pool, &all, &ids, now)
+        let candidates: Vec<_> = related_graph(self, yt, pool, &all, &ids, now)
             .await
             .into_iter()
             .filter(|g| {
@@ -423,7 +396,7 @@ impl HomeFeedService {
                     && super::filters::is_recent_suggestion(&g.card, now)
             })
             .collect();
-        let ranked = lanes::rank_related(rec, &candidates, followed, taste).await;
+        let ranked = lanes::rank_related(&candidates, followed, taste);
         let added: HashSet<String> = attempt
             .add_all(&ranked, |_| Origin::new(OriginKind::Related, None))
             .into_iter()
@@ -445,7 +418,6 @@ impl HomeFeedService {
     async fn fill_from_search(
         &self,
         yt: &YoutubeService,
-        rec: &RecommendationService,
         pool: &SqlitePool,
         inputs: &Inputs,
         followed: &HashSet<String>,
@@ -453,22 +425,6 @@ impl HomeFeedService {
         now: u64,
         attempt: &mut Attempt,
     ) {
-        let needs_more = {
-            let discovery = self.inner.discovery.lock().unwrap();
-            discovery.next >= discovery.queries.len()
-        };
-        if needs_more {
-            let generated = rec
-                .generate_discovery_queries(DiscoverySurface::Home, false)
-                .await
-                .unwrap_or_default();
-            let mut discovery = self.inner.discovery.lock().unwrap();
-            for query in generated {
-                if !discovery.queries.contains(&query) {
-                    discovery.queries.push(query);
-                }
-            }
-        }
         // The next page of a search already filling Home takes one of the two searches.
         let cards_by_query: HashMap<String, usize> = {
             let feed = self.inner.feed.lock().unwrap();
@@ -520,8 +476,7 @@ impl HomeFeedService {
                 Err(()) => attempt.failed = true,
             }
         }
-        report_searches(rec, &searches).await;
-        self.add_discovery(rec, pool, inputs, followed, taste, now, &searches, attempt)
+        self.add_discovery(pool, inputs, followed, taste, now, &searches, attempt)
             .await;
         // Still short: the next pages of searches already made, before any wider related pass.
         for _ in 0..DEEPER_SEARCH_PAGES {
@@ -530,7 +485,7 @@ impl HomeFeedService {
             }
             match self.inner.search_pages.next_page_of_any(yt, now).await {
                 Some(Ok(page)) => {
-                    self.add_discovery(rec, pool, inputs, followed, taste, now, &[page], attempt)
+                    self.add_discovery(pool, inputs, followed, taste, now, &[page], attempt)
                         .await;
                 }
                 Some(Err(())) => attempt.failed = true,
@@ -542,7 +497,6 @@ impl HomeFeedService {
     #[allow(clippy::too_many_arguments)]
     async fn add_discovery(
         &self,
-        rec: &RecommendationService,
         pool: &SqlitePool,
         inputs: &Inputs,
         followed: &HashSet<String>,
@@ -567,12 +521,7 @@ impl HomeFeedService {
             return;
         }
         let query_of = queries_by_id(searches);
-        let ranked = lanes::share(
-            rec,
-            taste.demote(lanes::rank(rec, cards, followed, true).await),
-            followed,
-        )
-        .await;
+        let ranked = lanes::share(taste.demote(lanes::rank(cards, followed)), followed);
         let count = ranked.len();
         let ranked = spread_across_searches(ranked, &query_of, count);
         attempt.add_all(&ranked, |card| {

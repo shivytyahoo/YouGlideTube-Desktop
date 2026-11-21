@@ -125,7 +125,7 @@ mod tests {
     fn a_failed_write_keeps_the_last_good_file() {
         let dir = std::env::temp_dir().join(format!("youglidetube-backup-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("flow_backup.json");
+        let path = dir.join("youglidetube_backup.json");
         write_json(&path, &json!({ "good": true })).unwrap();
 
         let failed = write_atomic(&path, |_| Err(io::Error::other("disk full")));

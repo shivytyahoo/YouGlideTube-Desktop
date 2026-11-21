@@ -13,11 +13,6 @@ let profilesView: unknown = null;
 
 vi.mock("../api/backup", () => ({ readBackupFile: (...args: unknown[]) => readBackupFile(...args) }));
 vi.mock("../api/db", () => ({ getSetting: vi.fn(), setSetting: vi.fn(), addWatchRecordsBulk: vi.fn() }));
-vi.mock("../api/recommendation", () => ({
-  bootstrapFromHistory: vi.fn(),
-  bootstrapFromSubscriptions: vi.fn(),
-  importBrain: vi.fn(),
-}));
 vi.mock("../api/youtube", () => ({ parseSubscriptionExport: vi.fn(async () => []) }));
 vi.mock("../dialogs", () => ({ confirmAction: (...args: unknown[]) => confirmAction(...args) }));
 vi.mock("../settings/backup", async (importOriginal) => ({

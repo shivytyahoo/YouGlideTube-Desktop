@@ -1,14 +1,14 @@
 //! The `notes` collection against Flow for Android: its wire form, its merge rule, its tombstones,
 //! and what a peer that lacks the collection sees.
 
-use flow_desktop_lib::commands::backup::{export_backup, import_backup};
-use flow_desktop_lib::data_model::apply::apply_payload;
-use flow_desktop_lib::data_model::canonical::{Collection, Note, to_canonical_json};
-use flow_desktop_lib::data_model::changes::{self, Change};
-use flow_desktop_lib::data_model::codec::sha256_hex;
-use flow_desktop_lib::data_model::export::export_collections;
-use flow_desktop_lib::data_model::merge::merge_notes;
-use flow_desktop_lib::data_model::protocol::StagedCollection;
+use youglidetube_desktop_lib::commands::backup::{export_backup, import_backup};
+use youglidetube_desktop_lib::data_model::apply::apply_payload;
+use youglidetube_desktop_lib::data_model::canonical::{Collection, Note, to_canonical_json};
+use youglidetube_desktop_lib::data_model::changes::{self, Change};
+use youglidetube_desktop_lib::data_model::collection::sha256_hex;
+use youglidetube_desktop_lib::data_model::export::export_collections;
+use youglidetube_desktop_lib::data_model::merge::merge_notes;
+use youglidetube_desktop_lib::data_model::collection::StagedCollection;
 use rand::rngs::StdRng;
 use rand::{RngExt, SeedableRng};
 use sqlx::SqlitePool;
@@ -284,7 +284,7 @@ async fn an_edit_after_a_note_from_a_faster_clock_sorts_after_it() {
     let far = chrono::Utc::now().timestamp_millis() + 60 * 60 * 1000;
     let ahead = ANDROID_LINE.replace("1700000000000", &far.to_string());
     apply_lines(&pool, &[&ahead]).await;
-    let edit = flow_desktop_lib::data_model::clock::edit_ms(&pool).await.unwrap();
+    let edit = youglidetube_desktop_lib::data_model::clock::edit_ms(&pool).await.unwrap();
     assert!(i64::try_from(edit).unwrap() > far);
 }
 

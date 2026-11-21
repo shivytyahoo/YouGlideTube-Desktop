@@ -8,7 +8,6 @@ import {
   removeVideoFromWatchLater,
 } from "../lib/playlistLibrary";
 import type { VideoSummary } from "../types/video";
-import { noteVideoSaved } from "../lib/videoSaved";
 import { recapVideoAction } from "../lib/recap/recapQueue";
 
 /**
@@ -72,7 +71,6 @@ export const useWatchLaterStore = create<WatchLaterState>((set, get) => ({
     set({ ids: new Set(previous).add(video.id) });
     try {
       await addVideoToWatchLater(video);
-      noteVideoSaved(video);
       recapVideoAction(video, "SAVE");
     } catch (error) {
       set({ ids: previous });

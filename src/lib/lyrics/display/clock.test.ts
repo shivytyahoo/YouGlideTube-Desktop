@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const audio = { time: 0, speed: 1 };
 vi.mock("../../audio/musicAudioEngine", () => ({
-  musicAudioEngine: { getCurrentTime: () => audio.time, getDuration: () => 200, getSpeed: () => audio.speed },
+  musicAudioEngine: { getCurrentTime: () => audio.time, getDuration: () => 200, getSpeed: () => audio.speed, getEffectiveRate: () => audio.speed },
 }));
 
 import { LyricsClock } from "./clock";

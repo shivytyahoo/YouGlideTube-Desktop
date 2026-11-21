@@ -13,12 +13,11 @@ use std::path::PathBuf;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use flow_desktop_lib::data_model::canonical::{
+use youglidetube_desktop_lib::data_model::canonical::{
     FlowNeuroBrainSnapshot, Like, LikeKind, LikeState, MusicBrainSnapshot, Playlist,
     PlaylistOrigin, SettingEntry, SubscribedChannel, SubscriptionGroup, WatchHistoryRecord,
     to_canonical_json,
 };
-use flow_desktop_lib::data_model::frames::CapabilitiesFrame;
 
 fn fixture_path(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -201,15 +200,3 @@ fn subscription_group_members_fixture_locks_its_bytes() {
     );
 }
 
-#[test]
-fn capabilities_fixture_locks() {
-    let caps: CapabilitiesFrame = load_stable("capabilities.json");
-    assert_eq!(caps.collections["watch_history"].schema, 1);
-    assert!(caps.collections["watch_history"].produce);
-    // music_brain is producible by desktop but not consumable by a peer without a MusicBrain
-    assert!(caps.collections["music_brain"].produce);
-    assert!(!caps.collections["music_brain"].consume);
-    // subscription groups now sync in both directions
-    assert!(caps.collections["subscriptions"].produce);
-    assert!(caps.collections["subscriptions"].consume);
-}

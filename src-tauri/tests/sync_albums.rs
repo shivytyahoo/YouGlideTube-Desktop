@@ -5,11 +5,11 @@
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqlitePoolOptions;
 
-use flow_desktop_lib::data_model::apply::apply_payload;
-use flow_desktop_lib::data_model::canonical::Collection;
-use flow_desktop_lib::data_model::codec::sha256_hex;
-use flow_desktop_lib::data_model::export::export_collections;
-use flow_desktop_lib::data_model::protocol::{OutgoingCollection, StagedCollection};
+use youglidetube_desktop_lib::data_model::apply::apply_payload;
+use youglidetube_desktop_lib::data_model::canonical::Collection;
+use youglidetube_desktop_lib::data_model::collection::sha256_hex;
+use youglidetube_desktop_lib::data_model::export::export_collections;
+use youglidetube_desktop_lib::data_model::collection::{OutgoingCollection, StagedCollection};
 
 const OUR: &str = "dlocal";
 const PEER: &str = "dpeer";
@@ -145,8 +145,8 @@ async fn incoming_album_does_not_wipe_an_existing_album_library() {
 
 #[test]
 fn album_track_thumbnail_falls_back_to_item_when_raw_song_has_none() {
-    use flow_desktop_lib::data_model::canonical::{Hlc, Playlist, PlaylistItem, PlaylistOrigin};
-    use flow_desktop_lib::data_model::mapping::albums_to_blob;
+    use youglidetube_desktop_lib::data_model::canonical::{Hlc, Playlist, PlaylistItem, PlaylistOrigin};
+    use youglidetube_desktop_lib::data_model::mapping::albums_to_blob;
 
     let hlc = Hlc::new(1000, 0, "dev");
     let item = PlaylistItem {

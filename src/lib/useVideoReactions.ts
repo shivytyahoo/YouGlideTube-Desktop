@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
-import { isKnownShort } from "./videoKind";
 import { isMusicVideo } from "./utils";
-import { logInteraction } from "./api/recommendation";
-import { getString } from "./i18n/index";
 import { useFeedActionsStore } from "../store/useFeedActionsStore";
 import { useLikesStore } from "../store/useLikesStore";
-import { useUiStore } from "../store/useUiStore";
 import { showSaveFailedToast, showSaveToast } from "./saveToast";
 import type { VideoSummary } from "../types/video";
 import { recapAction, recapDislike, recapDislikeRemoved } from "./recap/recapQueue";
@@ -18,9 +14,8 @@ interface ReactionVideoMeta {
 }
 
 /**
- * Local like/dislike toggle for the active video. Reactions feed the neural
- * recommendation engine (LIKED / DISLIKED); un-toggling does not log. A
- * dislike also hides the video from every feed.
+ * Local like/dislike toggle for the active video. A like is recorded in the
+ * recap ledger; a dislike also hides the video from every feed.
  */
 export function useVideoReactions(video: VideoSummary | null, videoMeta: ReactionVideoMeta | null) {
   const [state, setState] = useState<ReactionState>("none");
@@ -28,7 +23,6 @@ export function useVideoReactions(video: VideoSummary | null, videoMeta: Reactio
   const loaded = useLikesStore((s) => s.loaded);
   const loadLikes = useLikesStore((s) => s.load);
   const toggleVideoLike = useLikesStore((s) => s.toggleVideo);
-  const showToast = useUiStore((s) => s.showToast);
   const hideVideo = useFeedActionsStore((s) => s.hideVideo);
 
   const likedInLibrary = Boolean(
@@ -44,7 +38,6 @@ export function useVideoReactions(video: VideoSummary | null, videoMeta: Reactio
   }, [likedInLibrary, video?.id]);
 
   const channelId = videoMeta?.channelId || video?.channelId || video?.id || "";
-  const isShort = isKnownShort(video?.durationSeconds);
 
   const like = () => {
     if (!video) return;
@@ -64,26 +57,12 @@ export function useVideoReactions(video: VideoSummary | null, videoMeta: Reactio
       setState(likedInLibrary ? "liked" : "none");
       showSaveFailedToast({ destination: { kind: "likes" }, item, removed: likedInLibrary });
     });
-    // Music played in the video player never teaches the video engine.
     if (next !== "liked" || isMusicVideo(video)) return;
     recapAction("LIKE");
-    void logInteraction(
-      video.id,
-      video.title,
-      video.channelName,
-      channelId,
-      videoMeta?.description ?? null,
-      video.durationSeconds ?? null,
-      false,
-      isShort,
-      "LIKED",
-      1,
-    ).catch((err) => console.warn("Failed to log like", err));
   };
 
   const dislike = () => {
     if (!video) return;
-    const previous = state;
     const next: ReactionState = state === "disliked" ? "none" : "disliked";
     setState(next);
     if (next !== "disliked") {
@@ -97,22 +76,7 @@ export function useVideoReactions(video: VideoSummary | null, videoMeta: Reactio
     }
     if (isMusicVideo(video)) return;
     recapDislike(video);
-    void logInteraction(
-      video.id,
-      video.title,
-      video.channelName,
-      channelId,
-      videoMeta?.description ?? null,
-      video.durationSeconds ?? null,
-      false,
-      isShort,
-      "DISLIKED",
-      0,
-    ).then(() => hideVideo(video.id)).catch((err) => {
-      console.warn("Failed to log dislike", err);
-      setState(previous);
-      showToast({ variant: "error", message: getString("feed_action_failed") });
-    });
+    hideVideo(video.id);
   };
 
   return { state, like, dislike };

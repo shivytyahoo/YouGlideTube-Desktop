@@ -1,15 +1,10 @@
 //! Which videos open Home's related lane, from the Android app's `GraphSeedSelector` and
 //! `HomeFeedGraphCandidates`: real watches, likes and saved videos, scored by engagement, source and
-//! age, spread one per interest community, with the last seed kept for a lasting interest the
-//! recent ones miss.
+//! age, spread one per channel, with the last seed kept for a lasting interest the recent ones miss.
 
 use std::collections::{HashMap, HashSet};
 
 use super::card::Card;
-use crate::flow_neuro::clusters::TopicCluster;
-use crate::flow_neuro::keyspec::KeySpec;
-use crate::flow_neuro::scoring::strip_domain_tag;
-use crate::flow_neuro::topic_catalog::TOPIC_CATEGORIES;
 
 const DAY_MS: u64 = 86_400_000;
 const MIN_LONG_WATCH_SECONDS: f64 = 180.0;
@@ -97,83 +92,6 @@ fn recency_weight(timestamp_ms: u64, now_ms: u64) -> f64 {
     }
 }
 
-/// How seeds are grouped: by the viewer's interest the title names best, else by catalog category.
-pub struct SeedClusters<'a> {
-    spec: &'a KeySpec,
-    topic_scores: &'a HashMap<String, f64>,
-    by_base: HashMap<String, f64>,
-    community_of: HashMap<String, String>,
-    community_mass: HashMap<String, f64>,
-}
-
-impl<'a> SeedClusters<'a> {
-    #[must_use]
-    pub fn new(
-        spec: &'a KeySpec,
-        topic_scores: &'a HashMap<String, f64>,
-        clusters: &[TopicCluster],
-    ) -> Self {
-        let mut by_base = HashMap::new();
-        for (key, score) in topic_scores {
-            by_base.entry(strip_domain_tag(key)).or_insert(*score);
-        }
-        Self {
-            spec,
-            topic_scores,
-            by_base,
-            community_of: clusters
-                .iter()
-                .flat_map(|c| {
-                    c.topics
-                        .iter()
-                        .map(|t| (t.clone(), c.representative.clone()))
-                })
-                .collect(),
-            community_mass: clusters
-                .iter()
-                .map(|c| (c.representative.clone(), c.mass))
-                .collect(),
-        }
-    }
-
-    fn raw_key(&self, title: &str) -> String {
-        let words = self.spec.chunk(title).words();
-        let best = words
-            .iter()
-            .filter_map(|word| {
-                let score = self
-                    .topic_scores
-                    .get(word)
-                    .or_else(|| self.by_base.get(word))?;
-                Some((word, *score))
-            })
-            .max_by(|a, b| a.1.total_cmp(&b.1));
-        if let Some((word, score)) = best
-            && score >= 0.05
-        {
-            return word.clone();
-        }
-        for word in &words {
-            if let Some(category) = TOPIC_CATEGORIES
-                .iter()
-                .find(|c| c.topics.iter().any(|t| self.spec.key_of(t) == *word))
-            {
-                return format!("cat:{}", category.name);
-            }
-        }
-        words.first().cloned().unwrap_or_else(|| "misc".into())
-    }
-
-    #[must_use]
-    pub fn community(&self, title: &str) -> String {
-        let key = self.raw_key(title);
-        self.community_of
-            .get(&strip_domain_tag(&key))
-            .cloned()
-            .unwrap_or(key)
-    }
-}
-
 struct Ranked {
     id: String,
     cluster: String,
@@ -213,7 +131,6 @@ fn select(
     max_seeds: usize,
     now_ms: u64,
     excluded_channels: &HashSet<String>,
-    clusters: &SeedClusters,
 ) -> Vec<String> {
     if candidates.is_empty() || max_seeds == 0 {
         return Vec::new();
@@ -233,43 +150,27 @@ fn select(
                 &seed.id,
                 Ranked {
                     id: seed.id.clone(),
-                    cluster: clusters.community(&seed.title),
+                    cluster: if seed.channel_id.is_empty() {
+                        seed.id.clone()
+                    } else {
+                        seed.channel_id.clone()
+                    },
                     weight,
                 },
             );
         }
     }
     let ranked: Vec<Ranked> = best.into_values().collect();
-    let present: HashSet<&String> = ranked.iter().map(|r| &r.cluster).collect();
-    let present_mass: f64 = present
-        .iter()
-        .filter_map(|c| clusters.community_mass.get(*c))
-        .sum();
-    if present_mass <= 0.0 {
-        return pick_diverse(ranked, max_seeds, &|_| MAX_PER_CLUSTER);
-    }
-    // A light interest gets fewer seeds, so a burst of one new interest takes one seed.
-    #[allow(
-        clippy::cast_precision_loss,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss
-    )]
-    let cap_of = |community: &str| {
-        clusters.community_mass.get(community).map_or(1, |mass| {
-            ((max_seeds as f64 * mass / present_mass).round() as usize).clamp(1, MAX_PER_CLUSTER)
-        })
-    };
-    pick_diverse(ranked, max_seeds, &cap_of)
+    pick_diverse(ranked, max_seeds, &|_| MAX_PER_CLUSTER)
 }
 
 /// The seeds for one related pass: recent seeds not used in the last hours (unless none other
-/// qualifies), with the last slot given to a lasting interest none of them covers.
+/// qualifies), with the last slot given to a lasting interest from a channel none of them covers.
 #[must_use]
 pub fn select_with_long_term(
     candidates: &[SeedInput],
     max_seeds: usize,
     long_term: &[SeedInput],
-    clusters: &SeedClusters,
     now_ms: u64,
     cooled: &HashSet<String>,
     excluded_channels: &HashSet<String>,
@@ -279,9 +180,9 @@ pub fn select_with_long_term(
         .iter()
         .filter(|s| !cooled.contains(&s.id))
         .collect();
-    let mut recent = select(&fresh, max_seeds, now_ms, excluded_channels, clusters);
+    let mut recent = select(&fresh, max_seeds, now_ms, excluded_channels);
     if recent.is_empty() {
-        recent = select(&all, max_seeds, now_ms, excluded_channels, clusters);
+        recent = select(&all, max_seeds, now_ms, excluded_channels);
     }
     if long_term.is_empty() || max_seeds < 2 {
         return recent;
@@ -290,21 +191,32 @@ pub fn select_with_long_term(
     let covered: HashSet<String> = candidates
         .iter()
         .filter(|s| recent.contains(&s.id))
-        .map(|s| clusters.community(&s.title))
+        .map(|s| {
+            if s.channel_id.is_empty() {
+                s.id.clone()
+            } else {
+                s.channel_id.clone()
+            }
+        })
         .collect();
     let lasting = long_term
         .iter()
         .filter(|s| {
             !cooled.contains(&s.id) && !recent.contains(&s.id) && s.is_eligible(excluded_channels)
         })
-        .filter_map(|s| {
-            let community = clusters.community(&s.title);
-            let mass = *clusters.community_mass.get(&community)?;
-            (!covered.contains(&community))
-                .then(|| (s, mass, s.engagement_weight * s.source_weight()))
+        .filter(|s| {
+            !covered.contains(if s.channel_id.is_empty() {
+                &s.id
+            } else {
+                &s.channel_id
+            })
         })
-        .max_by(|a, b| a.1.total_cmp(&b.1).then_with(|| a.2.total_cmp(&b.2)));
-    if let Some((seed, _, _)) = lasting {
+        .max_by(|a, b| {
+            a.score(now_ms)
+                .total_cmp(&b.score(now_ms))
+                .then_with(|| a.engagement_weight.total_cmp(&b.engagement_weight))
+        });
+    if let Some(seed) = lasting {
         recent.push(seed.id.clone());
     }
     recent
@@ -440,26 +352,25 @@ mod tests {
     }
 
     #[test]
-    fn half_watched_history_never_seeds_and_interests_spread() {
-        let spec = KeySpec::default();
-        let scores: HashMap<String, f64> = [("guitar".into(), 0.6), ("chess".into(), 0.4)].into();
-        let clusters = SeedClusters::new(&spec, &scores, &[]);
-        let candidates = vec![
+    fn half_watched_history_never_seeds_and_channels_spread() {
+        let mut candidates = vec![
             seed("a", "Guitar lesson one", SeedSource::WatchHistory, 90.0),
             seed("b", "Guitar lesson two", SeedSource::WatchHistory, 95.0),
             seed("c", "Chess opening", SeedSource::WatchHistory, 80.0),
             seed("d", "Guitar solo", SeedSource::WatchHistory, 10.0),
         ];
+        // "a" and "b" share a channel, so the spread takes the stronger one, then a new channel.
+        candidates[1].channel_id = candidates[0].channel_id.clone();
         let picked = select_with_long_term(
             &candidates,
             2,
             &[],
-            &clusters,
             2_000,
             &HashSet::new(),
             &HashSet::new(),
         );
         assert_eq!(picked.len(), 2);
+        assert!(picked.contains(&"b".to_string()), "{picked:?}");
         assert!(picked.contains(&"c".to_string()), "{picked:?}");
         assert!(!picked.contains(&"d".to_string()));
     }

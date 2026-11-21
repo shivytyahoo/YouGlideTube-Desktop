@@ -54,7 +54,7 @@ describe("recap queue", () => {
     sent.length = 0;
   });
 
-  it("records nothing that Deep Flow stops", async () => {
+  it("records nothing that Deep Glide stops", async () => {
     deepGlide = true;
     recapView(view);
     recapListen(listen);
@@ -66,7 +66,7 @@ describe("recap queue", () => {
     expect(sent).toEqual([]);
   });
 
-  it("still takes back what is stored during Deep Flow, and notes an artist said no to", async () => {
+  it("still takes back what is stored during Deep Glide, and notes an artist said no to", async () => {
     deepGlide = true;
     recapDislikeRemoved("v");
     recapQueriesCleared();

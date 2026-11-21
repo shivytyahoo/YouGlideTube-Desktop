@@ -1,3 +1,4 @@
+import { isDeepGlideCurrentlyActive } from "../deepGlide";
 import type { WatchHistoryRecord } from "../../types/db";
 import { isTauriEnv } from "./env";
 import { invokeBackend } from "./errors";
@@ -153,4 +154,28 @@ export async function setSetting(key: string, value: string): Promise<void> {
   }
   await invokeBackend<void>("set_setting", { key, value });
   announceSettingWrite(key);
+}
+
+/** Cards seen beside a video, kept only for "Hide videos you've already seen". */
+export async function recordSeenVideos(ids: string[]): Promise<void> {
+  if (isDeepGlideCurrentlyActive() || !(await isTauriEnv())) return;
+  return invokeBackend<void>("record_seen_videos", { ids });
+}
+
+/** Which of these videos were already seen in a recommendation list. */
+export async function seenVideoIdsAmong(ids: string[]): Promise<string[]> {
+  if (!(await isTauriEnv())) return [];
+  return invokeBackend<string[]>("seen_video_ids_among", { ids });
+}
+
+/** Lets a blocked channel back into every feed. */
+export async function unblockChannel(channelId: string): Promise<void> {
+  if (!(await isTauriEnv())) return;
+  await invokeBackend<void>("unblock_channel", { channelId });
+}
+
+/** Blocks a channel; its name is kept so Hidden channels can show it without a lookup. */
+export async function blockChannel(channelId: string, channelName?: string): Promise<void> {
+  if (!(await isTauriEnv())) return;
+  await invokeBackend<void>("block_channel", { channelId, channelName: channelName || null });
 }

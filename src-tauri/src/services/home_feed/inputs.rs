@@ -10,12 +10,11 @@ use super::card::Card;
 use super::channel_memory::Watch;
 use super::filters::is_within;
 use super::seeds::{SeedInput, SeedSource};
+use crate::data_model::brain::CHANNEL_SUPPRESSION_DAYS;
 use crate::db::settings::get_setting;
 use crate::db::watch_history::{WatchHistoryRecord, get_watch_history};
 use crate::db::{known_shorts, library, seen_videos, unplayable_videos};
 use crate::errors::AppResult;
-use crate::flow_neuro::gates::BlockedMatchers;
-use crate::flow_neuro::scoring::{CHANNEL_SUPPRESSION_DAYS, UserBrain};
 use crate::models::video::VideoSummary;
 
 const HISTORY_LOOKBACK: i64 = 400;
@@ -100,9 +99,9 @@ impl Subscriptions {
     }
 }
 
-/// What Home leaves out: what the viewer hid (videos, channels and topics, from the brain and the
-/// feed actions), videos known to be Shorts, videos that were refused for good, and, by the
-/// viewer's choice, videos older than a limit or already seen.
+/// What Home leaves out: what the viewer hid (videos and channels, from the feed actions),
+/// videos known to be Shorts, videos that were refused for good, and, by the viewer's choice,
+/// videos older than a limit or already seen.
 pub struct Exclusions {
     videos: HashSet<String>,
     channels: HashSet<String>,
@@ -112,8 +111,6 @@ pub struct Exclusions {
     seen: HashSet<String>,
     /// The oldest a video may be and the time it is measured from, when the viewer set a limit.
     age_limit: Option<(u64, u64)>,
-    matchers: BlockedMatchers,
-    spec: crate::flow_neuro::keyspec::KeySpec,
 }
 
 impl Exclusions {
@@ -144,9 +141,6 @@ impl Exclusions {
             || self.shorts.contains(card.id())
             || self.unplayable.contains(card.id())
             || self.channels.contains(card.channel_id())
-            || self
-                .matchers
-                .blocks_text(&card.video.title, &card.video.channel_name, &self.spec)
     }
 }
 
@@ -158,13 +152,19 @@ pub struct Inputs {
     pub history: Vec<WatchHistoryRecord>,
     pub likes: Vec<(VideoSummary, u64)>,
     pub saved: Vec<(VideoSummary, u64)>,
+    /// Channels the viewer blocked (feed actions), for channel memory.
+    pub blocked_channels: HashSet<String>,
+    /// Channels the viewer marked "not interested", with when (feed actions), for channel memory.
+    pub suppressed_channels: HashMap<String, u64>,
+    /// Every video the feed already showed, for keeping fresh uploads off the top.
+    pub seen: HashSet<String>,
     pub max_video_age_ms: Option<u64>,
     pub hides_seen_videos: bool,
     pub subscriptions_on_home: bool,
 }
 
 impl Inputs {
-    pub async fn load(pool: &SqlitePool, brain: &UserBrain, now_ms: u64) -> AppResult<Self> {
+    pub async fn load(pool: &SqlitePool, now_ms: u64) -> AppResult<Self> {
         let subscriptions = subscriptions(pool).await?;
         let actions: FeedActions = get_setting(pool, "feed_actions_state_v1")
             .await?
@@ -178,24 +178,17 @@ impl Inputs {
             .collect();
         watched.extend(actions.watched);
         let channel_cutoff = now_ms.saturating_sub(CHANNEL_SUPPRESSION_DAYS * 86_400_000);
-        let mut channels: HashSet<String> = brain.blocked_channels.iter().cloned().collect();
-        channels.extend(actions.blocked);
+        let blocked_channels: HashSet<String> = actions.blocked.iter().cloned().collect();
+        let suppressed_channels: HashMap<String, u64> =
+            actions.suppressed_channels.iter().cloned().collect();
+        let mut channels: HashSet<String> = blocked_channels.clone();
         channels.extend(
-            brain
-                .suppressed_channels
+            suppressed_channels
                 .iter()
                 .filter(|(_, at)| **at > channel_cutoff)
                 .map(|(id, _)| id.clone()),
         );
-        channels.extend(
-            actions
-                .suppressed_channels
-                .into_iter()
-                .filter(|(_, at)| *at > channel_cutoff)
-                .map(|(id, _)| id),
-        );
-        let mut videos: HashSet<String> = brain.suppressed_video_ids.keys().cloned().collect();
-        videos.extend(actions.dismissed);
+        let videos: HashSet<String> = actions.dismissed.iter().cloned().collect();
         let mut shorts = known_shorts::all(pool).await?;
         shorts.extend(
             history
@@ -203,13 +196,13 @@ impl Inputs {
                 .filter(|record| record.is_short_video())
                 .map(|record| record.video_id.clone()),
         );
-        let spec = brain.key_spec();
         let max_video_age_ms = max_video_age_ms(pool).await;
         let hides_seen_videos = hides_seen_videos(pool).await;
         let subscriptions_on_home = subscriptions_on_home(pool).await;
         if !subscriptions_on_home {
             channels.extend(subscriptions.names.keys().cloned());
         }
+        let seen = seen_videos::all(pool).await?;
         Ok(Self {
             exclusions: Exclusions {
                 videos,
@@ -217,19 +210,20 @@ impl Inputs {
                 shorts,
                 unplayable: unplayable_videos::all(pool).await?,
                 seen: if hides_seen_videos {
-                    seen_videos::all(pool).await?
+                    seen.clone()
                 } else {
                     HashSet::new()
                 },
                 age_limit: max_video_age_ms.map(|max_age_ms| (max_age_ms, now_ms)),
-                matchers: BlockedMatchers::new(&brain.blocked_topics, &spec),
-                spec,
             },
             subscriptions,
             watched,
             likes: library::liked_videos(pool).await?,
             saved: library::saved_videos(pool).await?,
             history,
+            blocked_channels,
+            suppressed_channels,
+            seen,
             max_video_age_ms,
             hides_seen_videos,
             subscriptions_on_home,
@@ -442,7 +436,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let inputs = Inputs::load(&pool, &UserBrain::default(), 2_000)
+        let inputs = Inputs::load(&pool, 2_000)
             .await
             .unwrap();
         let hidden: Vec<bool> = ["seen-in-rss", "swiped", "members", "video"]
@@ -462,14 +456,14 @@ mod tests {
         sqlx::migrate!("./migrations").run(&pool).await.unwrap();
         let day = 86_400_000;
         let now = 30 * day;
-        let off = Inputs::load(&pool, &UserBrain::default(), now)
+        let off = Inputs::load(&pool, now)
             .await
             .unwrap();
         assert!(!off.exclusions.hides(&card("old", "UC1", "2 weeks ago")));
         crate::db::settings::set_setting(&pool, MAX_VIDEO_AGE_SETTING, "72")
             .await
             .unwrap();
-        let limited = Inputs::load(&pool, &UserBrain::default(), now)
+        let limited = Inputs::load(&pool, now)
             .await
             .unwrap();
         assert_eq!(limited.max_video_age_ms, Some(3 * day));
@@ -494,14 +488,14 @@ mod tests {
         let hides = |inputs: &Inputs| {
             ["shown", "new"].map(|id| inputs.exclusions.hides(&card(id, "UC1", "1 day ago")))
         };
-        let off = Inputs::load(&pool, &UserBrain::default(), 2_000)
+        let off = Inputs::load(&pool, 2_000)
             .await
             .unwrap();
         assert_eq!(hides(&off), [false, false]);
         crate::db::settings::set_setting(&pool, HIDE_SEEN_SETTING, "true")
             .await
             .unwrap();
-        let on = Inputs::load(&pool, &UserBrain::default(), 2_000)
+        let on = Inputs::load(&pool, 2_000)
             .await
             .unwrap();
         assert_eq!(hides(&on), [true, false]);

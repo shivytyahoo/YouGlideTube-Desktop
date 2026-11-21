@@ -1,6 +1,6 @@
 //! From raw fetches to ranked lanes to the first page, from the Android app's `HomeFeedAssembly`.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use super::arrange::{TasteProfile, spread_across_searches};
 use super::card::Card;
@@ -10,8 +10,6 @@ use super::filters::{
 use super::inputs::Inputs;
 use super::mixer::{Blend, FeedSource, Page, blend, quotas};
 use super::seeds::{GraphCandidate, apply_graph_boost};
-use crate::flow_neuro::gates::LANE_RELEVANCE_FLOOR;
-use crate::services::recommendation_service::RecommendationService;
 
 pub const HOME_TARGET_SIZE: usize = 40;
 const FRESH_SUBS_PIN_TOP: usize = 2;
@@ -23,58 +21,44 @@ const BEST_MEMORY_LIMIT: usize = 6;
 const BEST_NEIGHBOUR_LIMIT: usize = 4;
 const BEST_RELATED_LIMIT: usize = 12;
 
-/// Ranks `cards` with the engine, keeping each card's publish time.
-pub async fn rank(
-    rec: &RecommendationService,
-    cards: Vec<Card>,
-    subs: &HashSet<String>,
-    relevant_only: bool,
-) -> Vec<Card> {
-    if cards.is_empty() {
-        return cards;
+/// Cards keep the order their source gave them: subscriptions by recency, discovery by search
+/// relevance. There is no engine ranking anymore.
+#[must_use]
+pub fn rank(cards: Vec<Card>, _subs: &HashSet<String>) -> Vec<Card> {
+    cards
+}
+
+/// Spreads cards across channels, one per channel in turn, so no single channel fills a lane.
+/// (The engine used to spread across interests; channels are the neutral proxy now.)
+#[must_use]
+pub fn share(cards: Vec<Card>, _subs: &HashSet<String>) -> Vec<Card> {
+    let mut groups: Vec<(String, VecDeque<Card>)> = Vec::new();
+    for card in cards {
+        let key = if card.channel_id().is_empty() {
+            card.id().to_string()
+        } else {
+            card.channel_id().to_string()
+        };
+        if let Some(group) = groups.iter_mut().find(|(k, _)| *k == key) {
+            group.1.push_back(card);
+        } else {
+            groups.push((key, VecDeque::from([card])));
+        }
     }
-    let published: HashMap<String, u64> = cards
-        .iter()
-        .map(|c| (c.id().to_string(), c.published_at_ms))
-        .collect();
-    let floor = if relevant_only {
-        LANE_RELEVANCE_FLOOR
-    } else {
-        0.0
-    };
-    let videos = cards.into_iter().map(|c| c.video).collect();
-    rec.rank_candidates(videos, subs.clone(), floor)
-        .await
-        .unwrap_or_default()
-        .into_iter()
-        .map(|video| Card {
-            published_at_ms: published.get(&video.id).copied().unwrap_or(0),
-            video,
-        })
-        .collect()
+    let mut out = Vec::new();
+    while groups.iter().any(|(_, queue)| !queue.is_empty()) {
+        for (_, queue) in groups.iter_mut() {
+            if let Some(card) = queue.pop_front() {
+                out.push(card);
+            }
+        }
+    }
+    out
 }
 
-/// `cards` with their places shared between the viewer's interests.
-pub async fn share(
-    rec: &RecommendationService,
-    cards: Vec<Card>,
-    subs: &HashSet<String>,
-) -> Vec<Card> {
-    let mut by_id: HashMap<String, Card> = cards
-        .iter()
-        .map(|c| (c.id().to_string(), c.clone()))
-        .collect();
-    let videos = cards.into_iter().map(|c| c.video).collect();
-    rec.share_by_interest(videos, subs)
-        .await
-        .into_iter()
-        .filter_map(|video| by_id.remove(&video.id))
-        .collect()
-}
-
-/// A related lane's cards ranked, demoted by fit, nudged by graph evidence and shared.
-pub async fn rank_related(
-    rec: &RecommendationService,
+/// A related lane's cards demoted by fit, nudged by graph evidence and shared across channels.
+#[must_use]
+pub fn rank_related(
     candidates: &[GraphCandidate],
     subs: &HashSet<String>,
     taste: &TasteProfile,
@@ -84,18 +68,10 @@ pub async fn rank_related(
         .map(|c| (c.card.id().to_string(), c.clone()))
         .collect();
     let ranked = rank(
-        rec,
         candidates.iter().map(|c| c.card.clone()).collect(),
         subs,
-        true,
-    )
-    .await;
-    share(
-        rec,
-        taste.demote(apply_graph_boost(ranked, &metadata)),
-        subs,
-    )
-    .await
+    );
+    share(taste.demote(apply_graph_boost(ranked, &metadata)), subs)
 }
 
 /// What one load fetched or read.
@@ -142,7 +118,6 @@ pub struct Lanes {
     pub best_discovery: Vec<Card>,
     pub best_memory: Vec<Card>,
     pub best_neighbours: Vec<Card>,
-    pub relevant_neighbour_channels: HashSet<String>,
     pub best_related: Vec<Card>,
     pub related: Vec<GraphCandidate>,
     pub subs_by_recency: Vec<Card>,
@@ -179,10 +154,9 @@ fn distinct_by<T>(items: Vec<T>, key: impl Fn(&T) -> String) -> Vec<T> {
         .collect()
 }
 
-/// The ranked lanes the blend draws from. Subscriptions and remembered channels rank plainly;
-/// discovery, related and neighbours keep to the viewer's subjects and share their places.
-pub async fn build(
-    rec: &RecommendationService,
+/// The ranked lanes the blend draws from. Subscriptions rank by recency; discovery, related and
+/// neighbours keep their source order and share their places across channels.
+pub fn build(
     raw: Raw,
     inputs: &Inputs,
     recently_shown: &HashSet<String>,
@@ -222,8 +196,7 @@ pub async fn build(
         .map(Card::id)
         .collect();
 
-    let best_subs: Vec<Card> = rank(rec, subs_pool, &subs, false)
-        .await
+    let best_subs: Vec<Card> = rank(subs_by_recency.clone(), &subs)
         .into_iter()
         .filter(|c| !fresh_ids.contains(c.id()))
         .take(BEST_SUBS_LIMIT)
@@ -240,33 +213,28 @@ pub async fn build(
         })
         .collect();
 
-    // Neighbours are new to the viewer, so they meet the relevance floor like discovery does.
-    let relevant_neighbours = rank(rec, neighbour_pool, &subs, true).await;
-    let ranked_discovery = rank(rec, discovery_pool, &subs, true).await;
+    // Neighbours are new to the viewer, so they are kept as a lane of their own.
+    let relevant_neighbours = rank(neighbour_pool, &subs);
+    let ranked_discovery = rank(discovery_pool, &subs);
     let best_discovery = spread_across_searches(
-        share(rec, taste.demote(ranked_discovery), &subs).await,
+        share(taste.demote(ranked_discovery), &subs),
         &raw.query_of,
         BEST_DISCOVERY_LIMIT,
     );
     let best_memory = distinct_by(
-        taste.demote(rank(rec, memory_pool, &subs, false).await),
+        taste.demote(rank(memory_pool, &subs)),
         |c| c.channel_id().to_string(),
     )
     .into_iter()
     .take(BEST_MEMORY_LIMIT)
     .collect();
-    let relevant_neighbour_channels = relevant_neighbours
-        .iter()
-        .map(|c| c.channel_id().to_string())
-        .collect();
     let best_neighbours = distinct_by(taste.demote(relevant_neighbours), |c| {
         c.channel_id().to_string()
     })
     .into_iter()
     .take(BEST_NEIGHBOUR_LIMIT)
     .collect();
-    let best_related = rank_related(rec, &related, &subs, taste)
-        .await
+    let best_related = rank_related(&related, &subs, taste)
         .into_iter()
         .take(BEST_RELATED_LIMIT)
         .collect();
@@ -283,7 +251,6 @@ pub async fn build(
         best_discovery,
         best_memory,
         best_neighbours,
-        relevant_neighbour_channels,
         best_related,
         related,
         subs_by_recency,

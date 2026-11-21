@@ -9,7 +9,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use flow_desktop_lib::profiles::{ActiveProfile, load_for_process, open_database};
+use youglidetube_desktop_lib::profiles::{ActiveProfile, load_for_process, open_database};
 
 async fn snapshot(path: &Path) -> (BTreeMap<String, i64>, Vec<i64>) {
     let pool = sqlx::SqlitePool::connect(&format!("sqlite://{}", path.display()))

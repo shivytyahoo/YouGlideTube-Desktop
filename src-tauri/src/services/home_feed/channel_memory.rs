@@ -8,7 +8,7 @@ use sqlx::SqlitePool;
 
 use super::card::Card;
 use super::seeds::SeedInput;
-use crate::db::settings::{get_setting, set_setting};
+use crate::db::settings::get_setting;
 use crate::errors::AppResult;
 
 const MIN_REAL_WATCHES: usize = 2;
@@ -242,53 +242,6 @@ async fn load_entries(pool: &SqlitePool) -> AppResult<HashMap<String, Entry>> {
             (channel, entry)
         })
         .collect())
-}
-
-/// "Not interested" or a thumbs-down on one of the channel's videos: it is not remembered again
-/// until the viewer comes back to it, and its stored uploads go.
-pub async fn record_rejection(
-    pool: &SqlitePool,
-    channel_id: &str,
-    name: &str,
-    now_ms: u64,
-) -> AppResult<()> {
-    if channel_id.is_empty() {
-        return Ok(());
-    }
-    sqlx::query(
-        "INSERT INTO home_channel_memory (channel_id, name, rejected_at, uploads) VALUES (?, ?, ?, '[]')
-         ON CONFLICT(channel_id) DO UPDATE SET rejected_at = excluded.rejected_at, uploads = '[]'",
-    )
-    .bind(channel_id)
-    .bind(name)
-    .bind(i64::try_from(now_ms).unwrap_or(i64::MAX))
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
-/// The viewer forgot the channel: only watches after now count toward remembering it again.
-pub async fn forget(pool: &SqlitePool, channel_id: &str, now_ms: u64) -> AppResult<()> {
-    sqlx::query(
-        "INSERT INTO home_channel_memory (channel_id, name, forgotten_at, uploads) VALUES (?, '', ?, '[]')
-         ON CONFLICT(channel_id) DO UPDATE SET forgotten_at = excluded.forgotten_at, uploads = '[]'",
-    )
-    .bind(channel_id)
-    .bind(i64::try_from(now_ms).unwrap_or(i64::MAX))
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
-/// Forgets every channel at once; rejections stay, so a rejected channel does not come back.
-pub async fn clear(pool: &SqlitePool, now_ms: u64) -> AppResult<()> {
-    sqlx::query("DELETE FROM home_channel_memory WHERE rejected_at = 0")
-        .execute(pool)
-        .await?;
-    sqlx::query("UPDATE home_channel_memory SET uploads = '[]'")
-        .execute(pool)
-        .await?;
-    set_setting(pool, CLEARED_AT_KEY, &now_ms.to_string()).await
 }
 
 pub async fn save_uploads(

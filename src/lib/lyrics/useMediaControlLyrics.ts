@@ -67,7 +67,7 @@ export function useMediaControlLyrics(): void {
       if (!useMusicPlayerStore.getState().isPlaying) return;
       const next = timeline.nextChangeAfter(position);
       if (next === null) return;
-      timer = setTimeout(update, Math.max(MIN_WAIT_MS, (next - position) / musicAudioEngine.getSpeed()));
+      timer = setTimeout(update, Math.max(MIN_WAIT_MS, (next - position) / musicAudioEngine.getEffectiveRate()));
     };
     update();
     const unsubscribe = useMusicPlayerStore.subscribe((state, previous) => {
