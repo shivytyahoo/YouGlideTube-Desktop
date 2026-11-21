@@ -46,6 +46,8 @@ import { POOL_LOW_WATER } from "../lib/musicRadioPlanner";
 import { SETTINGS } from "../lib/settings/schema";
 import { getSettingValue } from "./useAppSettingsStore";
 import { shouldSkipUnplayable } from "../lib/musicSkip";
+import { classifyPlayerError } from "../lib/playerError";
+import { useUiStore } from "./useUiStore";
 import { MEDIA_FAILURE_KIND, RecoveryLedger, classifyMediaFailure } from "../lib/musicRecoveryPolicy";
 
 export type MusicViewState = "dock" | "full" | "queue" | "lyrics";
@@ -54,6 +56,18 @@ export type MusicRepeatMode = QueueRepeatMode;
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
 const videoIdOf = (track: SongItem): string => track.videoId ?? track.id;
+
+/**
+ * Announces a track that could not be played. The dock and the full player
+ * already render the failure banner from `streamError`, but a banner above a
+ * small bar is easy to miss — and a skipped track sets no error at all, so
+ * without a toast the skip is silent. The message is the banner's own
+ * classified title, so toast and banner never disagree.
+ */
+const toastMusicFailure = (trackTitle: string, message: string, kind: string) => {
+  const { title } = classifyPlayerError({ message, kind });
+  useUiStore.getState().showToast({ variant: "error", title: trackTitle, message: title });
+};
 
 // --- persistence ---
 
@@ -625,6 +639,8 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
       if (shouldSkipUnplayable(normalized.kind, unplayableSkips, hasNext)) {
         unplayableSkips += 1;
         recordPlayerEvent(`music skipped an unplayable track (${unplayableSkips} in a row)`);
+        // A skip sets no streamError, so without this the track just vanishes.
+        toastMusicFailure(track.title, normalized.message, normalized.kind);
         set({ loadingStreamId: null });
         get().next();
         return;
@@ -642,6 +658,8 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
         isPlaying: false,
         isBuffering: false,
       });
+      // The banner renders this too; the toast is what the listener notices.
+      toastMusicFailure(track.title, normalized.message, normalized.kind);
     }
   },
 
@@ -1083,6 +1101,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
     };
     if (decision === "waitForNetwork") {
       set(shown);
+      toastMusicFailure(currentTrack.title, shown.streamError, shown.streamErrorKind);
       waitForNetwork(reload);
       return;
     }
@@ -1092,6 +1111,7 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
       return;
     }
     set(shown);
+    toastMusicFailure(currentTrack.title, shown.streamError, shown.streamErrorKind);
   },
 }));
 

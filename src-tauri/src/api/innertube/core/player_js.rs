@@ -22,6 +22,11 @@ use super::botguard::{node_command, sidecar_script_path};
 /// How long a player version is trusted before `iframe_api` is asked again.
 const PLAYER_TTL: Duration = Duration::from_hours(6);
 const SOLVE_TIMEOUT: Duration = Duration::from_secs(15);
+/// How long one fetch of the player script may take: without a bound a
+/// stalled youtube.com fetch holds the player-script mutex across the wait
+/// (see `player_script`) and every later resolve queues behind it. 15s, the
+/// same bound as `SOLVE_TIMEOUT` and the poToken mint.
+const FETCH_TIMEOUT: Duration = Duration::from_secs(15);
 const SOLVED_N_CAPACITY: usize = 512;
 
 struct PlayerScript {
@@ -117,6 +122,7 @@ async fn fetch_player_script() -> Option<PlayerScript> {
     let client = crate::api::http::shared_client();
     let iframe_api = client
         .get("https://www.youtube.com/iframe_api")
+        .timeout(FETCH_TIMEOUT)
         .send()
         .await
         .ok()?
@@ -139,6 +145,7 @@ async fn fetch_player_script() -> Option<PlayerScript> {
         let url = format!("https://www.youtube.com/s/player/{id}/player_ias.vflset/en_US/base.js");
         let source = client
             .get(&url)
+            .timeout(FETCH_TIMEOUT)
             .send()
             .await
             .ok()?

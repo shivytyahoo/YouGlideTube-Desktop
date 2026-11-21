@@ -33,7 +33,6 @@ function accountState(
     switchAccount: vi.fn().mockResolvedValue(true),
     removeAccount: vi.fn(),
     signOut: vi.fn(),
-    signInWithCookie: vi.fn(),
     refreshAccount: vi.fn(),
     refreshAccounts: vi.fn(),
   };

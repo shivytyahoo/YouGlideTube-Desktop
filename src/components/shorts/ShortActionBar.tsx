@@ -116,12 +116,21 @@ export function ShortActionBar({
       short,
     ],
   );
-  const { state, like, dislike, likeDelta } = useVideoReactions(video, { channelId: short.channelId ?? null });
+  const { state, like, dislike, likeDelta } = useVideoReactions(video, {
+    channelId: short.channelId ?? null,
+    likeParams: details?.likeParams ?? null,
+    removeLikeParams: details?.removeLikeParams ?? null,
+  });
   // A server-confirmed like in this session moves the displayed count,
   // like Android's likeCountDelta. An unparseable snapshot keeps its text.
+  // The delta applies to the fallback snapshot too: without Return YouTube
+  // Dislike data a confirmed like otherwise never moves the number.
+  const fallbackLikeCount = parseCountText(short.likeCountText ?? details?.likeCountText);
   const likeCount = rydData
     ? rydData.likes + likeDelta
-    : parseCountText(short.likeCountText ?? details?.likeCountText);
+    : fallbackLikeCount === null
+      ? null
+      : fallbackLikeCount + likeDelta;
   const likeCountText = likeCount !== null
     ? formatCount(likeCount)
     : formatCount(short.likeCountText ?? details?.likeCountText) || getString('like');

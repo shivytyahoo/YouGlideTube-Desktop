@@ -19,17 +19,18 @@ function accountState(overrides: Record<string, unknown> = {}) {
     error: null,
     startSignIn: vi.fn(),
     startAddAccount: vi.fn(),
-    signInWithCookie: vi.fn(),
     cancelSignIn: vi.fn(),
     ...overrides,
   };
 }
 
+// The dialog portals into document.body, so its content lives outside the
+// render host; query the body instead.
 function renderDialog(onClose: () => void) {
   act(() => {
     root.render(createElement(GoogleSignInDialog, { onClose }));
   });
-  return host;
+  return document.body;
 }
 
 function closeButton(el: HTMLElement) {
@@ -51,14 +52,14 @@ describe("GoogleSignInDialog", () => {
     vi.clearAllMocks();
   });
 
-  it("shows the mobile app's two sign-in options", () => {
+  it("shows only the WebView sign-in option, no cookie sign-in", () => {
     const el = renderDialog(() => undefined);
     expect(el.textContent).toContain("Sign in");
-    expect(el.textContent).toContain("Option 1 — Sign in with Google (WebView)");
+    expect(el.textContent).toContain("Sign in with Google (WebView)");
     expect(el.textContent).toContain("Sign in with Google");
-    expect(el.textContent).toContain("Option 2 — Cookie sign-in (advanced)");
-    expect(el.textContent).toContain("Sign in with cookie");
-    expect(el.querySelector("textarea")?.placeholder).toBe("SAPISID=...; LOGIN_INFO=...");
+    expect(el.textContent).not.toContain("Sign in with cookie");
+    expect(el.textContent).not.toContain("Cookie sign-in");
+    expect(el.querySelector("textarea")).toBeNull();
     expect(el.textContent).toContain("Your sign-in cookie stays on this device, is never backed up, and is only sent to YouTube.");
   });
 
@@ -104,8 +105,8 @@ describe("GoogleSignInDialog", () => {
     const cancelSignIn = vi.fn();
     const onClose = vi.fn();
     mockUseGoogleAccount.mockReturnValue(accountState({ status: "signing-in", cancelSignIn }));
-    const el = renderDialog(onClose);
-    const backdrop = el.firstElementChild as HTMLElement | null;
+    renderDialog(onClose);
+    const backdrop = document.body.querySelector('[role="presentation"]') as HTMLElement | null;
     expect(backdrop).toBeDefined();
     act(() => {
       backdrop?.click();

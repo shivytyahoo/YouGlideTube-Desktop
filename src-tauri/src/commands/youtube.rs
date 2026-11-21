@@ -842,11 +842,12 @@ pub async fn create_comment(
     youtube_service: State<'_, YoutubeService>,
     create_comment_params: String,
     comment_text: String,
-) -> Result<(), ErrorResponse> {
+) -> Result<bool, ErrorResponse> {
     youtube_service
         .create_comment(&create_comment_params, &comment_text)
         .await
-        .map_err(ErrorResponse::from)
+        .map_err(ErrorResponse::from)?;
+    Ok(true)
 }
 
 /// Likes or unlikes a community post, with the toggle endpoint the posts

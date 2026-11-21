@@ -354,7 +354,11 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         // synchronous, so a saved video still costs no network at all.
         let streamRequest: Promise<StreamInfo> | null = null;
         if (!useDownloadsLibraryStore.getState().loaded) {
-          streamRequest = resolveStreamInfo(currentVideo.id);
+          // Bounded like the hard retry below: without a timeout a stalled
+          // resolve leaves "Resolving stream" spinning forever. A timeout
+          // rejects into the catch below, which classifies and surfaces it —
+          // and Retry runs the hard retry on a fresh client ladder.
+          streamRequest = resolveStreamInfo(currentVideo.id, { timeoutMs: HARD_RETRY_TIMEOUT_MS });
           streamRequest.catch(() => {});
           await useDownloadsLibraryStore.getState().ensureLoaded();
           if (!isCurrentLoad()) return;
@@ -394,7 +398,8 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
           }
         }
 
-        const info = await (streamRequest ?? resolveStreamInfo(currentVideo.id));
+        const info = await (streamRequest ??
+          resolveStreamInfo(currentVideo.id, { timeoutMs: HARD_RETRY_TIMEOUT_MS }));
         if (!isCurrentLoad()) return;
         streamInfoRef.current = info;
         attemptedModesRef.current = new Set();

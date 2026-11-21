@@ -74,11 +74,11 @@ async fn write_text(path: PathBuf, contents: String) -> Result<(), ErrorResponse
 
 #[tauri::command]
 pub async fn write_backup_file(path: String, contents: String) -> Result<(), ErrorResponse> {
-    // Backups are JSON; an equalizer export is EqualizerAPO text.
+    // Backups are JSON; an equalizer export is EqualizerAPO text; diagnostics logs are .log.
     let path = checked_save_path(
         &path,
         &contents,
-        &["json", "txt"],
+        &["json", "txt", "log"],
         MAX_BACKUP_BYTES,
         "Export",
     )?;
@@ -172,5 +172,28 @@ mod tests {
         );
         assert!(png_path(PathBuf::from("/a/poster.PNG")).is_ok());
         assert!(png_path(PathBuf::from("/a/poster.exe")).is_err());
+    }
+
+    #[test]
+    fn a_log_export_lands_in_a_log_file() {
+        let dir = std::env::temp_dir();
+        let log_path = dir.join("youglidetube_logs_2026-11-21.log");
+        assert!(checked_save_path(
+            log_path.to_str().unwrap(),
+            "logs",
+            &["json", "txt", "log"],
+            MAX_BACKUP_BYTES,
+            "Export"
+        )
+        .is_ok());
+        let exe_path = dir.join("youglidetube_logs_2026-11-21.exe");
+        assert!(checked_save_path(
+            exe_path.to_str().unwrap(),
+            "logs",
+            &["json", "txt", "log"],
+            MAX_BACKUP_BYTES,
+            "Export"
+        )
+        .is_err());
     }
 }

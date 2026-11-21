@@ -144,12 +144,15 @@ export async function setChannelSubscribed(
  * Likes or unlikes a video on the account, on the server. Disliking is
  * the same call with `liked = false`: there is no account dislike
  * endpoint — a dislike at least removes the account like, as Android does.
+ * `params` is the button-issued token from the watch answer, when the
+ * video's details carried one; the server refuses the call without it.
  */
 export async function setVideoLiked(
   videoId: string,
   liked: boolean,
+  params?: string | null,
 ): Promise<boolean> {
-  return invokeBackend<boolean>("set_video_liked", { videoId, liked });
+  return invokeBackend<boolean>("set_video_liked", { videoId, liked, params: params ?? null });
 }
 
 /** One page of the account's watch history (`FEhistory`), newest first. */

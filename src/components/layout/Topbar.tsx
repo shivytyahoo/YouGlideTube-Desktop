@@ -203,8 +203,17 @@ export function Topbar() {
             {getString(googleAccount.status === 'signing-in' ? 'sign_in_waiting' : 'sign_in')}
           </Button>
         )}
-        {signInOpen && <GoogleSignInDialog mode={signInMode} onClose={() => setSignInOpen(false)} />}
-        {signInDialogOpen && <GoogleSignInDialog onClose={closeSignInDialog} />}
+        {(signInOpen || signInDialogOpen) && (
+          <GoogleSignInDialog
+            // The local opener picks the mode; a store opener never does, so it
+            // signs in (the default) rather than inheriting a stale mode.
+            mode={signInOpen ? signInMode : "sign-in"}
+            onClose={() => {
+              setSignInOpen(false);
+              closeSignInDialog();
+            }}
+          />
+        )}
       </div>
     </header>
   );

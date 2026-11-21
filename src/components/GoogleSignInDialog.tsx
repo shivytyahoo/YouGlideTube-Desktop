@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, type Transition } from "framer-motion";
 import { Button } from "./ui/Button";
 import { getString } from "../lib/i18n/index";
@@ -18,18 +19,19 @@ interface GoogleSignInDialogProps {
 
 /**
  * The sign-in dialog, mirroring the CMP app's `SignInDialog` (which mirrors
- * the YouGlideTube mobile app): Option 1 signs in with Google in a browser
- * window, Option 2 pastes a cookie header. The account itself lives in
- * Settings → Google account (Android's `AccountScreen.kt`); this dialog
- * is only the sign-in entry point. The dialog closes itself once the
- * session is captured — but only after a sign-in was attempted here, since
- * in add-account mode the status is already signed-in when it opens.
+ * the YouGlideTube mobile app): sign in with Google in a browser window.
+ * The account itself lives in Settings → Google account (Android's
+ * `AccountScreen.kt`); this dialog is only the sign-in entry point. The
+ * dialog closes itself once the session is captured — but only after a
+ * sign-in was attempted here, since in add-account mode the status is
+ * already signed-in when it opens.
+ *
+ * Rendered into document.body: the top bar's glass backdrop-filter makes
+ * its header the containing block for position:fixed descendants, so an
+ * inline dialog would centre on the 56px header instead of the viewport.
  */
 export function GoogleSignInDialog({ onClose, mode = "sign-in" }: GoogleSignInDialogProps) {
-  const { status, error, startSignIn, startAddAccount, signInWithCookie, cancelSignIn } =
-    useGoogleAccount();
-  const [cookieText, setCookieText] = useState("");
-  const [cookieWorking, setCookieWorking] = useState(false);
+  const { status, error, startSignIn, startAddAccount, cancelSignIn } = useGoogleAccount();
   const [attempted, setAttempted] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -67,20 +69,12 @@ export function GoogleSignInDialog({ onClose, mode = "sign-in" }: GoogleSignInDi
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [handleClose]);
 
-  const saveCookie = async () => {
-    if (!cookieText.trim()) return;
-    setCookieWorking(true);
-    setAttempted(true);
-    await signInWithCookie(cookieText.trim());
-    setCookieWorking(false);
-  };
-
   const startWebViewSignIn = () => {
     setAttempted(true);
     void (mode === "add-account" ? startAddAccount() : startSignIn());
   };
 
-  return (
+  return createPortal(
     <motion.div
       className="fixed inset-0 z-[140] flex items-center justify-center bg-chrome-black/70 p-4"
       initial={{ opacity: 0 }}
@@ -118,32 +112,6 @@ export function GoogleSignInDialog({ onClose, mode = "sign-in" }: GoogleSignInDi
               {getString(signingIn ? "sign_in_waiting" : "sign_in_with_google")}
             </Button>
           </div>
-          <p className="mt-2 text-xs text-chrome-neutral-400">
-            {getString("sign_in_refused_note")}
-          </p>
-
-          <h3 className="mt-6 text-sm font-semibold text-chrome-neutral-200">
-            {getString("sign_in_option_cookie")}
-          </h3>
-          <p className="mt-1 text-sm text-chrome-neutral-400">
-            {getString("sign_in_option_cookie_desc")}
-          </p>
-          <textarea
-            value={cookieText}
-            onChange={(event) => setCookieText(event.target.value)}
-            placeholder={getString("sign_in_cookie_placeholder")}
-            rows={2}
-            spellCheck={false}
-            className="mt-3 w-full rounded-lg border border-chrome-neutral-800 bg-surface-container-low px-3 py-2 font-mono text-xs text-chrome-neutral-200 focus:outline-none"
-          />
-          <div className="mt-2">
-            <Button
-              onClick={() => void saveCookie()}
-              disabled={cookieWorking || !cookieText.trim()}
-            >
-              {getString("sign_in_with_cookie")}
-            </Button>
-          </div>
 
           {error && (
             <p role="alert" className="mt-4 text-sm text-chrome-red-400">
@@ -160,6 +128,7 @@ export function GoogleSignInDialog({ onClose, mode = "sign-in" }: GoogleSignInDi
           </div>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body,
   );
 }

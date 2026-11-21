@@ -97,20 +97,6 @@ pub async fn cancel_google_sign_in(app: AppHandle) -> Result<(), ErrorResponse> 
     Ok(())
 }
 
-/// Advanced fallback: store a cookie header pasted by the user (the same
-/// "paste cookies" option the CMP sign-in dialog offers). Validated with
-/// Android's session rule before anything is persisted. The pasted
-/// session joins the saved accounts and becomes active.
-#[tauri::command]
-pub async fn sign_in_with_cookie(
-    auth: State<'_, Arc<AuthSession>>,
-    cookie_header: String,
-) -> Result<(), ErrorResponse> {
-    auth.sign_in(&cookie_header)
-        .map(|_| ())
-        .map_err(|message| ErrorResponse::from(AppError::Validation(message)))
-}
-
 /// Every saved Google account, oldest first, with the active one flagged.
 /// Display fields only — cookies never leave the backend.
 #[tauri::command]

@@ -160,6 +160,10 @@ export interface VideoDetails {
   thumbnailUrl?: string | null;
   durationSeconds?: number | null;
   likeCountText?: string | null;
+  /** The button-issued token for `like/like`, from the watch answer's like button. */
+  likeParams?: string | null;
+  /** The button-issued token for `like/removelike`. */
+  removeLikeParams?: string | null;
   viewCountText?: string | null;
   publishedText?: string | null;
   chapters?: VideoChapter[];

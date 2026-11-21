@@ -45,7 +45,7 @@ use tauri::Manager;
 use api::innertube::InnertubeClient;
 use commands::auth::{
     add_account, cancel_google_sign_in, get_account_info, get_auth_status, list_accounts,
-    remove_account, sign_in_with_cookie, sign_out, start_google_sign_in, switch_account,
+    remove_account, sign_out, start_google_sign_in, switch_account,
 };
 use commands::account::{
     add_video_to_server_playlist, add_videos_to_server_playlist, clear_server_history,
@@ -662,7 +662,6 @@ pub fn run() {
             set_video_watch_later,
             start_google_sign_in,
             cancel_google_sign_in,
-            sign_in_with_cookie,
             sign_out,
             list_accounts,
             switch_account,

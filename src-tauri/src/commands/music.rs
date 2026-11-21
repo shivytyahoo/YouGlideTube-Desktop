@@ -436,7 +436,9 @@ pub async fn get_music_stream(
         .map_err(ErrorResponse::from)?;
 
     // Register the upstream audio URL with the shared proxy and rewrite to a
-    // loopback URL — identical mechanism to the video `get_stream_info`.
+    // loopback URL — identical mechanism to the video `get_stream_info`,
+    // including the video id: a googlevideo-refused music link is swapped for
+    // the same file from another client, exactly as a refused video link is.
     let token = uuid::Uuid::new_v4().to_string();
     let content_type = info
         .mime_type
@@ -444,7 +446,8 @@ pub async fn get_music_stream(
         .next()
         .unwrap_or("audio/webm")
         .to_string();
-    streaming_manager.register_session(
+    streaming_manager.register_video_stream(
+        &video_id,
         token.clone(),
         info.audio_url.clone(),
         content_type,

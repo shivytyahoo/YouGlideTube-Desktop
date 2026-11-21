@@ -57,10 +57,15 @@ export function WatchMetadata({
 
   // A server-confirmed like in this session moves the displayed count,
   // like Android's likeCountDelta. An unparseable snapshot keeps its text.
+  // The delta applies to the fallback snapshot too: without Return YouTube
+  // Dislike data a confirmed like otherwise never moves the number.
+  const fallbackLikeCount = parseCountText(videoData?.likeCountText ?? null);
   const likeCount =
     rytdEnabled && rydData
       ? rydData.likes + reactions.likeDelta
-      : parseCountText(videoData?.likeCountText ?? null);
+      : fallbackLikeCount === null
+        ? null
+        : fallbackLikeCount + reactions.likeDelta;
   const likeLabel =
     likeCount !== null
       ? formatCount(likeCount)

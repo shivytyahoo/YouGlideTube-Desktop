@@ -1979,6 +1979,8 @@ impl InnertubeClient {
             thumbnail_url: thumbnail_url_from_array(&details["thumbnail"]["thumbnails"]),
             duration_seconds,
             like_count_text: primary.like_count_text,
+            like_params: primary.like_params,
+            remove_like_params: primary.remove_like_params,
             view_count_text: primary.view_count_text,
             published_text: primary
                 .published_text

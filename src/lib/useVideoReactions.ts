@@ -7,6 +7,7 @@ import { showSaveFailedToast, showSaveToast } from "./saveToast";
 import type { VideoSummary } from "../types/video";
 import { recapAction, recapDislike, recapDislikeRemoved } from "./recap/recapQueue";
 import { getAccountSignedIn, setVideoLiked } from "./api/account";
+import { normalizeBackendError } from "./api/errors";
 import { getString } from "./i18n/index";
 
 export type ReactionState = "none" | "liked" | "disliked";
@@ -14,6 +15,10 @@ export type ReactionState = "none" | "liked" | "disliked";
 interface ReactionVideoMeta {
   description?: string | null;
   channelId?: string | null;
+  /** Button-issued token for `like/like`, from the watch answer. */
+  likeParams?: string | null;
+  /** Button-issued token for `like/removelike`. */
+  removeLikeParams?: string | null;
 }
 
 /**
@@ -71,6 +76,11 @@ export function useVideoReactions(video: VideoSummary | null, videoMeta: Reactio
   }, [likedInLibrary]);
 
   const channelId = videoMeta?.channelId || video?.channelId || video?.id || "";
+  // The like call carries the button-issued token when the watch answer
+  // gave one: liking sends `likeParams`, unliking `removeLikeParams`.
+  // The server refuses the call without its token.
+  const likeParamsFor = (liked: boolean) =>
+    liked ? videoMeta?.likeParams ?? null : videoMeta?.removeLikeParams ?? null;
 
   const like = async () => {
     if (!video) return;
@@ -89,7 +99,7 @@ export function useVideoReactions(video: VideoSummary | null, videoMeta: Reactio
         });
         return;
       }
-      void setVideoLiked(video.id, nowLiked).then((ok) => {
+      void setVideoLiked(video.id, nowLiked, likeParamsFor(nowLiked)).then((ok) => {
         if (!ok) throw new Error("server declined the like");
         setLikeDelta(nowLiked ? 1 : 0);
         showSaveToast({
@@ -98,7 +108,7 @@ export function useVideoReactions(video: VideoSummary | null, videoMeta: Reactio
           removed: !nowLiked,
           undo: () => {
             void toggleVideoLike(likedVideo);
-            void setVideoLiked(video.id, !nowLiked).catch((err) =>
+            void setVideoLiked(video.id, !nowLiked, likeParamsFor(!nowLiked)).catch((err) =>
               console.warn("Failed to undo the account like", err),
             );
           },
@@ -109,7 +119,7 @@ export function useVideoReactions(video: VideoSummary | null, videoMeta: Reactio
         setState(likedInLibrary ? "liked" : "none");
         useUiStore.getState().showToast({
           variant: "error",
-          message: getString(nowLiked ? "account_like_failed" : "account_dislike_failed"),
+          message: `${getString(nowLiked ? "account_like_failed" : "account_dislike_failed")}: ${normalizeBackendError(err).message}`,
         });
       });
     }).catch((err) => {
@@ -130,28 +140,36 @@ export function useVideoReactions(video: VideoSummary | null, videoMeta: Reactio
       recapDislikeRemoved(video.id);
       return;
     }
-    if (likedInLibrary) {
-      void toggleVideoLike({ ...video, channelId }).then((nowLiked) => {
-        if (nowLiked || !signedIn) return;
-        void setVideoLiked(video.id, false).then((ok) => {
-          if (ok) {
-            setLikeDelta(0);
-            return;
-          }
-          throw new Error("server declined the unlike");
-        }).catch((err) => {
-          console.warn("Failed to remove the account like", err);
+    // A dislike always removes the account like, as Android does — even
+    // when the video was never in this device's library. The local like
+    // comes off first when there is one; the server call runs either way.
+    const removeLocalLike = likedInLibrary
+      ? toggleVideoLike({ ...video, channelId }).catch((err) => {
+          console.warn("Failed to remove disliked video from likes", err);
+        })
+      : Promise.resolve(true);
+    void removeLocalLike.then(() => {
+      if (!signedIn) return;
+      void setVideoLiked(video.id, false, likeParamsFor(false)).then((ok) => {
+        if (ok) {
+          setLikeDelta(0);
+          return;
+        }
+        throw new Error("server declined the unlike");
+      }).catch((err) => {
+        console.warn("Failed to remove the account like", err);
+        if (likedInLibrary) {
           void toggleVideoLike({ ...video, channelId });
           setState("liked");
-          useUiStore.getState().showToast({
-            variant: "error",
-            message: getString("account_dislike_failed"),
-          });
+        } else {
+          setState("none");
+        }
+        useUiStore.getState().showToast({
+          variant: "error",
+          message: `${getString("account_dislike_failed")}: ${normalizeBackendError(err).message}`,
         });
-      }).catch((err) => (
-        console.warn("Failed to remove disliked video from likes", err)
-      ));
-    }
+      });
+    });
     if (isMusicVideo(video)) return;
     recapDislike(video);
     hideVideo(video.id);

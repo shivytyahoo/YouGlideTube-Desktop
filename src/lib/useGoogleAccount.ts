@@ -329,24 +329,6 @@ export function useGoogleAccount() {
     }
   }, [refreshStatus, refreshAccounts]);
 
-  /**
-   * Advanced fallback: store a cookie header pasted by the user. Returns
-   * false (and sets `error`) when the cookies prove no session.
-   */
-  const signInWithCookie = useCallback(async (cookieHeader: string) => {
-    setError(null);
-    try {
-      await invoke("sign_in_with_cookie", { cookieHeader });
-      setStatus("signed-in");
-      void refreshHomeFeed().catch(() => undefined);
-      void refreshAccount();
-      return true;
-    } catch (caught) {
-      setError(invokeErrorMessage(caught));
-      return false;
-    }
-  }, [refreshAccount]);
-
   return {
     status,
     account,
@@ -358,7 +340,6 @@ export function useGoogleAccount() {
     switchAccount,
     removeAccount,
     signOut,
-    signInWithCookie,
     refreshAccount,
     refreshAccounts,
   };

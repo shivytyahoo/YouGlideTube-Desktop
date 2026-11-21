@@ -215,6 +215,25 @@ describe("fetching fresh links", () => {
       await act(async () => root.unmount());
     }
   });
+
+  it("stops spinning and reports an error when the first resolve hangs", async () => {
+    const { state, root } = await mount();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      // The resolve never answers; the 60s bound must end the spinner with
+      // a surfaced error instead of "Resolving stream" forever.
+      vi.mocked(getStreamInfo).mockReturnValue(new Promise(() => {}) as never);
+      await act(async () => usePlayerStore.setState({ currentVideo: { id: "second", title: "", channelName: "" } }));
+      expect(state.latest.loadingStream).toBe(true);
+      await act(async () => { vi.advanceTimersByTime(60_000); });
+      expect(state.latest.streamErrorKind).toBe("network");
+      expect(state.latest.streamError).toMatch(/timed out/i);
+      expect(state.latest.loadingStream).toBe(false);
+    } finally {
+      vi.useRealTimers();
+      await act(async () => root.unmount());
+    }
+  });
 });
 
 describe("a library file in the video player", () => {

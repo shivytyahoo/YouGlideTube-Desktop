@@ -24,6 +24,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use tracing::debug;
 
 use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::core::clients;
@@ -760,14 +761,36 @@ impl InnertubeClient {
     /// `like/removelike` on WEB_REMIX, `{context, target: {videoId}}`, as
     /// Android's `YouTube.likeVideo` does. Disliking is the same call with
     /// `liked = false`: Android has no account dislike endpoint — a
-    /// dislike at least removes the account like.
-    pub async fn set_video_liked(&self, video_id: &str, liked: bool) -> AppResult<()> {
+    /// dislike at least removes the account like. `params` is the
+    /// button-issued token harvested from the watch answer's like button
+    /// (`likeParams` to like, `removeLikeParams` to unlike); the server
+    /// 403s the call without it, so it is sent whenever the watch answer
+    /// carried one. Without it the call behaves exactly as before.
+    pub async fn set_video_liked(
+        &self,
+        video_id: &str,
+        liked: bool,
+        params: Option<&str>,
+    ) -> AppResult<()> {
         self.require_signed_in()?;
         validate_video_id(video_id)?;
         let endpoint = if liked { "like/like" } else { "like/removelike" };
         let mut payload = json!({ "target": { "videoId": video_id } });
-        self.post_innertube(endpoint, &clients::WEB_REMIX, &mut payload)
+        let params = params.filter(|params| !params.is_empty());
+        if let Some(params) = params {
+            payload["params"] = json!(params);
+        }
+        let response = self
+            .post_innertube(endpoint, &clients::WEB_REMIX, &mut payload)
             .await?;
+        debug!(
+            endpoint,
+            video_id,
+            liked,
+            with_params = params.is_some(),
+            response_status = response.get("status").and_then(|status| status.as_str()),
+            "like request answered"
+        );
         Ok(())
     }
 

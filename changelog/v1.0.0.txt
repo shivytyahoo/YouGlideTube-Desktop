@@ -32,6 +32,12 @@ FIXES IN THIS BUILD
 - Closing the notifications bell no longer marks everything read — only the notifications you open. The bell refreshes on open and has a manual refresh button.
 - Pausing a queued download now shows Resume. Community posts can be liked. Downloads show a storage meter with per-type limits. The Data tab shows the real history count.
 - Cancelling Add account no longer leaves the sign-in screen stuck, and closing the sign-in dialog cancels the login window.
+- The cookie sign-in option is gone entirely: sign-in is WebView-only, like the Android app. The sign-in dialog now opens centred on the screen from anywhere, including the top-right avatar — it no longer gets trapped in the top bar with the Google button cut off.
+- A posted comment no longer shows a false "Couldn't post the comment" error: the list refreshes and the comment appears. A genuine failure now names its own cause.
+- "Save logs" in Diagnostics now saves the .log file — the backend used to reject .log names.
+- A music track that fails to load now shows an error instead of silently skipping, and music streams get the same fresh-link fallback as video when Google refuses a link.
+- "Resolving stream" now times out after 60 seconds with an error and a Retry button instead of spinning forever; the player-script fetch is bounded too.
+- Like and dislike: the count now moves even without Return YouTube Dislike data, dislike always reaches the server, and like sends the button's own params so the server accepts it. A failure toast names the real error.
 
 YOUR ACCOUNT
 - Sign in with your Google account right in the app, with multiple accounts. No companion services app is needed for sign-in.

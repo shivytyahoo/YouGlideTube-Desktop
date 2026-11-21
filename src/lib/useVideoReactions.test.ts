@@ -17,10 +17,10 @@ vi.mock("./api/db", () => ({
 }));
 
 const getAccountSignedIn = vi.fn(async () => false);
-const setVideoLiked = vi.fn(async (_videoId: string, _liked: boolean) => true);
+const setVideoLiked = vi.fn(async (_videoId: string, _liked: boolean, _params?: string | null) => true);
 vi.mock("./api/account", () => ({
   getAccountSignedIn: () => getAccountSignedIn(),
-  setVideoLiked: (videoId: string, liked: boolean) => setVideoLiked(videoId, liked),
+  setVideoLiked: (videoId: string, liked: boolean, params?: string | null) => setVideoLiked(videoId, liked, params),
 }));
 
 const showSaveToast = vi.fn();
@@ -41,15 +41,17 @@ const video = {
 
 let latest: ReturnType<typeof useVideoReactions>;
 let root: Root;
+let meta: { likeParams?: string | null; removeLikeParams?: string | null } | null = null;
 
 function Harness() {
-  latest = useVideoReactions(video, null);
+  latest = useVideoReactions(video, meta);
   return null;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   settings.clear();
+  meta = null;
   getAccountSignedIn.mockResolvedValue(false);
   setVideoLiked.mockResolvedValue(true);
   useLikesStore.setState({ items: [], loaded: true });
@@ -76,7 +78,7 @@ describe("useVideoReactions server confirmation", () => {
     await act(async () => {
       await latest.like();
     });
-    await vi.waitFor(() => expect(setVideoLiked).toHaveBeenCalledWith("vid00000001", true));
+    await vi.waitFor(() => expect(setVideoLiked).toHaveBeenCalledWith("vid00000001", true, null));
     expect(latest.state).toBe("liked");
     expect(latest.likeDelta).toBe(1);
     expect(showSaveToast).toHaveBeenCalled();
@@ -117,8 +119,34 @@ describe("useVideoReactions server confirmation", () => {
     await act(async () => {
       await latest.dislike();
     });
-    await vi.waitFor(() => expect(setVideoLiked).toHaveBeenCalledWith("vid00000001", false));
+    await vi.waitFor(() => expect(setVideoLiked).toHaveBeenCalledWith("vid00000001", false, null));
     expect(latest.state).toBe("disliked");
     expect(latest.likeDelta).toBe(0);
+  });
+
+  it("a dislike calls the server even when the video isn't in the library", async () => {
+    getAccountSignedIn.mockResolvedValue(true);
+    await renderHarness();
+    expect(latest.state).toBe("none");
+    await act(async () => {
+      await latest.dislike();
+    });
+    await vi.waitFor(() => expect(setVideoLiked).toHaveBeenCalledWith("vid00000001", false, null));
+    expect(latest.state).toBe("disliked");
+    expect(latest.likeDelta).toBe(0);
+  });
+
+  it("passes the harvested like params to the server", async () => {
+    getAccountSignedIn.mockResolvedValue(true);
+    meta = { likeParams: "LIKE_PARAMS", removeLikeParams: "REMOVE_PARAMS" };
+    await renderHarness();
+    await act(async () => {
+      await latest.like();
+    });
+    await vi.waitFor(() => expect(setVideoLiked).toHaveBeenCalledWith("vid00000001", true, "LIKE_PARAMS"));
+    await act(async () => {
+      await latest.dislike();
+    });
+    await vi.waitFor(() => expect(setVideoLiked).toHaveBeenCalledWith("vid00000001", false, "REMOVE_PARAMS"));
   });
 });

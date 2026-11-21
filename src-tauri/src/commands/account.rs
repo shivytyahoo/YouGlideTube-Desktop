@@ -64,14 +64,17 @@ pub async fn get_server_home_feed(
 /// Likes or unlikes a video on the account, on the server. Disliking is
 /// the same call with `liked = false`: there is no account dislike
 /// endpoint — a dislike at least removes the account like, as Android does.
+/// `params` is the button-issued token from the watch answer, when the
+/// video's details carried one.
 #[tauri::command]
 pub async fn set_video_liked(
     extractor: State<'_, Arc<InnertubeClient>>,
     video_id: String,
     liked: bool,
+    params: Option<String>,
 ) -> Result<bool, ErrorResponse> {
     extractor
-        .set_video_liked(&video_id, liked)
+        .set_video_liked(&video_id, liked, params.as_deref())
         .await
         .map_err(ErrorResponse::from)?;
     Ok(true)

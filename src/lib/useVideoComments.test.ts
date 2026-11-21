@@ -95,6 +95,18 @@ describe("useVideoComments posting", () => {
     expect(getComments).toHaveBeenCalledTimes(1);
   });
 
+  it("treats a null backend reply as a failed post", async () => {
+    await renderHarness();
+    createComment.mockResolvedValueOnce(null as unknown as boolean);
+    let posted = true;
+    await act(async () => {
+      posted = await latest.postComment("hello there");
+    });
+    expect(posted).toBe(false);
+    expect(latest.postError).toBe("server declined the comment");
+    expect(getComments).toHaveBeenCalledTimes(1);
+  });
+
   it("does not post when the page carried no comment box token", async () => {
     getComments.mockResolvedValue(page({ createCommentParams: undefined }));
     await renderHarness();

@@ -208,6 +208,13 @@ pub struct VideoDetails {
     pub thumbnail_url: Option<String>,
     pub duration_seconds: Option<u64>,
     pub like_count_text: Option<String>,
+    /// The button-issued token for `like/like`, harvested from the watch
+    /// answer's like button; `None` when the answer carries none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub like_params: Option<String>,
+    /// The button-issued token for `like/removelike`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remove_like_params: Option<String>,
     pub view_count_text: Option<String>,
     pub published_text: Option<String>,
     pub chapters: Vec<VideoChapter>,

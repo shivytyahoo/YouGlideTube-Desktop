@@ -142,7 +142,9 @@ export function CommentsSection({
             className="w-full resize-none rounded-lg border border-chrome-neutral-800 bg-surface-container-low p-3 text-sm text-chrome-neutral-100 outline-none transition-colors duration-200 ease-out placeholder:text-chrome-neutral-600 focus:border-chrome-neutral-700"
           />
           {thread.postError ? (
-            <p className="text-sm text-chrome-red-400">{getString("comment_post_failed")}</p>
+            <p className="text-sm text-chrome-red-400">
+              {getString("comment_post_failed")}: {thread.postError}
+            </p>
           ) : null}
           <div className="flex justify-end">
             <Button

@@ -3,6 +3,7 @@ import { Copy, Trash2, Bug, RefreshCw, FolderOpen, Save, UserRoundX } from "luci
 import { Button } from "../components/ui/Button";
 import { useDiagnostics } from "../lib/useDiagnostics";
 import { resetVisitorIdentity, revealLogsFolder } from "../lib/api/diagnostics";
+import { getBackendErrorMessage } from "../lib/api/errors";
 import { writeBackupFile } from "../lib/api/files";
 import { openExternal } from "../lib/openExternal";
 import { confirmAction, pickSaveFile } from "../lib/dialogs";
@@ -53,8 +54,11 @@ export const Diagnostics: React.FC = () => {
       if (!savePath) return;
       await writeBackupFile(savePath, text);
       showToast({ message: getString("diagnostics_saved"), variant: "success" });
-    } catch {
-      showToast({ message: getString("diagnostics_save_failed"), variant: "error" });
+    } catch (error) {
+      showToast({
+        message: `${getString("diagnostics_save_failed")}: ${getBackendErrorMessage(error)}`,
+        variant: "error",
+      });
     }
   };
 

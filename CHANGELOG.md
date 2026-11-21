@@ -36,3 +36,9 @@ The first desktop release — the YouGlideTube Android app, on the desktop.
 - Chapter Loop really loops; changing quality in Shorts keeps position and Shorts has its own persisted playback speed
 - Closing the notifications bell no longer marks everything read; the bell refreshes on open with a manual refresh button; pausing a queued download shows Resume; community posts can be liked; downloads show a storage meter with per-type limits; the Data tab shows the real history count
 - Cancelling Add account no longer leaves the sign-in screen stuck, and closing the sign-in dialog cancels the login window
+- The cookie sign-in option is gone entirely: sign-in is WebView-only, like the Android app; the sign-in dialog now opens centred on the screen from anywhere, including the top-right avatar, instead of getting trapped in the top bar with the Google button cut off
+- A posted comment no longer shows a false "Couldn't post the comment" error — the list refreshes and the comment appears, and a genuine failure names its own cause
+- "Save logs" in Diagnostics now saves the .log file, which the backend used to reject
+- A music track that fails to load now shows an error instead of silently skipping, and music streams get the same fresh-link fallback as video when Google refuses a link
+- "Resolving stream" now times out after 60 seconds with an error and a Retry button instead of spinning forever; the player-script fetch is bounded too
+- Like and dislike: the count now moves even without Return YouTube Dislike data, dislike always reaches the server, and like sends the button's own params so the server accepts it; failure toasts name the real error

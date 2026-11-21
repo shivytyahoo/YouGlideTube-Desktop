@@ -15,6 +15,12 @@ pub struct WatchPrimary {
     /// "16 years ago".
     pub relative_published_text: Option<String>,
     pub like_count_text: Option<String>,
+    /// The button-issued token for `like/like`, from the like button's
+    /// `likeEndpoint`; `None` when the watch answer carries none.
+    pub like_params: Option<String>,
+    /// The button-issued token for `like/removelike`, from the toggled
+    /// like button's `likeEndpoint`.
+    pub remove_like_params: Option<String>,
     pub hashtags: Vec<String>,
     pub badges: Vec<String>,
 }
@@ -22,12 +28,15 @@ pub struct WatchPrimary {
 #[must_use]
 pub fn primary(next: &Value) -> WatchPrimary {
     let primary = info_renderers(next).0;
+    let (like_params, remove_like_params) = like_button_params(primary);
     WatchPrimary {
         title: text_of(&primary["title"]),
         view_count_text: view_count_text(primary),
         published_text: text_of(&primary["dateText"]),
         relative_published_text: text_of(&primary["relativeDateText"]),
         like_count_text: like_count_text(primary),
+        like_params,
+        remove_like_params,
         hashtags: hashtags(primary),
         badges: primary["badges"]
             .as_array()
@@ -60,6 +69,56 @@ fn like_count_text(primary: &Value) -> Option<String> {
                     ["toggleButtonViewModel"]["defaultButtonViewModel"]["buttonViewModel"],
             )
         })
+}
+
+/// The like button's issued tokens, harvested from its `likeEndpoint`s.
+/// Only the like button's subtree is searched, in document order, so the
+/// dislike button's own tokens never leak in: the default button carries
+/// `likeParams` (to like), the toggled button `removeLikeParams` (to
+/// unlike). The search is recursive because the endpoint hides behind a
+/// sign-in modal for signed-out answers and sits directly on the tap for
+/// signed-in ones. The server 403s `like/like` without the button-issued
+/// token, so a call without these params is a call the server refuses.
+fn like_button_params(primary: &Value) -> (Option<String>, Option<String>) {
+    let Some(toggle) = primary["videoActions"]["menuRenderer"]["topLevelButtons"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find_map(|button| button.get("segmentedLikeDislikeButtonViewModel"))
+        .map(|view_model| {
+            &view_model["likeButtonViewModel"]["likeButtonViewModel"]["toggleButtonViewModel"]
+                ["toggleButtonViewModel"]
+        })
+    else {
+        return (None, None);
+    };
+    (
+        find_like_endpoint_param(toggle, "likeParams"),
+        find_like_endpoint_param(toggle, "removeLikeParams"),
+    )
+}
+
+/// First `likeEndpoint` in the subtree carrying the named param, in
+/// document order.
+fn find_like_endpoint_param(value: &Value, key: &str) -> Option<String> {
+    match value {
+        Value::Object(map) => {
+            if let Some(param) = map
+                .get("likeEndpoint")
+                .and_then(|endpoint| endpoint.get(key))
+                .and_then(Value::as_str)
+                .filter(|param| !param.is_empty())
+            {
+                return Some(param.to_string());
+            }
+            map.values()
+                .find_map(|child| find_like_endpoint_param(child, key))
+        }
+        Value::Array(items) => items
+            .iter()
+            .find_map(|child| find_like_endpoint_param(child, key)),
+        _ => None,
+    }
 }
 
 /// The like button's `title` ("26K"), else the number in its accessibility
@@ -136,6 +195,73 @@ mod tests {
             like_count_from_button(&json!({ "title": "Like", "accessibilityText": "I like this" })),
             None
         );
+    }
+
+    #[test]
+    fn like_params_come_from_the_like_button_only() {
+        let next = next_with(&json!({
+            "videoActions": { "menuRenderer": { "topLevelButtons": [
+                { "segmentedLikeDislikeButtonViewModel": {
+                    "likeButtonViewModel": { "likeButtonViewModel": { "toggleButtonViewModel": { "toggleButtonViewModel": {
+                        "defaultButtonViewModel": { "buttonViewModel": {
+                            "title": "26K",
+                            "onTap": { "innertubeCommand": { "likeEndpoint": {
+                                "status": "LIKE", "target": { "videoId": "vid" }, "likeParams": "LIKE_PARAMS"
+                            } } }
+                        } },
+                        "toggledButtonViewModel": { "buttonViewModel": {
+                            "onTap": { "innertubeCommand": { "likeEndpoint": {
+                                "status": "INDIFFERENT", "target": { "videoId": "vid" }, "removeLikeParams": "REMOVE_PARAMS"
+                            } } }
+                        } }
+                    } } } },
+                    "dislikeButtonViewModel": { "dislikeButtonViewModel": { "toggleButtonViewModel": { "toggleButtonViewModel": {
+                        "defaultButtonViewModel": { "buttonViewModel": {
+                            "onTap": { "innertubeCommand": { "likeEndpoint": {
+                                "status": "DISLIKE", "target": { "videoId": "vid" }, "dislikeParams": "DISLIKE_PARAMS"
+                            } } }
+                        } },
+                        "toggledButtonViewModel": { "buttonViewModel": {
+                            "onTap": { "innertubeCommand": { "likeEndpoint": {
+                                "status": "INDIFFERENT", "target": { "videoId": "vid" }, "removeLikeParams": "DISLIKE_REMOVE_PARAMS"
+                            } } }
+                        } }
+                    } } } }
+                } }
+            ] } }
+        }));
+        let primary = primary(&next);
+        assert_eq!(primary.like_params.as_deref(), Some("LIKE_PARAMS"));
+        assert_eq!(primary.remove_like_params.as_deref(), Some("REMOVE_PARAMS"));
+    }
+
+    #[test]
+    fn like_params_are_found_behind_the_sign_in_modal() {
+        // Signed-out answers hide the like endpoint behind a sign-in modal;
+        // the harvest must still find it.
+        let next = next_with(&json!({
+            "videoActions": { "menuRenderer": { "topLevelButtons": [
+                { "segmentedLikeDislikeButtonViewModel": {
+                    "likeButtonViewModel": { "likeButtonViewModel": { "toggleButtonViewModel": { "toggleButtonViewModel": {
+                        "defaultButtonViewModel": { "buttonViewModel": {
+                            "title": "19M",
+                            "onTap": { "serialCommand": { "commands": [
+                                { "logGestureCommand": {} },
+                                { "innertubeCommand": { "modalEndpoint": { "modal": { "modalWithTitleAndButtonRenderer": {
+                                    "button": { "buttonRenderer": { "navigationEndpoint": { "signInEndpoint": {
+                                        "nextEndpoint": { "likeEndpoint": {
+                                            "status": "LIKE", "target": { "videoId": "vid" }, "likeParams": "MODAL_LIKE_PARAMS"
+                                        } }
+                                    } } } }
+                                } } } } }
+                    ] } } }
+                } } } }
+            } } }
+        ] } }
+    }));
+        let primary = primary(&next);
+        assert_eq!(primary.like_params.as_deref(), Some("MODAL_LIKE_PARAMS"));
+        assert_eq!(primary.remove_like_params, None);
     }
 
     #[test]
