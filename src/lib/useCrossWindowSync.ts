@@ -1,10 +1,9 @@
 import { useEffect } from "react";
 import { emit, emitTo, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { CURRENT_WINDOW_LABEL, IS_MAIN_WINDOW } from "./appWindow";
-import { onSyncRefresh } from "./api/sync";
 import { focusMainWindow } from "./api/pip";
 import { pauseAllMediaSessionClients, setMediaSessionClaimListener } from "./mediaSessionArbiter";
-import { refreshForSettingKeys, refreshSyncedCollections } from "./storeRefresh";
+import { refreshForSettingKeys } from "./storeRefresh";
 import {
   DATA_CHANGED_EVENT,
   MUSIC_PLAY_EVENT,
@@ -45,7 +44,6 @@ export function useCrossWindowSync(): void {
       listen<DataChangedPayload>(DATA_CHANGED_EVENT, ({ payload }) => {
         if (payload.source !== CURRENT_WINDOW_LABEL) void refreshForSettingKeys(payload.keys);
       }),
-      onSyncRefresh((collections) => void refreshSyncedCollections(collections)),
       listen<{ source: string }>(PLAYBACK_CLAIMED_EVENT, ({ payload }) => {
         if (payload.source !== CURRENT_WINDOW_LABEL) pauseAllMediaSessionClients();
       }),

@@ -141,10 +141,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
           </div>
         </div>
 
-        {/* Integrations stays in the rail; Settings is already in the top bar.
-            Flow's Sync (P2P with the Flow Android app) and Support (donations
-            to Flow) have no YouGlideTube equivalent, so they are not linked
-            here; their routes still exist, unlinked, pending removal. */}
+        {/* Integrations stays in the rail; Settings is already in the top bar. */}
         <div className="mt-auto">
           <div className="sidebar-when-expanded">
             {divider}

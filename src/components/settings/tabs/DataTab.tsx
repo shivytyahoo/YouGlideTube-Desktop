@@ -11,7 +11,6 @@ import { getPlural, getString } from '../../../lib/i18n/index';
 import { AutoBackupGroup } from './AutoBackupGroup';
 import { getSetting, resetAppData, getWatchHistory } from '../../../lib/api/db';
 import { confirmAction } from '../../../lib/dialogs';
-import { leaveGroupFirst } from '../../../lib/linked/leaveFirst';
 import { SETTINGS } from '../../../lib/settings/schema';
 import { useUiStore } from '../../../store/useUiStore';
 
@@ -43,7 +42,6 @@ export function DataTab() {
     if (!confirmed) return;
     setClearing(true);
     try {
-      if (!(await leaveGroupFirst())) return;
       await resetAppData();
       setHistoryCount(0);
       setSubCount(0);

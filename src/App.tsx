@@ -17,7 +17,6 @@ import { startWatchProgress } from "./store/useWatchProgressStore";
 import { useSubscriptionStore } from "./store/useSubscriptionStore";
 import { useNotificationStore } from "./store/useNotificationStore";
 import { getOnboardingStatus } from "./lib/api/recommendation";
-import { catchUpOnce } from "./lib/linked/catchUp";
 import { useStartupHealth } from "./lib/useStartupHealth";
 import { useStartupSubscriptionRefresh } from "./lib/useStartupSubscriptionRefresh";
 import { useImageProxyBootstrap } from "./lib/useImageProxy";
@@ -85,7 +84,6 @@ import { GlobalMediaKeysController } from "./components/shortcuts/GlobalMediaKey
 import { KeyboardHelpHost } from "./components/shortcuts/KeyboardHelpHost";
 import { CrashReportHost } from "./components/diagnostics/CrashReportHost";
 import { ScrobbleController } from "./components/scrobbling/ScrobbleController";
-import { HistorySettleController } from "./components/sync/HistorySettleController";
 import { WellbeingController } from "./components/settings/WellbeingController";
 import { DownloadDialog } from "./components/downloads/DownloadDialog";
 import { DownloadActivity } from "./components/downloads/DownloadActivity";
@@ -101,7 +99,6 @@ import { useTabSession } from "./lib/tabs/useTabSession";
 import { useSingleTabWhenOff } from "./lib/tabs/useSingleTabWhenOff";
 import { useMediaCommands } from "./lib/useMediaCommands";
 import { useCrossWindowSync } from "./lib/useCrossWindowSync";
-import { useLinkedSyncEvents } from "./lib/useLinkedSyncEvents";
 import { useLiveNow } from "./lib/live/useLiveNow";
 import { usePlayOnEvents } from "./lib/live/usePlayOnEvents";
 import { IS_MAIN_WINDOW } from "./lib/appWindow";
@@ -137,7 +134,6 @@ function App() {
   useSingleTabWhenOff();
   useCrossWindowSync();
   useMediaCommands();
-  useLinkedSyncEvents();
   useLiveNow();
   usePlayOnEvents();
   useProfileSwitchListener(markSwitching);
@@ -170,8 +166,6 @@ function App() {
   useEffect(() => {
     if (!IS_MAIN_WINDOW) return;
     const checkOnboarding = async () => {
-      // A profile added from another device has its onboarding state in what that device sent.
-      await catchUpOnce();
       try {
         const completed = await getOnboardingStatus();
         if (!completed && location.pathname !== "/onboarding") {
@@ -343,7 +337,6 @@ function App() {
           <GlobalMediaKeysController />
           <ShellPagesController />
           <ScrobbleController />
-          <HistorySettleController />
           <WellbeingController />
         </>
       )}
