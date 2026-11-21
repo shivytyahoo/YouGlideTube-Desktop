@@ -1,0 +1,86 @@
+import { getString, type StringKey } from "./i18n/index";
+import { useMemo } from "react";
+import { useLocation } from "react-router-dom";
+import { usePlayerStore } from "../store/usePlayerStore";
+import { useMusicPlayerStore } from "../store/useMusicPlayerStore";
+import { usePageTitleStore } from "../store/usePageTitleStore";
+
+// Static section labels keyed by exact pathname. Rendered as spaced-out uppercase
+// "section" chrome; dynamic content titles (video/song/channel/search/…) render in
+// natural case for readability.
+const STATIC_TITLES: Record<string, StringKey> = {
+  "/": "home",
+  "/feed": "persona_title",
+  "/music": "music",
+  "/explore": "explore",
+  "/subscriptions": "subscriptions",
+  "/playlists": "playlists",
+  "/watch-later": "watch_later",
+  "/library": "library",
+  "/albums": "albums",
+  "/recap": "recap_title",
+  "/saved-shorts": "saved_shorts",
+  "/notes": "notes_title",
+  "/history": "history",
+  "/downloads": "downloads",
+  "/local-media": "library_local_media_label",
+  "/liked": "liked",
+  "/settings": "settings",
+  "/settings/import": "import_data",
+  "/sync": "sync",
+  "/support": "support",
+  "/sponsorblock": "extensions",
+};
+
+/** The translation key of a section page's label, such as Home or History; null for content pages. */
+export function sectionTitleKey(pathname: string): StringKey | null {
+  return STATIC_TITLES[pathname] ?? (pathname.startsWith("/shorts") ? "shorts" : null);
+}
+
+type ResolvedTitle = { text: string; section: boolean };
+
+export function useResolvedWindowTitle(): ResolvedTitle {
+  const location = useLocation();
+  const pathname = location.pathname;
+  const search = location.search;
+
+  const currentVideoTitle = usePlayerStore((s) => s.currentVideo?.title ?? null);
+  const currentVideoId = usePlayerStore((s) => s.currentVideo?.id ?? null);
+  const trackTitle = useMusicPlayerStore((s) => s.currentTrack?.title ?? null);
+  const musicOverlayOpen = useMusicPlayerStore(
+    (s) => s.currentTrack !== null && s.viewState !== "dock"
+  );
+  const override = usePageTitleStore((s) => (s.path === pathname ? s.title : null));
+
+  return useMemo<ResolvedTitle>(() => {
+    // The full-screen music player renders above the titlebar → show the track.
+    if (musicOverlayOpen && trackTitle) return { text: trackTitle, section: false };
+
+    // Watch page → the video title, guarded so a background/PiP video doesn't leak.
+    const watchMatch = pathname.match(/^\/watch\/([^/?#]+)/);
+    if (watchMatch) {
+      const routeId = decodeURIComponent(watchMatch[1] ?? "");
+      if (currentVideoId === routeId && currentVideoTitle) {
+        return { text: currentVideoTitle, section: false };
+      }
+      return { text: "", section: false };
+    }
+
+    // Search page → the query.
+    if (pathname === "/search") {
+      const q = new URLSearchParams(search).get("q")?.trim();
+      return q ? { text: q, section: false } : { text: getString('search'), section: true };
+    }
+
+    // Channel / artist / album / playlist titles are published by their pages.
+    if (override) return { text: override, section: false };
+
+    // Static section labels.
+    const label = sectionTitleKey(pathname);
+    if (label) return { text: getString(label), section: true };
+
+    // Dynamic routes before their page has published a title yet — stay blank.
+    return { text: "", section: false };
+  }, [pathname, search, musicOverlayOpen, trackTitle, currentVideoId, currentVideoTitle, override]);
+}
+

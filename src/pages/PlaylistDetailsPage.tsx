@@ -1,0 +1,387 @@
+import { getString } from "../lib/i18n/index";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import { AddAllToPlaylistDialog } from "../components/playlist/AddAllToPlaylistDialog";
+import { PlaylistAmbientHeader } from "../components/playlist/PlaylistAmbientHeader";
+import { PlaylistFormDialog } from "../components/playlist/PlaylistFormDialog";
+import { addVideosToQueueWithToast, PlaylistSelectionActions } from "../components/playlist/PlaylistSelectionActions";
+import { PlaylistLoadMore } from "../components/playlist/PlaylistLoadMore";
+import { PlaylistSortableList } from "../components/playlist/PlaylistSortableList";
+import {
+  availablePlaylistSortOrders,
+  loadPlaylistSortOrder,
+  resolvePlaylistSortOrder,
+  savePlaylistSortOrder,
+  sortPlaylistVideos,
+  type PlaylistSortOrder,
+} from "../lib/playlistSort";
+import {
+  formatVideoCountText,
+  isProtectedPlaylistId,
+  removePlaylistFromLibrary,
+  savePlaylistToLibrary,
+  updateStoredPlaylistDetails,
+  updateStoredPlaylistTracks,
+  WATCH_LATER_PLAYLIST_ID,
+} from "../lib/playlistLibrary";
+import { sweepWatchedFromWatchLater } from "../lib/watchLaterCleanup";
+import { videoToFileEntry } from "../lib/playlistFile";
+import { filterVideosBySearch } from "../lib/playlistSearch";
+import { savePlaylistWhenLoaded } from "../lib/playlistTransfer";
+import { useDebounce } from "../lib/useDebounce";
+import { useMultiSelect } from "../lib/useMultiSelect";
+import { usePlaylistDetails } from "../lib/usePlaylistDetails";
+import { usePublishTitle } from "../lib/usePublishTitle";
+import { useCollectionDownloadState } from "../lib/useCollectionDownloads";
+import { youtubePlaylistUrl } from "../lib/youtubeUrl";
+import { copyText } from "../lib/clipboard";
+import { confirmPlaylistRemoval } from "../lib/confirmPlaylistRemoval";
+import { fisherYates } from "../lib/musicShuffle";
+import { usePlayerStore } from "../store/usePlayerStore";
+import { useDownloadStore } from "../store/useDownloadStore";
+import { useUiStore } from "../store/useUiStore";
+import type { PlaylistSummary, VideoSummary } from "../types/video";
+
+interface PlaylistDetailsPageProps {
+  playlistIdOverride?: string;
+  onAddToQueue?: (video: VideoSummary) => void;
+}
+
+export function PlaylistDetailsPage({
+  playlistIdOverride,
+  onAddToQueue,
+}: PlaylistDetailsPageProps) {
+  const params = useParams<{ playlistId: string }>();
+  const playlistId = playlistIdOverride ?? params.playlistId;
+  const navigate = useNavigate();
+  const setQueue = usePlayerStore((state) => state.setQueue);
+  const showToast = useUiStore((state) => state.showToast);
+
+  const {
+    loading,
+    error,
+    storedPlaylist,
+    meta,
+    videos,
+    hasMore,
+    loadingMore,
+    loadMoreFailed,
+    loadMore,
+    loadAllVideos,
+    setVideos,
+    applyDetails,
+    hidesUnavailable,
+  } = usePlaylistDetails(playlistId);
+  usePublishTitle(meta?.title);
+
+  const [storedSortOrder, setStoredSortOrder] = useState<string | null>(() =>
+    playlistId ? loadPlaylistSortOrder(playlistId) : null,
+  );
+  const [savedInLibrary, setSavedInLibrary] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const appliedSearch = useDebounce(searchQuery, 150);
+  const [editing, setEditing] = useState(false);
+  const [addingAll, setAddingAll] = useState(false);
+
+  useEffect(() => {
+    setStoredSortOrder(playlistId ? loadPlaylistSortOrder(playlistId) : null);
+    setSearchQuery("");
+  }, [playlistId]);
+
+  useEffect(() => {
+    setSavedInLibrary(Boolean(storedPlaylist));
+  }, [storedPlaylist]);
+
+  const handleSortChange = (next: PlaylistSortOrder) => {
+    setStoredSortOrder(next);
+    if (playlistId) savePlaylistSortOrder(playlistId, next);
+  };
+
+  const isProtected =
+    Boolean(storedPlaylist?.isProtected) ||
+    (playlistId ? isProtectedPlaylistId(playlistId) : false);
+  const isOwned = storedPlaylist?.source === "Owned" && !isProtected;
+  const isLocalPlaylist = savedInLibrary || isProtected;
+  const sortOrder = resolvePlaylistSortOrder(storedSortOrder, isLocalPlaylist);
+
+  // Sorting by date or popularity and searching are only right over the whole playlist.
+  const needsWholePlaylist = sortOrder !== "manual" || appliedSearch.trim() !== "";
+  useEffect(() => {
+    if (needsWholePlaylist && hasMore) void loadAllVideos().catch(() => undefined);
+  }, [needsWholePlaylist, hasMore, loadAllVideos]);
+
+  const displayVideos = useMemo(
+    () => sortPlaylistVideos(videos, sortOrder, isProtected),
+    [videos, sortOrder, isProtected],
+  );
+  const shownVideos = useMemo(
+    () => filterVideosBySearch(displayVideos, appliedSearch),
+    [displayVideos, appliedSearch],
+  );
+
+  const shownIds = useMemo(() => shownVideos.map((video) => video.id), [shownVideos]);
+  const selection = useMultiSelect(shownIds);
+  const selectedVideos = useMemo(
+    () => shownVideos.filter((video) => selection.selectedIds.has(video.id)),
+    [shownVideos, selection.selectedIds],
+  );
+
+  const leadVideo = videos[0];
+  const heroThumbnailUrl = leadVideo?.thumbnailUrl ?? meta?.thumbnailUrl ?? null;
+
+  const openCollectionDownload = useDownloadStore((state) => state.openCollection);
+  const downloadState = useCollectionDownloadState(meta?.id, "playlist");
+
+  const handleDownloadPlaylist = async () => {
+    if (!meta || videos.length === 0) return;
+    openCollectionDownload({
+      kind: "playlist",
+      meta: {
+        collectionId: meta.id,
+        title: meta.title,
+        author: meta.channelName || undefined,
+        thumbnailUrl: heroThumbnailUrl ?? meta.thumbnailUrl ?? undefined,
+      },
+      load: () => (hasMore ? loadAllVideos().catch(() => videos) : Promise.resolve(videos)),
+    });
+  };
+
+  // Watched elsewhere since this list was last open.
+  const swept = useRef(false);
+  useEffect(() => {
+    if (playlistId !== WATCH_LATER_PLAYLIST_ID || loading || swept.current) return;
+    swept.current = true;
+    void sweepWatchedFromWatchLater(videos, handleTracksChanged);
+    // Once per visit, over what the page first loaded.
+  }, [playlistId, loading]);
+
+  const handleExport = async () => {
+    if (!meta) return;
+    await savePlaylistWhenLoaded(async () => ({
+      name: meta.title,
+      description: isOwned ? meta.description ?? "" : "",
+      isMusic: false,
+      videos: (hasMore ? await loadAllVideos() : videos).map(videoToFileEntry),
+    }));
+  };
+
+  const handleSaveDetails = async (name: string, description: string) => {
+    if (!meta) return;
+    try {
+      const updated = await updateStoredPlaylistDetails(meta.id, name, description);
+      if (!updated) throw new Error("Playlist not found");
+      applyDetails(updated);
+      setEditing(false);
+    } catch (saveError) {
+      console.error("Failed to edit playlist", saveError);
+      showToast({ variant: "error", message: getString("playlist_edit_failed") });
+    }
+  };
+
+  const handleTracksChanged = (tracks: VideoSummary[]) => {
+    setVideos(tracks);
+    if (storedPlaylist) {
+      applyDetails({
+        ...storedPlaylist,
+        videoCount: tracks.length,
+        videoCountText: formatVideoCountText(tracks.length),
+      });
+    }
+  };
+
+  const handleReorder = async (nextVideos: VideoSummary[]) => {
+    setVideos(nextVideos);
+    if (storedPlaylist) {
+      await updateStoredPlaylistTracks(storedPlaylist.id, nextVideos);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!meta) return;
+    if (await copyText(youtubePlaylistUrl(meta.id))) {
+      showToast({ variant: "success", message: getString('playlist_playlist_link_copied') });
+    } else {
+      showToast({ variant: "error", message: getString('playlist_could_not_copy_link') });
+    }
+  };
+
+  const librarySummary = (): PlaylistSummary | null => meta && {
+    type: "playlist",
+    id: meta.id,
+    title: meta.title,
+    thumbnailUrl: heroThumbnailUrl ?? meta.thumbnailUrl ?? null,
+    videoCountText: meta.videoCountText,
+  };
+
+  const handleSaveToLibrary = async () => {
+    const summary = librarySummary();
+    if (!meta || !summary) return;
+    try {
+      const playlists = await savePlaylistToLibrary(summary);
+      const saved = playlists.find((playlist) => playlist.id === meta.id);
+      if (saved) setVideos(saved.tracks);
+      setSavedInLibrary(true);
+      showToast({
+        variant: "success",
+        message: `Saved "${meta.title}" to library`,
+      });
+    } catch (saveError) {
+      console.error("Failed to save playlist to library", saveError);
+      showToast({ variant: "error", message: getString('playlist_could_not_save_playlist') });
+    }
+  };
+
+  const handleRemoveFromLibrary = async () => {
+    const summary = librarySummary();
+    if (!meta || !summary || isProtected) return;
+    if (!await confirmPlaylistRemoval(summary, isOwned)) return;
+
+    try {
+      await removePlaylistFromLibrary(meta.id);
+      setSavedInLibrary(false);
+      showToast({
+        variant: "success",
+        message: isOwned
+          ? `Deleted "${meta.title}"`
+          : `Removed "${meta.title}" from library`,
+      });
+      navigate("/playlists");
+    } catch (removeError) {
+      console.error("Failed to remove playlist from library", removeError);
+      showToast({ variant: "error", message: getString('playlist_could_not_update_library') });
+    }
+  };
+
+  const editable = isProtected || isOwned;
+  const playlistContext = meta
+    ? { id: meta.id, title: meta.title, editable, reorderable: editable && sortOrder === "manual" }
+    : null;
+
+  const playQueue = (shuffle: boolean) => {
+    if (displayVideos.length === 0) return;
+    const queue = shuffle
+      ? fisherYates(displayVideos)
+      : displayVideos;
+    const first = queue[0];
+    if (!first) return;
+    setQueue(queue, 0, playlistContext, shuffle ? displayVideos : null);
+    navigate(`/watch/${first.id}`);
+  };
+
+  const playFromPlaylist = (video: VideoSummary) => {
+    const startIndex = displayVideos.findIndex((item) => item.id === video.id);
+    const safeIndex = startIndex >= 0 ? startIndex : 0;
+    setQueue(displayVideos, safeIndex, playlistContext);
+    navigate(`/watch/${video.id}`);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4">
+        <Loader2 className="animate-spin text-[var(--color-primary)]" size={36} />
+        <p className="text-sm font-medium text-chrome-neutral-500">{getString('playlist_loading_playlist')}</p>
+      </div>
+    );
+  }
+
+  if (error || !meta) {
+    return (
+      <div className="mx-auto flex h-full max-w-3xl flex-col items-center justify-center px-6 text-center">
+        <p className="text-sm text-chrome-neutral-400">{error ?? "Playlist not found."}</p>
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="mt-4 text-sm font-medium text-[var(--color-primary)] transition-colors hover:opacity-90"
+        >
+          Go back
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mx-auto grid h-full min-h-0 w-full max-w-[1600px] grid-cols-1 gap-8 p-6 lg:grid-cols-[360px_1fr]">
+          <PlaylistAmbientHeader
+            meta={meta}
+            heroVideoId={leadVideo?.id}
+            heroThumbnailUrl={heroThumbnailUrl}
+          canPlay={displayVideos.length > 0}
+          onPlayAll={() => playQueue(false)}
+          onShuffle={() => playQueue(true)}
+          onDownload={() => void handleDownloadPlaylist()}
+          downloadActive={downloadState.active}
+          downloadComplete={downloadState.isComplete}
+          onAddToQueue={() => addVideosToQueueWithToast(displayVideos)}
+          onCopyLink={handleCopyLink}
+          onSaveToLibrary={handleSaveToLibrary}
+          onRemoveFromLibrary={handleRemoveFromLibrary}
+          onEdit={() => setEditing(true)}
+          onAddAll={() => setAddingAll(true)}
+          onExport={() => void handleExport()}
+          hidesUnavailable={hidesUnavailable}
+          isSaved={savedInLibrary}
+          isProtected={isProtected}
+          isOwned={isOwned}
+        />
+
+        <PlaylistSortableList
+          videos={videos}
+          displayVideos={shownVideos}
+          sortOrder={sortOrder}
+          sortOptions={availablePlaylistSortOrders(isLocalPlaylist)}
+          onSortChange={handleSortChange}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onReorder={handleReorder}
+          onPlay={playFromPlaylist}
+          onAddToQueue={onAddToQueue}
+          selecting={selection.selecting}
+          selectedIds={selection.selectedIds}
+          onToggleSelected={selection.toggle}
+          onStartSelecting={selection.start}
+          selectionBar={
+            <PlaylistSelectionActions
+              playlistId={meta.id}
+              editable={editable}
+              selected={selectedVideos}
+              allSelected={selection.allSelected}
+              onToggleAll={() => selection.toggleAll(shownIds)}
+              onDone={selection.stop}
+              onTracksChanged={handleTracksChanged}
+            />
+          }
+          footer={
+            <PlaylistLoadMore
+              hasMore={hasMore}
+              loading={loadingMore}
+              failed={loadMoreFailed}
+              onLoadMore={() => void loadMore()}
+            />
+          }
+        />
+      </div>
+
+      {editing && (
+        <PlaylistFormDialog
+          title={getString("playlist_edit")}
+          confirmLabel={getString("save")}
+          initialName={meta.title}
+          initialDescription={meta.description ?? ""}
+          onSubmit={handleSaveDetails}
+          onCancel={() => setEditing(false)}
+        />
+      )}
+      {addingAll && (
+        <AddAllToPlaylistDialog
+          excludePlaylistId={meta.id}
+          loadVideos={() => (hasMore ? loadAllVideos() : Promise.resolve(videos))}
+          onClose={() => setAddingAll(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+export default PlaylistDetailsPage;
