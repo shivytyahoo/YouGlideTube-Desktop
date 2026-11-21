@@ -207,7 +207,7 @@ impl<'de> Deserialize<'de> for Hlc {
 /// in a naive weighted-average merge.
 ///
 /// Wire form is the map itself (`{"<device>": 12}`). `Deserialize` is hand-written in
-/// [`crate::sync::compat`] so a peer that wraps it differently is still understood.
+/// [`crate::data_model::compat`] so a peer that wraps it differently is still understood.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct GCounter(pub BTreeMap<String, u64>);
@@ -255,7 +255,7 @@ impl GCounter {
 /// Used for blocklists / preferences / seen-sets, where "blocked on either device ⇒ blocked"
 /// but an explicit unblock must still propagate.
 ///
-/// `Deserialize` is hand-written in [`crate::sync::compat`] so a peer that sends a bare member
+/// `Deserialize` is hand-written in [`crate::data_model::compat`] so a peer that sends a bare member
 /// array (no stamps) is still understood.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct OrSet {
@@ -314,7 +314,7 @@ impl OrSet {
 
 /// A last-write-wins register keyed by `Hlc`. The higher stamp wins; the `device_id` tiebreaker
 /// inside `Hlc` makes the resolution deterministic and loss-free under clock skew.
-/// `Deserialize` is hand-written in [`crate::sync::compat`] so a peer that sends an unstamped bare
+/// `Deserialize` is hand-written in [`crate::data_model::compat`] so a peer that sends an unstamped bare
 /// value is still understood.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Lww<T> {
@@ -467,7 +467,7 @@ pub struct SettingEntry {
 
 /// A topic vector plus optional scalar "dimensions" (duration/pacing/complexity/isLive on some
 /// platforms). Kept flexible so both the desktop and Android `ContentVector` shapes map in — the
-/// hand-written `Deserialize` in [`crate::sync::compat`] is what accepts Android's inline dims.
+/// hand-written `Deserialize` in [`crate::data_model::compat`] is what accepts Android's inline dims.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentVectorWire {
@@ -475,7 +475,7 @@ pub struct ContentVectorWire {
     pub dims: BTreeMap<String, f64>,
 }
 
-/// `Deserialize` is hand-written in [`crate::sync::compat`], which rewrites `time_vectors` keys
+/// `Deserialize` is hand-written in [`crate::data_model::compat`], which rewrites `time_vectors` keys
 /// into this platform's bucket spelling.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -569,7 +569,7 @@ pub struct BrainFlags {
 /// Device-local/derived fields (`consecutive_skips`, `last_persona`, `persona_stability`,
 /// `recent_query_tokens`) are intentionally **not** part of the wire model.
 ///
-/// `Deserialize` is hand-written in [`crate::sync::compat`]: it accepts this grouped layout and the
+/// `Deserialize` is hand-written in [`crate::data_model::compat`]: it accepts this grouped layout and the
 /// flat one the Android app sends.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]

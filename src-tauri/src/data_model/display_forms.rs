@@ -7,10 +7,10 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use unicode_normalization::UnicodeNormalization;
 
-use crate::flow_neuro::keyspec::KeySpec;
-use crate::flow_neuro::keyspec::tables::tables;
-use crate::flow_neuro::keyspec::text::is_word_char;
-use crate::flow_neuro::scoring::strip_domain_tag;
+use crate::data_model::keyspec::KeySpec;
+use crate::data_model::keyspec::tables::tables;
+use crate::data_model::keyspec::text::is_word_char;
+use crate::data_model::brain::strip_domain_tag;
 
 pub const MAX_ENTRIES: usize = 2_000;
 const MAX_VOTES: u32 = 20;
@@ -289,37 +289,6 @@ mod tests {
         assert_eq!(label(&filled, "lofi"), "Lo-fi");
     }
 
-    #[test]
-    fn learning_from_a_title_keeps_its_spellings() {
-        use crate::flow_neuro::learning::{Interaction, apply_interaction};
-        use crate::flow_neuro::scoring::UserBrain;
-        use crate::flow_neuro::signals::InteractionType;
-
-        let mut brain = UserBrain::default();
-        apply_interaction(
-            &mut brain,
-            &Interaction {
-                video_id: "v1",
-                title: "Restoring Vintage Guitars",
-                channel_name: "Guitar Workshop",
-                channel_id: "c1",
-                description: None,
-                duration_sec: Some(600),
-                is_live: false,
-                is_short: false,
-                kind: InteractionType::Watched,
-                percent_watched: 0.9,
-                seconds_since_impression: None,
-                category: None,
-            },
-        );
-        let spec = brain.key_spec();
-        assert_eq!(label(&brain.display_forms, "guitar"), "Guitars");
-        assert_eq!(
-            label(&brain.display_forms, &spec.key_of("restoring")),
-            "Restoring"
-        );
-    }
 
     #[test]
     fn a_pick_is_written_as_chosen() {

@@ -7,16 +7,16 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::flow_neuro::display_forms::{
+use crate::data_model::display_forms::{
     DisplayForm, DisplayForms, capitalized, fill_gaps, record, spellings_in, with_pick_spellings,
 };
-use crate::flow_neuro::keyed_lists::keyed_lists;
-use crate::flow_neuro::keyspec::phrases::{self, MIN_COUNT};
-use crate::flow_neuro::keyspec::{self, KeySpec, normalize_lemma};
-use crate::flow_neuro::scoring::{
+use crate::data_model::keyed_lists::keyed_lists;
+use crate::data_model::keyspec::phrases::{self, MIN_COUNT};
+use crate::data_model::keyspec::{self, KeySpec, normalize_lemma};
+use crate::data_model::brain::{
     ContentVector, IdfSnapshot, RejectionSignal, TopicEvidence, UserBrain, strip_domain_tag,
 };
-use crate::flow_neuro::signals::make_affinity_key;
+use crate::data_model::signals::make_affinity_key;
 
 /// A pair the viewer engaged with beyond one chance title weighs at least this much.
 const KEPT_PAIR_WEIGHT: f64 = 0.30;
@@ -476,7 +476,7 @@ impl TopicEvidence {
             all.sort();
             let skip = all
                 .len()
-                .saturating_sub(crate::flow_neuro::scoring::TOPIC_EVIDENCE_MAX_IDS);
+                .saturating_sub(crate::data_model::brain::TOPIC_EVIDENCE_MAX_IDS);
             all.into_iter().skip(skip).collect()
         };
         let first_seen = [self.first_seen_at, other.first_seen_at]
@@ -617,7 +617,7 @@ mod tests {
         assert!(!topics.contains_key("機器學習"));
         assert_eq!(brain.idf_word_frequency.get("机器学习"), Some(&7));
         assert_eq!(
-            crate::flow_neuro::display_forms::label(&brain.display_forms, "机器学习"),
+            crate::data_model::display_forms::label(&brain.display_forms, "机器学习"),
             "機器學習"
         );
         assert_eq!(brain.blocked_topics, HashSet::from(["新闻".to_string()]));

@@ -7,9 +7,9 @@ use sqlx::SqlitePool;
 
 use crate::db::settings;
 use crate::errors::AppResult;
-use crate::sync::canonical::{Hlc, Playlist, PlaylistItem, PlaylistOrigin};
-use crate::sync::mapping::{self, PLAYLISTS_SETTING_KEY};
-use crate::sync::merge::merge_playlists;
+use crate::data_model::canonical::{Hlc, Playlist, PlaylistItem, PlaylistOrigin};
+use crate::data_model::mapping::{self, PLAYLISTS_SETTING_KEY};
+use crate::data_model::merge::merge_playlists;
 
 pub const SAVED_SHORTS_SETTING_KEY: &str = "saved_shorts_library";
 pub const SAVED_SHORTS_SYNC_ID: &str = "saved_shorts";

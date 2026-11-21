@@ -6,13 +6,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::de::DeserializeOwned;
 
-use crate::sync::canonical::{
+use crate::data_model::canonical::{
     GroupMember, Hlc, Like, LikeKind, LikeState, Note, Playlist, PlaylistItem, SubscriptionGroup,
     WatchHistoryRecord,
 };
-use crate::sync::changes::{self, Stamp};
-use crate::sync::mapping::like_key;
-use crate::sync::merge::playlist_merge_key;
+use crate::data_model::changes::{self, Stamp};
+use crate::data_model::mapping::like_key;
+use crate::data_model::merge::playlist_merge_key;
 
 fn peer_record<T: DeserializeOwned>(stamp: &Stamp) -> Option<T> {
     stamp

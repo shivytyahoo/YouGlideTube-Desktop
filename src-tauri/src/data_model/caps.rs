@@ -1,20 +1,77 @@
-//! The brain's size limits and expiries in one place. Learning applies each where it grows a map;
-//! a sync merge applies all of them again, since the merged state keeps every entry any device ever
-//! had and would otherwise bring back what this device pruned (D14).
+//! The stored brain's size limits and expiries in one place. A merge applies all of
+//! them again, since the merged state keeps every entry any device ever had and would
+//! otherwise bring back what this device pruned.
+//!
+//! This is data maintenance for the backup format, not a recommendation engine: nothing
+//! here learns, ranks or suggests. The brain is inert stored data now.
 
 use std::collections::{HashMap, HashSet};
 
-use crate::flow_neuro::features::pick_keys;
-use crate::flow_neuro::rejections::{REJECTION_FORGET_BELOW, effective_rejections};
-use crate::flow_neuro::scoring::{
+use crate::data_model::brain::{
     AFFINITY_KEEP_TOP, AFFINITY_MAX_ENTRIES, CHANNEL_KEEP_HIGH, CHANNEL_KEEP_LOW,
     CHANNEL_PROFILE_MAX_CHANNELS, CHANNEL_SUPPRESSION_DAYS, FEED_HISTORY_EXPIRY_DAYS,
     FEED_HISTORY_MAX, MAX_CHANNEL_SCORES, MAX_SUPPRESSED_CHANNELS, MAX_SUPPRESSED_VIDEOS,
     REJECTION_MEMORY_MAX, RejectionSignal, TOPIC_EVIDENCE_MAX_ENTRIES, TopicEvidence, UserBrain,
+    strip_domain_tag,
 };
-use crate::flow_neuro::vector_math::{MAX_GLOBAL_TOPICS, cap_topics};
+use crate::data_model::brain::{ContentVector, MAX_GLOBAL_TOPICS};
 
 const DAY_MS: u64 = 86_400_000;
+const REJECTION_FORGET_BELOW: f64 = 0.5;
+const REJECTION_HALF_LIFE_DAYS: f64 = 30.0;
+const SEEN_SHORTS_MAX: usize = 3_000;
+
+/// A rejection's effective strength, fading with age.
+fn effective_rejections(signal: &RejectionSignal, now_ms: u64) -> f64 {
+    #[allow(clippy::cast_precision_loss)]
+    let age_days = now_ms.saturating_sub(signal.last_rejected_at) as f64 / 86_400_000.0;
+    f64::from(signal.count) * 0.5_f64.powf(age_days / REJECTION_HALF_LIFE_DAYS)
+}
+
+/// The preferred-topic keys, protected when the global vector is capped.
+fn pick_keys(brain: &UserBrain) -> HashSet<String> {
+    let spec = brain.key_spec();
+    brain
+        .preferred_topics
+        .iter()
+        .flat_map(|label| spec.keys_of(label))
+        .collect()
+}
+
+/// Past the cap, the strongest topics stay (protected keys always stay).
+fn cap_topics(
+    vector: &ContentVector,
+    max: usize,
+    protected: &HashSet<String>,
+) -> ContentVector {
+    if vector.topics.len() <= max {
+        return vector.clone();
+    }
+    let mut ranked: Vec<(&String, f64)> = vector.topics.iter().map(|(k, &v)| (k, v)).collect();
+    ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
+    let topics = ranked
+        .into_iter()
+        .enumerate()
+        .filter(|(index, (key, _))| *index < max || protected.contains(&strip_domain_tag(key)))
+        .map(|(_, (key, weight))| (key.clone(), weight))
+        .collect();
+    ContentVector {
+        topics,
+        ..vector.clone()
+    }
+}
+
+/// Past the cap, the most recently seen Shorts stay.
+fn cap_seen(brain: &mut UserBrain) {
+    let history = &mut brain.seen_shorts_history;
+    if history.len() <= SEEN_SHORTS_MAX {
+        return;
+    }
+    let mut entries: Vec<(String, u64)> = history.drain().collect();
+    entries.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    entries.truncate(SEEN_SHORTS_MAX);
+    history.extend(entries);
+}
 
 /// Keeps the `max` newest entries of a map of timestamps.
 fn keep_newest(map: &mut HashMap<String, u64>, max: usize) {
@@ -136,7 +193,7 @@ pub fn cap_channel_profiles(brain: &mut UserBrain) {
     }
 }
 
-/// Every limit again, after a sync merge.
+/// Every limit again, after a merge.
 pub fn apply_all(brain: &mut UserBrain, now_ms: u64) {
     cap_suppressed_videos(brain);
     prune_suppressed_channels(brain, now_ms);
@@ -146,7 +203,7 @@ pub fn apply_all(brain: &mut UserBrain, now_ms: u64) {
     cap_affinities(&mut brain.topic_affinities);
     cap_evidence(&mut brain.topic_evidence);
     cap_channel_profiles(brain);
-    crate::flow_neuro::shorts::cap_seen(brain);
+    cap_seen(brain);
     let picks = pick_keys(brain);
     brain.global_vector = cap_topics(&brain.global_vector, MAX_GLOBAL_TOPICS, &picks);
 }
@@ -154,7 +211,7 @@ pub fn apply_all(brain: &mut UserBrain, now_ms: u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::flow_neuro::scoring::FeedEntry;
+    use crate::data_model::brain::FeedEntry;
 
     #[test]
     fn a_merge_cannot_bring_back_what_this_device_pruned() {

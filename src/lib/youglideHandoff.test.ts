@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { handoffToOpen, parseDeepLinkUrl } from "./flowHandoff";
+import { handoffToOpen, parseDeepLinkUrl } from "./youglideHandoff";
 import { SETTINGS } from "./settings/schema";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
 

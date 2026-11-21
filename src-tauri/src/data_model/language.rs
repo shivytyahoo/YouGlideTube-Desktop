@@ -3,8 +3,8 @@
 //! the profile the brain started with and never moves, so a word keeps one key, and a synced peer
 //! that stems for another language is a peer whose keys this brain cannot read.
 
-use crate::flow_neuro::keyspec::{KeySpec, languages};
-use crate::flow_neuro::scoring::UserBrain;
+use crate::data_model::keyspec::{KeySpec, languages};
+use crate::data_model::brain::UserBrain;
 
 const FALLBACK_LANGUAGE: &str = "en";
 

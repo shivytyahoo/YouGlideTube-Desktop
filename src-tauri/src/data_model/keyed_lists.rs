@@ -4,9 +4,9 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-use crate::flow_neuro::feature_tables::feature_tables;
-use crate::flow_neuro::keyspec::{KeySpec, tables::tables};
-use crate::flow_neuro::topic_catalog::onboarding_topics;
+use crate::data_model::feature_tables::feature_tables;
+use crate::data_model::keyspec::{KeySpec, tables::tables};
+use crate::data_model::topic_catalog::onboarding_topics;
 
 /// The onboarding catalog's topics of more than one word (Android `NeuroTopicCatalog`); one that
 /// reads as a single chunk is a phrase from the first title.

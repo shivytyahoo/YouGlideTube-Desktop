@@ -5,8 +5,8 @@
 use serde_json::Value;
 use sqlx::{SqliteConnection, SqlitePool};
 
-use crate::sync::canonical::Hlc;
-use crate::sync::error::SyncError;
+use crate::data_model::canonical::Hlc;
+use crate::data_model::error::DataError;
 
 const HIGH_WATER_KEY: &str = "sync_clock_hwm";
 
@@ -39,7 +39,7 @@ fn highest_in(value: &Value) -> u64 {
 }
 
 /// Raises the high-water mark to `ms`; it never goes down.
-pub async fn observe(conn: &mut SqliteConnection, ms: u64) -> Result<(), SyncError> {
+pub async fn observe(conn: &mut SqliteConnection, ms: u64) -> Result<(), DataError> {
     if ms == 0 {
         return Ok(());
     }
@@ -56,7 +56,7 @@ pub async fn observe(conn: &mut SqliteConnection, ms: u64) -> Result<(), SyncErr
 }
 
 /// The time to stamp a local edit with: now, or just after the newest stamp applied here.
-pub async fn edit_ms(pool: &SqlitePool) -> Result<u64, SyncError> {
+pub async fn edit_ms(pool: &SqlitePool) -> Result<u64, DataError> {
     let high_water: Option<String> = sqlx::query_scalar("SELECT value FROM settings WHERE key = ?")
         .bind(HIGH_WATER_KEY)
         .fetch_optional(pool)

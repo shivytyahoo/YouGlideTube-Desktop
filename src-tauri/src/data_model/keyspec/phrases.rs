@@ -3,7 +3,7 @@
 //! belong together ("lofi hip"), rather than meeting by chance ("review after"). The counts are
 //! the per-video document frequencies the engine already keeps for IDF.
 
-pub use crate::flow_neuro::scoring::IdfSnapshot;
+pub use crate::data_model::brain::IdfSnapshot;
 
 pub const MIN_COUNT: i32 = 3;
 pub const MIN_NPMI: f64 = 0.5;

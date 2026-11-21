@@ -6,20 +6,20 @@ use std::collections::{BTreeMap, BTreeSet};
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 
 use crate::db::notes as table;
-use crate::sync::apply::ApplyStats;
-use crate::sync::canonical::{Collection, Note};
-use crate::sync::changes;
-use crate::sync::clock;
-use crate::sync::error::SyncError;
-use crate::sync::merge;
-use crate::sync::tombstones;
+use crate::data_model::apply::ApplyStats;
+use crate::data_model::canonical::{Collection, Note};
+use crate::data_model::changes;
+use crate::data_model::clock;
+use crate::data_model::error::DataError;
+use crate::data_model::merge;
+use crate::data_model::tombstones;
 
 fn now_ms() -> u64 {
     u64::try_from(chrono::Utc::now().timestamp_millis()).unwrap_or(0)
 }
 
 /// This device's notes and the deletions it still announces, sorted by `id`.
-pub async fn local_notes(conn: &mut SqliteConnection) -> Result<Vec<Note>, SyncError> {
+pub async fn local_notes(conn: &mut SqliteConnection) -> Result<Vec<Note>, DataError> {
     let mut records: Vec<Note> = table::all_on(&mut *conn)
         .await?
         .iter()
@@ -35,7 +35,7 @@ pub async fn local_notes(conn: &mut SqliteConnection) -> Result<Vec<Note>, SyncE
 pub(super) async fn apply_notes(
     tx: &mut Transaction<'_, Sqlite>,
     incoming: Vec<Note>,
-) -> Result<ApplyStats, SyncError> {
+) -> Result<ApplyStats, DataError> {
     let newest = incoming.iter().map(|n| n.updated_at).max().unwrap_or(0);
     clock::observe(tx, u64::try_from(newest).unwrap_or(0)).await?;
 

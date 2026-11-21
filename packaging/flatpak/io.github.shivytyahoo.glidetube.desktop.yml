@@ -1,9 +1,9 @@
-id: io.github.flow_tube.Flow-Desktop
+id: io.github.shivytyahoo.glidetube.desktop
 # GNOME 51 is the last runtime that ships webkit2gtk-4.1, which Tauri 2 needs.
 runtime: org.gnome.Platform
 runtime-version: '51'
 sdk: org.gnome.Sdk
-command: flow
+command: youglidetube
 
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node24
@@ -21,7 +21,7 @@ finish-args:
   - --device=dri
   # tauri-plugin-notification talks to the notification daemon directly.
   - --talk-name=org.freedesktop.Notifications
-  # Sync device keys and scrobbling sign-ins live in the Secret Service keyring.
+  # Scrobbling sign-ins live in the Secret Service keyring.
   - --talk-name=org.freedesktop.secrets
   # Show in folder for downloads asks the file manager over D-Bus.
   - --talk-name=org.freedesktop.FileManager1
@@ -32,14 +32,14 @@ finish-args:
   # Discord Rich Presence, through the socket of a native or Flatpak Discord.
   - --filesystem=xdg-run/discord-ipc-0
   - --filesystem=xdg-run/app/com.discordapp.Discord:create
-  - --filesystem=xdg-videos/Flow:create
-  - --filesystem=xdg-music/Flow:create
+  - --filesystem=xdg-videos/YouGlideTube:create
+  - --filesystem=xdg-music/YouGlideTube:create
   - --filesystem=xdg-download
   # The poToken and n-signature helpers run on the Node copied in by the node
   # module below; the sandbox has no host Node.
-  - --env=FLOW_NODE=/app/node/bin/node
-  - --env=FLOW_INTEGRITY_SCRIPT=/app/lib/Flow/sidecar/integrity.cjs
-  - --env=FLOW_NSIG_SCRIPT=/app/lib/Flow/sidecar/nsig.cjs
+  - --env=YOUGLIDETUBE_NODE=/app/node/bin/node
+  - --env=YOUGLIDETUBE_INTEGRITY_SCRIPT=/app/lib/YouGlideTube/sidecar/integrity.cjs
+  - --env=YOUGLIDETUBE_NSIG_SCRIPT=/app/lib/YouGlideTube/sidecar/nsig.cjs
 
 modules:
   # The tray needs libayatana-appindicator, which the GNOME runtime lacks.
@@ -52,14 +52,14 @@ modules:
       - /usr/lib/sdk/node24/install.sh
       - /app/node/bin/node --version
 
-  - name: flow
+  - name: youglidetube
     buildsystem: simple
     build-options:
       env:
-        HOME: /run/build/flow
-        CARGO_HOME: /run/build/flow/cargo
+        HOME: /run/build/youglidetube
+        CARGO_HOME: /run/build/youglidetube/cargo
         CARGO_NET_OFFLINE: 'true'
-        XDG_CACHE_HOME: /run/build/flow/flatpak-node/cache
+        XDG_CACHE_HOME: /run/build/youglidetube/flatpak-node/cache
     sources:
       - type: dir
         path: ../..
@@ -71,7 +71,6 @@ modules:
           - dist
           - src-tauri/target
           - packaging/flatpak/generated-sources
-          - FlowApp_mobile
           - NewPipeExtractor-dev
           - InnertubeAPI
           - notes
@@ -87,17 +86,17 @@ modules:
       # checked online by every other install, so it is trusted here.
       - node flatpak-pnpm/bin/pnpm.mjs install --offline --frozen-lockfile --trust-lockfile
       - node flatpak-pnpm/bin/pnpm.mjs build
-      # `tauri build` rejects the underscore Flathub requires in this app ID, so
       # cargo is called directly with the feature and merged config the CLI
-      # would pass. RUSTFLAGS overrides the rustflags in .cargo/config.toml, so
+      # would pass, with the Flatpak config in TAURI_CONFIG.
+      # RUSTFLAGS overrides the rustflags in .cargo/config.toml, so
       # reqwest_unstable is added to whatever the SDK already sets.
       - |
         cd src-tauri
         export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--cfg reqwest_unstable"
         export TAURI_CONFIG="$(cat tauri.flatpak.conf.json)"
         cargo build --offline --release --bins --features tauri/custom-protocol
-      - install -Dm755 src-tauri/target/release/flow ${FLATPAK_DEST}/bin/flow
-      - install -Dm644 -t ${FLATPAK_DEST}/lib/Flow/sidecar src-tauri/sidecar/integrity.cjs src-tauri/sidecar/nsig.cjs
+      - install -Dm755 src-tauri/target/release/youglidetube ${FLATPAK_DEST}/bin/youglidetube
+      - install -Dm644 -t ${FLATPAK_DEST}/lib/YouGlideTube/sidecar src-tauri/sidecar/integrity.cjs src-tauri/sidecar/nsig.cjs
       - install -Dm644 packaging/flatpak/${FLATPAK_ID}.desktop ${FLATPAK_DEST}/share/applications/${FLATPAK_ID}.desktop
       - install -Dm644 packaging/flatpak/${FLATPAK_ID}.metainfo.xml ${FLATPAK_DEST}/share/metainfo/${FLATPAK_ID}.metainfo.xml
       - install -Dm644 src-tauri/icons/32x32.png ${FLATPAK_DEST}/share/icons/hicolor/32x32/apps/${FLATPAK_ID}.png

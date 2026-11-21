@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 
 use sqlx::SqliteConnection;
 
-use crate::sync::error::SyncError;
-use crate::sync::mapping::TOMBSTONE_TTL_MS;
+use crate::data_model::error::DataError;
+use crate::data_model::mapping::TOMBSTONE_TTL_MS;
 
 pub const WATCH_HISTORY: &str = "watch_history";
 pub const LIKES: &str = "likes";
@@ -87,7 +87,7 @@ pub fn children<'a>(
 }
 
 /// Record local edits and deletions (latest wins per record).
-pub async fn record(conn: &mut SqliteConnection, changes: &[Change]) -> Result<(), SyncError> {
+pub async fn record(conn: &mut SqliteConnection, changes: &[Change]) -> Result<(), DataError> {
     for c in changes {
         upsert(conn, c, false).await?;
     }
@@ -101,7 +101,7 @@ pub async fn record_peer_tombstone(
     key: &str,
     at_ms: u64,
     record: String,
-) -> Result<(), SyncError> {
+) -> Result<(), DataError> {
     upsert(
         conn,
         &Change::delete(collection, key, at_ms, Some(record)),
@@ -111,7 +111,7 @@ pub async fn record_peer_tombstone(
 }
 
 /// Drops every recorded edit and deletion, after a reset that must not reach other devices.
-pub async fn clear_all(pool: &sqlx::SqlitePool) -> Result<(), SyncError> {
+pub async fn clear_all(pool: &sqlx::SqlitePool) -> Result<(), DataError> {
     sqlx::query("DELETE FROM sync_changes")
         .execute(pool)
         .await?;
@@ -124,7 +124,7 @@ pub async fn is_own_deletion(
     collection: &str,
     key: &str,
     at_ms: u64,
-) -> Result<bool, SyncError> {
+) -> Result<bool, DataError> {
     let own: Option<i64> = sqlx::query_scalar(
         "SELECT 1 FROM sync_changes
          WHERE collection = ? AND item_key = ? AND deleted = 1 AND from_peer = 0 AND changed_at_ms = ?",
@@ -142,7 +142,7 @@ pub async fn rename_playlist(
     conn: &mut SqliteConnection,
     from: &str,
     to: &str,
-) -> Result<(), SyncError> {
+) -> Result<(), DataError> {
     sqlx::query(
         "UPDATE OR REPLACE sync_changes SET item_key = ? WHERE collection = ? AND item_key = ?",
     )
@@ -169,7 +169,7 @@ pub async fn rename_playlist(
     Ok(())
 }
 
-async fn upsert(conn: &mut SqliteConnection, c: &Change, from_peer: bool) -> Result<(), SyncError> {
+async fn upsert(conn: &mut SqliteConnection, c: &Change, from_peer: bool) -> Result<(), DataError> {
     sqlx::query(
         "INSERT INTO sync_changes (collection, item_key, changed_at_ms, deleted, record, from_peer)
          VALUES (?, ?, ?, ?, ?, ?)
@@ -196,7 +196,7 @@ pub async fn load(
     conn: &mut SqliteConnection,
     collection: &str,
     now_ms: u64,
-) -> Result<BTreeMap<String, Stamp>, SyncError> {
+) -> Result<BTreeMap<String, Stamp>, DataError> {
     let cutoff = now_ms.saturating_sub(TOMBSTONE_TTL_MS);
     sqlx::query(
         "DELETE FROM sync_changes WHERE collection = ? AND deleted = 1 AND changed_at_ms < ?",
