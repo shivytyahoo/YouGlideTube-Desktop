@@ -1,0 +1,115 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "YouGlideTube",
+  "version": "0.1.0-beta4",
+  "identifier": "io.github.shivytyahoo.glidetube.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "YouGlideTube",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 480,
+        "minHeight": 360,
+        "maximized": true,
+        "decorations": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
+        "generalAutofillEnabled": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' asset: data: blob: https: http://127.0.0.1:*; media-src 'self' asset: blob: http://127.0.0.1:*; connect-src 'self' ipc: blob: http://127.0.0.1:*; font-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none';"
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["flow"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,
+    "targets": "all",
+    "category": "Entertainment",
+    "shortDescription": "YouGlideTube Desktop — YouTube and YouTube Music for the desktop, with Google sign-in.",
+    "longDescription": "YouGlideTube Desktop is a YouTube and YouTube Music desktop client with Google sign-in, native playback and local recommendations. Forked from Flow Desktop (Flow-Tube/Flow-Desktop, GPL-3.0).",
+    "copyright": "Copyright © 2026 shivyt",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/256x256.png",
+      "icons/512x512.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "sidecar/integrity.cjs",
+      "sidecar/nsig.cjs"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "-"
+    },
+    "windows": {
+      "allowDowngrades": false,
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": true
+      },
+      "deb": {
+        "desktopTemplate": "linux/youglidetube.desktop",
+        "files": {
+          "/usr/lib/firewalld/services/youglidetube.xml": "linux/firewall/youglidetube.xml",
+          "/etc/ufw/applications.d/youglidetube": "linux/firewall/youglidetube.ufw"
+        },
+        "depends": [
+          "gstreamer1.0-plugins-base",
+          "gstreamer1.0-plugins-good",
+          "gstreamer1.0-plugins-bad",
+          "gstreamer1.0-libav",
+          "gstreamer1.0-gl"
+        ],
+        "recommends": [
+          "gstreamer1.0-plugins-ugly",
+          "gstreamer1.0-tools",
+          "nodejs"
+        ]
+      },
+      "rpm": {
+        "desktopTemplate": "linux/youglidetube.desktop",
+        "files": {
+          "/usr/lib/firewalld/services/youglidetube.xml": "linux/firewall/youglidetube.xml",
+          "/etc/ufw/applications.d/youglidetube": "linux/firewall/youglidetube.ufw"
+        },
+        "depends": [
+          "(gstreamer1-plugins-base or gstreamer-plugins-base)",
+          "(gstreamer1-plugins-good or gstreamer-plugins-good)",
+          "(gstreamer1-plugins-bad-free or gstreamer-plugins-bad)"
+        ],
+        "recommends": [
+          "gstreamer1-plugins-bad-freeworld",
+          "(gstreamer1-plugin-libav or gstreamer-plugins-libav)",
+          "gstreamer1-plugin-openh264",
+          "gstreamer1-plugin-dav1d",
+          "nodejs"
+        ]
+      }
+    }
+  }
+}
