@@ -77,6 +77,11 @@ export function shouldSaveHistoryInDeepFlow(): boolean {
   return getSettingValue(SETTINGS.DEEP_FLOW_SAVE_HISTORY) === "true";
 }
 
+/** The Deep Glide switch leads the search list until you start typing. */
+export function shouldShowDeepFlowOnSearch(): boolean {
+  return getSettingValue(SETTINGS.DEEP_FLOW_SHOW_ON_SEARCH) === "true";
+}
+
 /** Deep Flow keeps a session out of every history unless it was told to save them. */
 export function deepFlowAllowsHistory(): boolean {
   return !isDeepFlowCurrentlyActive() || shouldSaveHistoryInDeepFlow();

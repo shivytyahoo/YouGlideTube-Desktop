@@ -247,6 +247,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     { title: "deep_flow_mode_title" },
     { title: "deep_flow_expire_duration_title" },
     { title: "deep_flow_save_history_title", summary: "deep_flow_save_history_subtitle" },
+    { title: "deep_flow_show_on_search_title", summary: "deep_flow_show_on_search_subtitle" },
     { title: "settings_pause_watch_history", summary: "settings_pause_watch_history_desc", keywords: ["privacy", "incognito"] },
     { title: "settings_save_search_history", summary: "settings_save_search_history_desc", keywords: ["privacy"] },
     { title: "settings_search_suggestions", summary: "settings_search_suggestions_desc" },

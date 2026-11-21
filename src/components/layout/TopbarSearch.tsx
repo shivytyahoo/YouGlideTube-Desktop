@@ -6,6 +6,7 @@ import { resolveChannelId } from '../../lib/api/youtube';
 import { getString } from '../../lib/i18n/index';
 import { IS_MACOS_RUNTIME } from '../../lib/platform';
 import { buildSuggestionColumns, isUnsupportedLink, type SuggestionRow } from '../../lib/searchSuggestions';
+import { setDeepFlowEnabled } from '../../lib/deepFlow';
 import { SETTINGS } from '../../lib/settings/schema';
 import { prefetchStreamInfo } from '../../lib/streamResolution';
 import { useSearchSuggestions } from '../../lib/useSearchSuggestions';
@@ -34,6 +35,8 @@ export function TopbarSearch() {
   const region = useAppSettingsStore((s) => s.values[SETTINGS.TRENDING_REGION]);
   const history = useVisibleSearchHistory();
   const suggestionsEnabled = useAppSettingsStore((s) => s.values[SETTINGS.SEARCH_SUGGESTIONS_ENABLED] !== 'false');
+  const deepGlideShowOnSearch = useAppSettingsStore((s) => s.values[SETTINGS.DEEP_FLOW_SHOW_ON_SEARCH] === 'true');
+  const deepFlowActive = useAppSettingsStore((s) => s.values[SETTINGS.DEEP_FLOW_ACTIVE] === 'true');
   const recordSearch = useSearchHistoryStore((s) => s.record);
   const runSearch = useRunSearch();
   const removeSearch = useSearchHistoryStore((s) => s.remove);
@@ -328,6 +331,7 @@ export function TopbarSearch() {
           onRemoveHistory={removeSearch}
           onClearHistory={clearHistory}
           unsupportedLink={isUnsupportedLink(text)}
+          deepGlide={deepGlideShowOnSearch ? { active: deepFlowActive, onToggle: (enabled) => { void setDeepFlowEnabled(enabled); } } : undefined}
         />
       ) : null}
     </div>

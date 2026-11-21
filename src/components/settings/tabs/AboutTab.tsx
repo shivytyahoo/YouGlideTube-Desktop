@@ -118,6 +118,11 @@ export function AboutTab() {
         <LinkRow icon={<Info size={16} />} label={getString('settings_metadata_source')} value={sourceLabel(appMetadata?.source)} />
       </SettingsGroup>
 
+      <SettingsGroup title={getString('about_links')}>
+        <LinkRow icon={<Globe size={16} />} label={getString('about_link_android')} value="github.com/shivytyahoo/YouGlideTube" href="https://github.com/shivytyahoo/YouGlideTube" />
+        <LinkRow icon={<Globe size={16} />} label={getString('about_link_desktop')} value="github.com/shivytyahoo/YouGlideTube-Desktop" href="https://github.com/shivytyahoo/YouGlideTube-Desktop" />
+      </SettingsGroup>
+
       <SettingsGroup title={getString('settings_group_updates')}>
         {updateSupport && !updateSupport.supported && updateSupport.reason ? (
           <div className="px-5 py-4">

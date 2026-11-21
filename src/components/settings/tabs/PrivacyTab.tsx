@@ -19,6 +19,7 @@ export function PrivacyTab() {
   const deepFlowActive = useAppSettingsStore((state) => state.values[SETTINGS.DEEP_FLOW_ACTIVE] === 'true');
   const [deepFlowExpireHours, setDeepFlowExpireHours] = usePreference(SETTINGS.DEEP_FLOW_EXPIRE_HOURS, '4');
   const [deepFlowSaveHistory, setDeepFlowSaveHistory] = useBoolPref(SETTINGS.DEEP_FLOW_SAVE_HISTORY, false);
+  const [deepFlowShowOnSearch, setDeepFlowShowOnSearch] = useBoolPref(SETTINGS.DEEP_FLOW_SHOW_ON_SEARCH, false);
 
   const deepFlowHours = Number(deepFlowExpireHours);
   const deepFlowDurationLabel = getDeepFlowDurationLabel(deepFlowHours);
@@ -59,6 +60,9 @@ export function PrivacyTab() {
         </SettingItem>
         <SettingItem title={getString('deep_flow_save_history_title')} description={getString('deep_flow_save_history_subtitle')} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_SAVE_HISTORY)}>
           <ToggleSwitch checked={deepFlowSaveHistory} onChange={setDeepFlowSaveHistory} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_SAVE_HISTORY)} />
+        </SettingItem>
+        <SettingItem title={getString('deep_flow_show_on_search_title')} description={getString('deep_flow_show_on_search_subtitle')} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_SHOW_ON_SEARCH)}>
+          <ToggleSwitch checked={deepFlowShowOnSearch} onChange={setDeepFlowShowOnSearch} disabled={isSettingDisabledUntilWired(SETTINGS.DEEP_FLOW_SHOW_ON_SEARCH)} />
         </SettingItem>
       </SettingsGroup>
     </div>

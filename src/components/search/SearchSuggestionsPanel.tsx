@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { ArrowUpLeft, Clock, Link2, Search, TriangleAlert, X } from "lucide-react";
+import { ArrowUpLeft, Clock, EyeOff, Link2, Search, TriangleAlert, X } from "lucide-react";
 import { filterSummary } from "../../lib/searchFilterOptions";
 import { IS_MACOS_RUNTIME } from "../../lib/platform";
 import { getString } from "../../lib/i18n/index";
@@ -15,6 +15,7 @@ import {
 import { upgradeMusicImageUrl } from "../../lib/thumbnails";
 import { useProxiedImageUrl } from "../../lib/useProxiedImageUrl";
 import { useExitGhost } from "../../lib/useExitGhost";
+import { ToggleSwitch } from "../ui/ToggleSwitch";
 
 export const suggestionOptionId = (key: string) => `search-suggestion-${key.replace(/[^\w-]/g, "_")}`;
 
@@ -27,8 +28,10 @@ type PanelProps = {
   onFill: (text: string) => void;
   onRemoveHistory: (query: string) => void;
   onClearHistory: () => void;
-  /** The box holds a web address Flow can't open. */
+  /** The box holds a web address the app can't open. */
   unsupportedLink: boolean;
+  /** The Deep Glide switch, shown at the top while the box is empty and the setting is on. */
+  deepGlide?: { active: boolean; onToggle: (enabled: boolean) => void };
 };
 
 const shapeClasses = {
@@ -66,6 +69,7 @@ export function SearchSuggestionsPanel({
   onRemoveHistory,
   onClearHistory,
   unsupportedLink,
+  deepGlide,
 }: PanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   useExitGhost(panelRef);
@@ -187,6 +191,18 @@ export function SearchSuggestionsPanel({
       }`}
     >
       <div className="min-w-0">
+        {deepGlide && isEmptyQuery ? (
+          <div className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-start text-sm">
+            <EyeOff className="h-4 w-4 shrink-0 text-chrome-neutral-500" />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="font-semibold text-chrome-neutral-100">{getString("deep_flow_mode_title")}</span>
+              <span className="truncate text-xs text-chrome-neutral-400">
+                {deepGlide.active ? getString("deep_flow_learning_paused") : getString("deep_flow_mode_subtitle")}
+              </span>
+            </span>
+            <ToggleSwitch checked={deepGlide.active} onChange={deepGlide.onToggle} />
+          </div>
+        ) : null}
         {unsupportedLink ? (
           <p className="flex items-start gap-3 px-3 py-2.5 text-sm text-chrome-neutral-300">
             <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-chrome-neutral-500" />
