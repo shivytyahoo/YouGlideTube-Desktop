@@ -25,8 +25,6 @@ import { useMusicCardWidth } from '../../lib/useMusicCardWidth';
 import { youtubeMusicAlbumUrl } from '../../lib/youtubeUrl';
 import { shareLink } from '../../lib/clipboard';
 import { ExplicitBadge } from './ExplicitBadge';
-import { SuspectedAiTag } from './SuspectedAiTag';
-import { useAiMusicVerdict } from '../../lib/aiList/useAiList';
 import { PlayingWave } from './PlayingWave';
 import { MusicCardMenu, type MusicMenuAction, useMusicContextMenu } from './MusicCardMenu';
 import { isLocalMediaId } from '../../lib/localMediaId';
@@ -539,12 +537,10 @@ function ListRow({
   appendActions,
   menuActions: ownMenuActions,
   className,
-  suspectedAi,
   position,
   showAlbum = false,
 }: {
   item: SongItem;
-  suspectedAi: boolean;
   position?: number;
   showAlbum?: boolean;
   onPlay?: () => void;
@@ -645,7 +641,6 @@ function ListRow({
         </span>
         <span className="flex min-w-0 items-center gap-1.5">
           {explicit && <ExplicitBadge />}
-          {suspectedAi && <SuspectedAiTag />}
           {subtitle && <span dir="auto" className="line-clamp-1 text-sm text-chrome-neutral-400">{subtitle}</span>}
         </span>
       </div>
@@ -706,26 +701,8 @@ function ListRow({
 
 // --- public component -----------------------------------------------------
 
-/** The channel ids a card credits, which the AI list labels it by. */
-function creditedIds(props: MusicItemCardProps): Array<string | null | undefined> {
-  switch (props.variant) {
-    case 'album':
-    case 'song':
-    case 'video':
-    case 'track-list':
-      return (props.item.artists ?? []).map((artist) => artist.id);
-    case 'playlist':
-      return [props.item.author?.id];
-    default:
-      return [];
-  }
-}
-
 export function MusicItemCard(props: MusicItemCardProps) {
   const { className, onPlay, onOpen, fill } = props;
-  const suspectedAi = useAiMusicVerdict(creditedIds(props)) === 'warn';
-  // Android adds the label to a collection row's subtitle and beside a track's explicit badge.
-  const labelled = (subtitle: string) => (suspectedAi ? [subtitle, getString('ai_list_label')].filter(Boolean).join(' · ') : subtitle);
 
   switch (props.variant) {
     case 'album':
@@ -734,7 +711,7 @@ export function MusicItemCard(props: MusicItemCardProps) {
           item={props.item}
           menuKind="album"
           title={props.item.title}
-          subtitle={labelled(albumSubtitle(props.item))}
+          subtitle={albumSubtitle(props.item)}
           thumbnail={props.item.thumbnail}
           onPlay={onPlay}
           onOpen={onOpen}
@@ -748,7 +725,7 @@ export function MusicItemCard(props: MusicItemCardProps) {
       return (
         <SquareCard
           title={props.item.title}
-          subtitle={labelled(playlistSubtitle(props.item))}
+          subtitle={playlistSubtitle(props.item)}
           thumbnail={props.item.thumbnail}
           onPlay={onPlay}
           onOpen={onOpen}
@@ -762,7 +739,7 @@ export function MusicItemCard(props: MusicItemCardProps) {
           item={props.item}
           menuKind="track"
           title={props.item.title}
-          subtitle={labelled(artistsText(props.item.artists))}
+          subtitle={artistsText(props.item.artists)}
           thumbnail={props.item.thumbnail}
           onPlay={onPlay}
           onOpen={onOpen ?? onPlay}
@@ -774,7 +751,7 @@ export function MusicItemCard(props: MusicItemCardProps) {
       return (
         <VideoCard16x9
           title={props.item.title}
-          subtitle={labelled(artistsText(props.item.artists))}
+          subtitle={artistsText(props.item.artists)}
           thumbnail={props.item.thumbnail}
           onPlay={onPlay}
           onOpen={onOpen}
@@ -820,7 +797,6 @@ export function MusicItemCard(props: MusicItemCardProps) {
       return (
         <ListRow
           item={props.item}
-          suspectedAi={suspectedAi}
           onPlay={onPlay}
           onNavigate={props.onNavigate}
           appendActions={props.appendActions}

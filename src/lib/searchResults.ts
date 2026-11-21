@@ -17,7 +17,6 @@ import type {
   PodcastItem,
   SongItem,
 } from '../types/music';
-import type { AiListMatcher } from './aiList/matcher';
 
 /** A block among the video results: after the video with this id, or before them all when null. */
 export interface Placed {
@@ -73,39 +72,14 @@ export interface CombinedSearchResults {
 export interface SearchExclusions {
   videoIds: ReadonlySet<string>;
   channelIds: ReadonlySet<string>;
-  /** The AiSList filter: true for a channel it hides. Search is asked on its own, as on Android. */
-  hidesAsAi?: (channelId: string, handle?: string | null) => boolean;
 }
 
 const cleanChannelId = (id?: string | null) => (id ?? '').replace('channel:', '');
 
-/**
- * Leaves out music the AI filter hides: songs and albums by their credited artists, playlists by
- * their author. Artist cards stay, as channel cards do in video search, so a listed artist can
- * still be found and opened on purpose. The same object comes back when nothing goes.
- */
-export function withoutAiMusic(results: CombinedSearchResults, ai: AiListMatcher): CombinedSearchResults {
-  if (!ai.isMusicActive) return results;
-  const hides = (ids: Array<string | null | undefined>) => ai.musicVerdict(ids) === 'block';
-  const byArtists = (item: { artists: Array<{ id?: string | null }> | null }) => hides((item.artists ?? []).map((a) => a.id));
-  const keep = <T,>(items: T[], hidden: (item: T) => boolean) => {
-    const kept = items.filter((item) => !hidden(item));
-    return kept.length === items.length ? items : kept;
-  };
-  const top = results.topResult;
-  const topHidden = (top?.kind === 'song' || top?.kind === 'album') && byArtists(top.item);
-  const songs = keep(results.songs, byArtists);
-  const albums = keep(results.albums, byArtists);
-  const playlists = keep(results.playlists, (playlist) => hides([playlist.author?.id]));
-  if (!topHidden && songs === results.songs && albums === results.albums && playlists === results.playlists) return results;
-  return { ...results, topResult: topHidden ? null : top, songs, albums, playlists };
-}
-
 export function withoutHidden(results: CombinedSearchResults, hidden: SearchExclusions): CombinedSearchResults {
-  const asAi = hidden.hidesAsAi;
-  if (hidden.videoIds.size === 0 && hidden.channelIds.size === 0 && !asAi) return results;
-  const hidesChannel = (id?: string | null, handle?: string | null) =>
-    hidden.channelIds.has(cleanChannelId(id)) || (!!asAi && asAi(cleanChannelId(id), handle));
+  if (hidden.videoIds.size === 0 && hidden.channelIds.size === 0) return results;
+  const hidesChannel = (id?: string | null, _handle?: string | null) =>
+    hidden.channelIds.has(cleanChannelId(id));
   const visible = <T extends { id: string; channelId?: string | null; channelHandle?: string | null }>(videos: T[]) =>
     videos.filter((video) => !hidden.videoIds.has(video.id) && !hidesChannel(video.channelId, video.channelHandle));
   const top = results.topResult;

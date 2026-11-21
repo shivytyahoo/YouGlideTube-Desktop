@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   PlayCircle,
   LayoutGrid,
-  Heart,
   Gauge,
   Wifi,
   Download,
@@ -51,7 +50,6 @@ const categories: CategoryDef[] = [
   { id: 'subscriptions', icon: <Bell size={18} /> },
   { id: 'privacy', icon: <ShieldCheck size={18} /> },
   { id: 'wellbeing', icon: <Hourglass size={18} /> },
-  { id: 'taste', icon: <Heart size={18} /> },
   { id: 'quality', icon: <Gauge size={18} /> },
   { id: 'network', icon: <Wifi size={18} /> },
   { id: 'language', icon: <Languages size={18} /> },

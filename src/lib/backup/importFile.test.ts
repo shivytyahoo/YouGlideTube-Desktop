@@ -49,7 +49,7 @@ const COLLECTIONS = {
   subscription_channels: [{ channelId: "UC1" }],
   playlists: [{ syncId: "p1" }],
   likes: [{ id: "l1" }],
-  flow_neuro_brain: [{ deviceId: "d" }],
+  music_brain: [{ deviceId: "d" }],
 };
 
 const summaryOf = (collections: Record<string, unknown[]>) => ({

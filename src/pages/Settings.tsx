@@ -2,7 +2,6 @@ import { SettingsLayout, type SettingsCategory } from '../components/settings/Se
 import { PlayerTab } from '../components/settings/tabs/PlayerTab';
 import { MusicTab } from '../components/settings/tabs/MusicTab';
 import { ContentTab } from '../components/settings/tabs/ContentTab';
-import { TasteTab } from '../components/settings/tabs/TasteTab';
 import { QualityTab } from '../components/settings/tabs/QualityTab';
 import { NetworkTab } from '../components/settings/tabs/NetworkTab';
 import { DownloadsTab } from '../components/settings/tabs/DownloadsTab';
@@ -28,7 +27,6 @@ const tabComponents: Record<SettingsCategory, React.FC> = {
   subscriptions: SubscriptionsTab,
   privacy: PrivacyTab,
   wellbeing: WellbeingTab,
-  taste: TasteTab,
   quality: QualityTab,
   network: NetworkTab,
   language: LanguageTab,

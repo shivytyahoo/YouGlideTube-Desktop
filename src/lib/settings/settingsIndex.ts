@@ -12,7 +12,6 @@ export type SettingsCategory =
   | "subscriptions"
   | "privacy"
   | "wellbeing"
-  | "taste"
   | "quality"
   | "network"
   | "language"
@@ -31,7 +30,6 @@ export const SETTINGS_CATEGORY_LABELS: Record<SettingsCategory, StringKey> = {
   subscriptions: "settings_subscriptions_notifications",
   privacy: "settings_history_privacy",
   wellbeing: "settings_digital_wellbeing",
-  taste: "settings_taste",
   quality: "settings_quality_codecs",
   network: "settings_network_buffer",
   language: "settings_language_region",
@@ -263,21 +261,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     { title: "bedtime_end_title" },
     { title: "break_reminder_title", summary: "break_reminder_subtitle", keywords: ["wellbeing", "screen time", "usage"] },
     { title: "frequency_dialog_title", summary: "frequency_description" },
-  ]),
-  ...rows("taste", [
-    { title: "recap_title", summary: "recap_summary", keywords: ["wrapped", "stats", "statistics", "year in review", "watch time", "listening time", "most watched", "top artists"] },
-    { title: "taste_add_interest" },
-    { title: "taste_current_interests" },
-    { title: "taste_browse_interests" },
-    { title: "taste_block_topic" },
-    { title: "taste_current_blocked" },
-    { title: "taste_quick_block" },
-    { title: "taste_groups_title", summary: "taste_groups_desc" },
-    { title: "taste_remembered_title" },
-    { title: "taste_hidden_channels" },
-    { title: "taste_export_music", summary: "taste_export_music_desc", keywords: ["backup", "music brain"] },
-    { title: "taste_import_music", summary: "taste_import_music_desc", keywords: ["restore", "music brain"] },
-    { title: "taste_reset_music", summary: "taste_reset_music_desc", keywords: ["clear", "music brain"] },
   ]),
   ...rows("quality", [
     { title: "settings_default_resolution", summary: "settings_default_resolution_desc" },

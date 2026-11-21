@@ -1,14 +1,9 @@
 import { ArchiveRestore } from "lucide-react";
 import { getSetting, setSetting, addWatchRecordsBulk } from "../api/db";
 import { readBackupFile, type UnreadableReason } from "../api/backup";
-import { bootstrapFromHistory, bootstrapFromSubscriptions, importBrain } from "../api/recommendation";
+import { bootstrapFromHistory, bootstrapFromSubscriptions } from "../api/recommendation";
 import { parseSubscriptionExport } from "../api/youtube";
 import { confirmAction } from "../dialogs";
-import {
-  convertFlowNeuroBrainData,
-  extractFlowNeuroBrainCandidate,
-  isFlowNeuroBrainCandidate,
-} from "../flowNeuroImport";
 import { getString, type StringKey } from "../i18n/index";
 import { profileDisplayName } from "../profiles/display";
 import {
@@ -186,7 +181,6 @@ export async function importFile(
       switch (key) {
         case "watch_history":
         case "recap_stats": return selection.history;
-        case "flow_neuro_brain":
         case "music_brain": return selection.neuro;
         case "subscriptions":
         case "subscription_channels": return selection.subscriptions;
@@ -214,21 +208,13 @@ export async function importFile(
         counts.subscriptions = restoredOf("subscription_channels") + restoredOf("subscriptions");
         counts.playlists = restoredOf("playlists");
         counts.likes = restoredOf("likes");
-        if (restoredOf("flow_neuro_brain") + restoredOf("music_brain") > 0) counts.neuro = true;
+        if (restoredOf("music_brain") > 0) counts.neuro = true;
         report({ percent: 90 });
         await refreshAfterRestore();
       } catch (err) {
         console.error("Backend collection restore failed; falling back to legacy parsing", err);
       }
     }
-  }
-
-  let brainToImport: unknown | null = null;
-  if (isJson && backupData) brainToImport = extractFlowNeuroBrainCandidate(backupData);
-  if (selection.neuro && brainToImport && isFlowNeuroBrainCandidate(brainToImport)) {
-    report({ message: getString("import_importing_neuro") });
-    await importBrain(convertFlowNeuroBrainData(brainToImport));
-    counts.neuro = true;
   }
 
   if (selection.subscriptions && !restoredViaCollections) {
@@ -296,7 +282,7 @@ export async function importFile(
   await setSettingValue(SETTINGS.DEEP_FLOW_ACTIVE, "false");
   await setSettingValue(SETTINGS.DEEP_FLOW_ACTIVATED_AT, "0");
 
-  if (counts.subscriptions + counts.playlists + counts.history + counts.settings === 0 && !restoredViaCollections && !(selection.neuro && brainToImport)) {
+  if (counts.subscriptions + counts.playlists + counts.history + counts.settings === 0 && !restoredViaCollections) {
     throw new Error(getString("import_file_not_recognized"));
   }
 

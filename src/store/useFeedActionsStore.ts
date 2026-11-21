@@ -14,8 +14,6 @@ import { isKnownShort } from "../lib/videoKind";
 import { isMusicVideo } from "../lib/utils";
 import type { VideoSummary } from "../types/video";
 import { SETTINGS } from "../lib/settings/schema";
-import { useAiListMatcher } from "../lib/aiList/useAiList";
-import type { AiListMatcher } from "../lib/aiList/matcher";
 import { useAppSettingsStore } from "./useAppSettingsStore";
 
 // Global recommendation-feedback state shared by every video card, mirroring the mobile
@@ -340,26 +338,9 @@ export const useFeedActionsStore = create<FeedActionsState>((set, get) => {
   };
 });
 
-/**
- * True when the AiSList filter hides the video's channel. The card's handle, or a collaboration
- * lead's, also teaches the matcher that channel's id for cards that carry no handle.
- */
-export function hiddenAsAi(
-  matcher: AiListMatcher,
-  video: Pick<VideoSummary, "channelId" | "channelHandle" | "collaborators">,
-): boolean {
-  if (!matcher.isActive) return false;
-  const channelId = cleanChannelId(video.channelId);
-  const handle =
-    video.channelHandle ?? video.collaborators?.find((collaborator) => collaborator.channelId === channelId)?.handle;
-  return matcher.verdict(channelId, handle) === "block";
-}
-
 /// Reactive predicate for feeds: true when a video should be hidden (dismissed, watched, its
-/// channel blocked, or hidden by the AI channel list). Subscribes to the sets so feeds re-filter
-/// the instant an action fires.
+/// channel blocked). Subscribes to the sets so feeds re-filter the instant an action fires.
 export function useFeedHiddenFilter({ hideWatched = true }: { hideWatched?: boolean } = {}) {
-  const aiMatcher = useAiListMatcher();
   const dismissed = useFeedActionsStore((s) => s.dismissedVideoIds);
   const blocked = useFeedActionsStore((s) => s.blockedChannelIds);
   const suppressed = useFeedActionsStore((s) => s.suppressedChannelIds);
@@ -375,9 +356,9 @@ export function useFeedHiddenFilter({ hideWatched = true }: { hideWatched?: bool
       if (hideBlocked && matchBlockedKeyword(video, keywords)) return true;
       const channelId = cleanChannelId(video.channelId);
       if (channelId.length > 0 && (blocked.has(channelId) || activeSuppressed.has(channelId))) return true;
-      return hiddenAsAi(aiMatcher, video);
+      return false;
     },
-    [dismissed, blocked, activeSuppressed, watched, hideWatched, hideBlocked, keywords, aiMatcher],
+    [dismissed, blocked, activeSuppressed, watched, hideWatched, hideBlocked, keywords],
   );
 }
 

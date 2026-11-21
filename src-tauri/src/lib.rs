@@ -2,7 +2,6 @@
 #![warn(clippy::pedantic)]
 #![allow(clippy::missing_errors_doc)]
 
-mod ai_list;
 pub mod api;
 mod appimage;
 pub mod auth;
@@ -47,10 +46,6 @@ use std::sync::Arc;
 use tauri::Manager;
 
 use api::innertube::InnertubeClient;
-use commands::ai_list::{
-    ai_list_check_report, ai_list_learn_handles, ai_list_match_channels, ai_list_matcher_data,
-    ai_list_refresh, ai_list_source_settings, ai_list_status, ai_list_submit_report,
-};
 use commands::auth::{
     cancel_google_sign_in, get_account_info, get_auth_status, sign_in_with_cookie, sign_out,
     start_google_sign_in,
@@ -518,7 +513,6 @@ pub fn run() {
 
             // Manage database pool
             app.manage(pool.clone());
-            app.manage(ai_list::AiListService::new(&app_data_dir));
             let scrobbler = Arc::new(scrobble::scrobbler::Scrobbler::new(
                 pool.clone(),
                 Arc::new(scrobble::credentials::ProfileScoped::new(
@@ -643,7 +637,6 @@ pub fn run() {
             app.manage(update_support);
 
             services::notification_service::spawn_poll_loop(app.handle().clone(), pool.clone());
-            ai_list::service::spawn(app.handle().clone(), pool.clone());
             app.manage(backup::auto::AutoBackupState::default());
             backup::auto::spawn(app.handle().clone(), pool.clone());
             commands::cache::spawn_startup_trim(app.handle().clone(), pool.clone());
@@ -1060,15 +1053,6 @@ pub fn run() {
             set_upcoming_reminder,
             cancel_upcoming_reminder,
             check_subscriptions_now,
-            // --- AiSList channel filter ---
-            ai_list_status,
-            ai_list_refresh,
-            ai_list_matcher_data,
-            ai_list_learn_handles,
-            ai_list_match_channels,
-            ai_list_source_settings,
-            ai_list_check_report,
-            ai_list_submit_report,
             // --- Discord Rich Presence ---
             set_discord_presence,
             clear_discord_presence,

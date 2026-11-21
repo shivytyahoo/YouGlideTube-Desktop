@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Upload, Check, AlertCircle, FolderHeart, Heart, History, Tv, Loader2, Brain, Database, FileText, SlidersHorizontal, StickyNote } from "lucide-react";
+import { Upload, Check, AlertCircle, FolderHeart, Heart, History, Tv, Loader2, Brain, FileText, SlidersHorizontal, StickyNote } from "lucide-react";
 import { SettingsGroup } from "../components/settings/SettingsGroup";
 import { SettingItem } from "../components/settings/SettingItem";
 import { ToggleSwitch } from "../components/ui/ToggleSwitch";
@@ -151,16 +151,6 @@ export const ImportData: React.FC = () => {
               </SettingItem>
             ))}
           </SettingsGroup>
-
-          <div className="rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <Database size={14} className="text-chrome-neutral-400" />
-              <h4 className="text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">{getString("import_flowneuro_card_title")}</h4>
-            </div>
-            <p className="text-xs leading-relaxed text-chrome-neutral-400">
-              {getString("import_flowneuro_card_body")}
-            </p>
-          </div>
         </div>
       </div>
     </div>

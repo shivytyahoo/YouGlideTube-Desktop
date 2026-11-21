@@ -10,7 +10,6 @@ describe("tabIconFor", () => {
   });
 
   it("uses the matching rail icon for sections and their sub-pages", () => {
-    expect(tabIconFor("/feed")).toEqual({ kind: "nav", name: "feed" });
     expect(tabIconFor("/music/album/1")).toEqual({ kind: "nav", name: "music" });
     expect(tabIconFor("/playlists")).toEqual({ kind: "nav", name: "playlists" });
     expect(tabIconFor("/playlist/PL1")).toEqual({ kind: "nav", name: "playlists" });

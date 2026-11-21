@@ -10,7 +10,6 @@ export type TabIcon =
   | { kind: "nav"; name: SidebarNavIconName };
 
 const NAV_ICONS: Array<[prefix: string, name: SidebarNavIconName]> = [
-  ["/feed", "feed"],
   ["/explore", "explore"],
   ["/music", "music"],
   ["/subscriptions", "subscriptions"],

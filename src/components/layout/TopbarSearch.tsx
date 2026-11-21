@@ -6,8 +6,6 @@ import { resolveChannelId } from '../../lib/api/youtube';
 import { getString } from '../../lib/i18n/index';
 import { IS_MACOS_RUNTIME } from '../../lib/platform';
 import { buildSuggestionColumns, isUnsupportedLink, type SuggestionRow } from '../../lib/searchSuggestions';
-import { useAiListMatcher } from '../../lib/aiList/useAiList';
-import { withoutAiMusic } from '../../lib/aiList/music';
 import { SETTINGS } from '../../lib/settings/schema';
 import { prefetchStreamInfo } from '../../lib/streamResolution';
 import { useSearchSuggestions } from '../../lib/useSearchSuggestions';
@@ -42,7 +40,6 @@ export function TopbarSearch() {
   const clearHistory = useSearchHistoryStore((s) => s.clear);
   const playQueue = useMusicPlayerStore((s) => s.playQueue);
   const isHiddenSong = useMusicHiddenFilter();
-  const ai = useAiListMatcher();
 
   const [text, setText] = useState('');
   const [open, setOpen] = useState(false);
@@ -65,11 +62,11 @@ export function TopbarSearch() {
         query: isSettingsPage ? '' : text,
         history,
         suggestions,
-        musicItems: withoutAiMusic(musicItems, ai),
+        musicItems,
         isHiddenSong,
         allHistory,
       }),
-    [isSettingsPage, text, history, suggestions, musicItems, isHiddenSong, ai, allHistory],
+    [isSettingsPage, text, history, suggestions, musicItems, isHiddenSong, allHistory],
   );
   const rows = useMemo(() => [...columns.main, ...columns.side], [columns]);
   const panelVisible = !isSettingsPage && open && (rows.length > 0 || isUnsupportedLink(text));

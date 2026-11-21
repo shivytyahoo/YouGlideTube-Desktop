@@ -1,4 +1,3 @@
-pub mod ai_list;
 pub mod app_font;
 pub mod app_window;
 pub mod auth;

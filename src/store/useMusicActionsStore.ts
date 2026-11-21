@@ -1,5 +1,3 @@
-import { getAiListMatcher } from "./useAiListStore";
-import { aiHidesSong } from "../lib/aiList/music";
 import { useCallback, useMemo } from "react";
 import { create } from "zustand";
 import { getSetting, setSetting } from "../lib/api/db";
@@ -105,9 +103,7 @@ export const useMusicActionsStore = create<MusicActionsState>((set, get) => {
   const syncPlayer = () => {
     const predicate = buildHiddenPredicate(get());
     const player = useMusicPlayerStore.getState();
-    // Radio also skips AI music, read live so a new list or switch applies at once. Songs already
-    // queued stay: like Android, the AI filter never removes what you chose to play.
-    player.setHiddenPredicate?.((track) => predicate(track) || aiHidesSong(getAiListMatcher(), track));
+    player.setHiddenPredicate?.(predicate);
     player.pruneQueue?.(predicate);
   };
 
