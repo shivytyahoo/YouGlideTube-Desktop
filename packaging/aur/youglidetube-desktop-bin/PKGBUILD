@@ -1,0 +1,99 @@
+# Maintainer: shivyt
+
+pkgname=youglidetube-desktop-bin
+_pkgname=youglidetube-desktop
+pkgver=0.1.0beta3
+pkgrel=1
+# Release tags are v0.1.0-beta3 or v0.1.0; pkgver can't hold a "-".
+_tag=${pkgver/beta/-beta}
+_tag=${_tag/rc/-rc}
+pkgdesc='YouTube and YouTube Music desktop client with Google sign-in (binary release)'
+arch=('x86_64' 'aarch64')
+# TODO(step 4): the fork's GitHub repo does not exist yet. When the user
+# creates it, set _github_repo to "owner/repo" — every URL and directory
+# below derives from it.
+_github_repo='shivytyahoo/YouGlideTube-Desktop'
+_repo="${_github_repo##*/}"
+url="https://github.com/$_github_repo"
+license=('GPL-3.0-only')
+depends=(
+  'cairo'
+  'dbus'
+  'gcc-libs'
+  'gdk-pixbuf2'
+  'glib2'
+  'glibc'
+  'gst-libav'
+  'gst-plugins-bad'
+  'gst-plugins-base'
+  'gst-plugins-good'
+  'gtk3'
+  'hicolor-icon-theme'
+  'libsoup3'
+  'nodejs'
+  'webkit2gtk-4.1'
+)
+optdepends=('gst-plugins-ugly: more audio and video codecs'
+            'libayatana-appindicator: music controls in the system tray')
+provides=("$_pkgname")
+conflicts=("$_pkgname")
+options=('!strip' '!debug')
+source_x86_64=("$pkgname-$pkgver-x86_64.deb::$url/releases/download/v$_tag/YouGlideTube_${_tag}_linux_amd64.deb")
+source_aarch64=("$pkgname-$pkgver-aarch64.deb::$url/releases/download/v$_tag/YouGlideTube_${_tag}_linux_arm64.deb")
+sha256sums_x86_64=('9590693b8c4862a0e55ec2d71a56b3685b8b27fc2cafcbd2cee7b2c64660dfcc')
+sha256sums_aarch64=('8b50812b8b5102aefe0670cb0731dc4695e2823e92528cb36778e89caa059568')
+
+# --- Shared youglidetube-desktop install steps: keep identical in every PKGBUILD. ---
+
+# The release workflow builds every tag with a "-" (betas, release
+# candidates) with src-tauri/tauri.prerelease.conf.json, which renames the app.
+_youglidetube_product() {
+  if [[ $_tag == *-* ]]; then
+    printf 'YouGlideTube Beta'
+  else
+    printf 'YouGlideTube'
+  fi
+}
+
+# Installs the data tree of a YouGlideTube .deb into $pkgdir.
+_youglidetube_install() {
+  local data=$1 product resdir desktop bin
+  product=$(_youglidetube_product)
+  resdir="$pkgdir/usr/lib/$product"
+  desktop="$pkgdir/usr/share/applications/$product.desktop"
+
+  cp -a --no-preserve=ownership "$data/usr" "$pkgdir/"
+  if [[ ! -f $resdir/sidecar/integrity.cjs || ! -f $desktop ]]; then
+    error "The .deb does not have the expected '$product' layout."
+    return 1
+  fi
+
+  # The AUR ships one name for every channel: the .deb installs
+  # /usr/bin/youglidetube, or /usr/bin/youglidetube-beta for betas.
+  local bin
+  for bin in youglidetube youglidetube-beta; do
+    if [[ -e $pkgdir/usr/bin/$bin ]]; then
+      mv "$pkgdir/usr/bin/$bin" "$pkgdir/usr/bin/youglidetube"
+    fi
+  done
+  sed -Ei 's/^(Exec|StartupWMClass)=youglidetube(-beta)?( |$)/\1=youglidetube\3/' "$desktop"
+  if [[ ! -x $pkgdir/usr/bin/youglidetube ]] ||
+    grep -E '^Exec=' "$desktop" | grep -Evq '^Exec=youglidetube( |$)'; then
+    error "Could not point $product.desktop at youglidetube."
+    return 1
+  fi
+
+  # Tells YouGlideTube that pacman owns its updates, so the in-app updater stays off.
+  install -m644 /dev/null "$resdir/distro-managed"
+}
+
+# --- End of shared steps. ---
+
+prepare() {
+  mkdir -p deb-data
+  bsdtar -xf data.tar.* -C deb-data
+}
+
+package() {
+  _youglidetube_install "$srcdir/deb-data"
+}

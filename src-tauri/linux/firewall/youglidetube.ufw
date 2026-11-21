@@ -1,0 +1,4 @@
+[youglidetube]
+title=YouGlideTube
+description=Sync between YouGlideTube Desktop and YouGlideTube for Android on the local network
+ports=47900:47901/tcp|5353/udp

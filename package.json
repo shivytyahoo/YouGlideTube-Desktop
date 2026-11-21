@@ -1,0 +1,66 @@
+{
+  "name": "youglidetube",
+  "private": true,
+  "version": "0.1.0-beta4",
+  "description": "YouGlideTube Desktop — a YouTube and YouTube Music desktop client. Forked from Flow Desktop (Flow-Tube/Flow-Desktop, GPL-3.0) with Google sign-in and the YouGlideTube theme.",
+  "author": "shivyt",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shivytyahoo/YouGlideTube-Desktop.git"
+  },
+  "homepage": "https://github.com/shivytyahoo/YouGlideTube-Desktop",
+  "type": "module",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:build:local": "tauri build --config src-tauri/tauri.local.conf.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify:version": "node scripts/verify-release-version.mjs"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-deep-link": "^2.6.2",
+    "@tauri-apps/plugin-dialog": "^2.8.3",
+    "@tauri-apps/plugin-os": "^2.4.0",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.14.0",
+    "@zxing/browser": "^0.2.1",
+    "dashjs": "5.3.0",
+    "fflate": "^0.8.3",
+    "framer-motion": "14.13.0",
+    "hls.js": "1.7.4",
+    "lucide-react": "^1.59.0",
+    "qrcode.react": "^4.2.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.4",
+    "recharts": "3.10.1",
+    "virtua": "^0.54.2",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/cli": "^2.12.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "autoprefixer": "10.6.2",
+    "jsdom": "^31.0.1",
+    "postcss": "^8.5.30",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
+  }
+}

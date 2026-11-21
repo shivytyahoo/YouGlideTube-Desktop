@@ -1,0 +1,161 @@
+name: AUR packages
+
+on:
+  pull_request:
+    paths:
+      - "packaging/aur/**"
+      - ".github/workflows/aur.yml"
+  # youglidetube-desktop-git builds main, so a change there that breaks the Arch
+  # source build shows up within a week.
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint:
+    name: Lint the AUR packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container:
+      image: archlinux:base-devel
+
+    steps:
+      - name: Install tools
+        run: pacman -Syu --noconfirm --needed git namcap
+
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check the shared install steps are identical
+        run: |
+          shared() { sed -n '/^# --- Shared youglidetube-desktop install steps/,/^# --- End of shared steps/p' "$1"; }
+          test -n "$(shared packaging/aur/youglidetube-desktop/PKGBUILD)"
+          for pkg in youglidetube-desktop-bin youglidetube-desktop-git; do
+            diff <(shared packaging/aur/youglidetube-desktop/PKGBUILD) <(shared "packaging/aur/$pkg/PKGBUILD")
+          done
+
+      # makepkg refuses to run as root.
+      - name: Check .SRCINFO matches each PKGBUILD
+        run: |
+          useradd -m builder
+          cp -r packaging/aur /home/builder/aur
+          chown -R builder:builder /home/builder/aur
+          for pkg in youglidetube-desktop youglidetube-desktop-bin youglidetube-desktop-git; do
+            (cd "/home/builder/aur/$pkg" && sudo -u builder -H makepkg --printsrcinfo | diff - .SRCINFO)
+          done
+
+      - name: Lint the PKGBUILDs
+        run: |
+          namcap packaging/aur/*/PKGBUILD | tee namcap-pkgbuild.txt
+          ! grep -q ' E: ' namcap-pkgbuild.txt
+
+  build:
+    name: Build ${{ matrix.package }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    container:
+      image: archlinux:base-devel
+    strategy:
+      fail-fast: false
+      matrix:
+        # The weekly run only needs the package that follows main.
+        package: ${{ fromJSON(github.event_name == 'schedule' && '["youglidetube-desktop-git"]' || '["youglidetube-desktop-bin", "youglidetube-desktop", "youglidetube-desktop-git"]') }}
+
+    steps:
+      # git must be installed before checkout so it clones a real repository,
+      # which the youglidetube-desktop build archives below.
+      - name: Install tools
+        run: pacman -Syu --noconfirm --needed git jq namcap
+
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # makepkg refuses to run as root; -s installs dependencies through sudo.
+      - name: Create the build user
+        run: |
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          cp -r packaging/aur /home/builder/aur
+          chown -R builder:builder /home/builder/aur
+
+      # The PKGBUILD stays pinned to the last release; here it builds this
+      # checkout instead, from an archive laid out like GitHub's tag tarball.
+      # youglidetube-desktop-bin builds the pinned release and youglidetube-desktop-git
+      # clones main, both exactly as their PKGBUILDs say.
+      - name: Point youglidetube-desktop at this checkout
+        if: matrix.package == 'youglidetube-desktop'
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          tag="$(jq -r .version package.json)"
+          pkgver="${tag//-/}"
+          dir=/home/builder/aur/youglidetube-desktop
+          git archive --prefix="YouGlideTube-Desktop-$tag/" -o "$dir/youglidetube-desktop-$pkgver.tar.gz" HEAD
+          sed -i "s/^pkgver=.*/pkgver=$pkgver/; s/^pkgrel=.*/pkgrel=1/" "$dir/PKGBUILD"
+          chown -R builder:builder "$dir"
+
+      - name: Build ${{ matrix.package }}
+        working-directory: /home/builder/aur/${{ matrix.package }}
+        env:
+          PKG: ${{ matrix.package }}
+        run: |
+          flags=(-s --noconfirm)
+          if [[ $PKG == youglidetube-desktop ]]; then flags+=(--skipchecksums); fi
+          sudo -u builder -H makepkg "${flags[@]}"
+
+      - name: Lint the package
+        env:
+          PKG: ${{ matrix.package }}
+        run: |
+          namcap /home/builder/aur/"$PKG"/"$PKG"-[0-9]*.pkg.tar.zst | tee namcap-package.txt
+          ! grep -q ' E: ' namcap-package.txt
+
+      - name: Install the package and check its files
+        env:
+          PKG: ${{ matrix.package }}
+        run: |
+          set -euo pipefail
+          pacman -U --noconfirm /home/builder/aur/"$PKG"/"$PKG"-[0-9]*.pkg.tar.zst
+
+          pacman -Ql "$PKG"
+          desktop="$(pacman -Qlq "$PKG" | grep -E '^/usr/share/applications/YouGlideTube( Beta)?\.desktop$')"
+          product="$(basename "$desktop" .desktop)"
+          resdir="/usr/lib/$product"
+          echo "Checking $PKG ($product)"
+
+          # A release is named after its tag. youglidetube-desktop-git follows main's
+          # package.json, which can be ahead of the last tag.
+          if [[ $PKG != *-git ]]; then
+            expected='YouGlideTube'
+            [[ "$(pacman -Q "$PKG" | cut -d' ' -f2)" =~ (beta|rc) ]] && expected='YouGlideTube Beta'
+            test "$product" = "$expected"
+          fi
+
+          test -f "$desktop"
+          test ! -e /usr/bin/flow
+          test -f "$resdir/sidecar/integrity.cjs"
+          test -f "$resdir/distro-managed"
+
+          grep -E '^(Exec|StartupWMClass)=' "$desktop"
+          bin="$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$desktop" | head -n1)"
+          [[ $bin == youglidetube* ]]
+          test -x "/usr/bin/$bin"
+          if ldd "/usr/bin/$bin" | grep 'not found'; then exit 1; fi
+          grep -qx "StartupWMClass=$bin" "$desktop"
+          if grep '^Exec=' "$desktop" | grep -Ev "^Exec=$bin( |$)"; then exit 1; fi
+
+          # flow:// links reach YouGlideTube only through the %u in Exec. Main must
+          # have it; releases up to 0.1.0-beta3 don't.
+          if ! grep -m1 '^Exec=' "$desktop" | grep -q ' %u'; then
+            if [[ $PKG == *-git ]]; then
+              echo "::error::$product.desktop from main has no %u in Exec."
+              exit 1
+            fi
+            echo "::warning::$product.desktop has no %u in Exec, so flow:// links open YouGlideTube without the link."
+          fi
