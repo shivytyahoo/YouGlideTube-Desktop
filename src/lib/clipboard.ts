@@ -1,3 +1,6 @@
+import { SETTINGS } from "./settings/schema";
+import { useAppSettingsStore } from "../store/useAppSettingsStore";
+
 export async function copyText(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {
@@ -26,10 +29,12 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 // Opens the system share sheet where there is one, else copies the link.
+// With "share without text" on, only the URL is shared — no video title.
 export async function shareLink(title: string, url: string): Promise<"shared" | "copied" | "failed"> {
+  const shareWithoutText = useAppSettingsStore.getState().values[SETTINGS.SHARE_WITHOUT_TEXT] === "true";
   if (navigator.share) {
     try {
-      await navigator.share({ title, url });
+      await navigator.share(shareWithoutText ? { url } : { title, url });
       return "shared";
     } catch (error) {
       // Closing the share sheet rejects with AbortError, which isn't a failure. Any other

@@ -17,6 +17,7 @@ import { useFeedActionsStore } from "../../store/useFeedActionsStore";
 import { useUiStore } from "../../store/useUiStore";
 import { showSaveFailedToast, showSaveToast } from "../../lib/saveToast";
 import { buildShortQueue, shortSummaryToItem } from "../../lib/shortsQueue";
+import type { ShortsQueueSource } from "../../lib/shortsQueueSource";
 import { prefetchStreamInfo } from "../../lib/streamResolution";
 import {
   isShortSaved,
@@ -33,6 +34,10 @@ import { backgroundTabClickProps, openedInBackgroundTab } from "../../lib/openTa
 import { openActions } from "../common/openActions";
 import { useOriginalTitle } from "../../lib/useOriginalTitle";
 import { useShortsPlayerDisabled } from "../../lib/useShortsContent";
+import { useAppSettingsStore } from "../../store/useAppSettingsStore";
+import { SETTINGS } from "../../lib/settings/schema";
+import { confirmAction } from "../../lib/dialogs";
+import { upgradeThumbnailUrl } from "../../lib/thumbnails";
 import { alignToEnd, growFromPoint } from "../../lib/direction";
 
 interface ShortCardProps {
@@ -41,13 +46,16 @@ interface ShortCardProps {
   variant?: "shelf" | "grid";
   /** The player stops at the end of `queue` instead of continuing into the feed: Saved Shorts. */
   finiteQueue?: boolean;
+  /** The queue this card belongs to (a channel tab, the subscriptions list); the tapped short anchors it. */
+  queueSource?: ShortsQueueSource;
 }
 
-export function ShortCard({ short, queue, variant = "grid", finiteQueue = false }: ShortCardProps) {
+export function ShortCard({ short, queue, variant = "grid", finiteQueue = false, queueSource }: ShortCardProps) {
   const navigate = useNavigate();
   const toSrc = useProxyImageSrc();
   const showToast = useUiStore((s) => s.showToast);
   const notInterestedAction = useFeedActionsStore((s) => s.notInterested);
+  const undoNotInterested = useFeedActionsStore((s) => s.undoNotInterested);
   const blockChannelAction = useFeedActionsStore((s) => s.blockChannel);
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
   const [savedToLibrary, setSavedToLibrary] = useState(false);
@@ -85,7 +93,13 @@ export function ShortCard({ short, queue, variant = "grid", finiteQueue = false 
   }, [short.id]);
 
   const shortRoute = disableShortsPlayer ? `/watch/${short.id}` : `/shorts/${short.id}`;
-  const playShort = (event: React.MouseEvent) => {
+  const shortsPreviewQuality = useAppSettingsStore((state) => state.values[SETTINGS.SHORTS_PREVIEW_QUALITY] ?? "auto");
+  const previewThumbnailUrl = short.thumbnailUrl
+    ? shortsPreviewQuality === "low"
+      ? short.thumbnailUrl
+      : upgradeThumbnailUrl(short.thumbnailUrl, shortsPreviewQuality === "high" ? "large" : "standard")
+    : null;
+  const playShort = async (event: React.MouseEvent) => {
     if (openedInBackgroundTab(event, shortRoute)) return;
     // Resolution starts on the click rather than after the route has changed and
     // the player has mounted; the surface that plays it joins this request.
@@ -94,12 +108,24 @@ export function ShortCard({ short, queue, variant = "grid", finiteQueue = false 
       navigate(`/watch/${short.id}`);
       return;
     }
+    if (useAppSettingsStore.getState().values[SETTINGS.SHORTS_PLAYER_PROMPT] !== "false") {
+      const confirmed = await confirmAction({
+        title: getString("shorts_player_prompt_title"),
+        message: getString("shorts_player_prompt_body"),
+        confirmLabel: getString("shorts_player_prompt_open"),
+      });
+      if (!confirmed) return;
+    }
 
     navigate(`/shorts/${short.id}`, {
       state: {
         initialShort: shortSummaryToItem(short),
         initialQueue: buildShortQueue(queue),
         queueEnd: finiteQueue ? "stop" : "feed",
+        queueSource:
+          queueSource && queueSource.kind !== "feed" && queueSource.kind !== "seeded"
+            ? { ...queueSource, startVideoId: short.id }
+            : undefined,
       },
     });
   };
@@ -165,7 +191,11 @@ export function ShortCard({ short, queue, variant = "grid", finiteQueue = false 
   const notInterested = () => {
     setMenuAnchor(null);
     void notInterestedAction(video).catch(() => showToast({ variant: "error", message: getString("feed_action_failed") }));
-    showToast({ variant: "success", message: getString("shorts_not_interested") });
+    showToast({
+      variant: "success",
+      message: getString("shorts_not_interested"),
+      actions: [{ label: getString("undo"), onSelect: () => undoNotInterested(video) }],
+    });
   };
 
   const dontRecommendChannel = () => {
@@ -193,9 +223,9 @@ export function ShortCard({ short, queue, variant = "grid", finiteQueue = false 
     >
       <button type="button" onClick={playShort} {...backgroundTabClickProps(shortRoute)} className="flex w-full flex-col gap-2 text-start">
         <span className="relative block aspect-[9/16] w-full overflow-hidden rounded-xl border border-chrome-neutral-800 bg-surface-container">
-          {short.thumbnailUrl && (
+          {previewThumbnailUrl && (
             <img
-              src={toSrc(short.thumbnailUrl)}
+              src={toSrc(previewThumbnailUrl)}
               alt={title}
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
               loading="lazy"

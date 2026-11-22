@@ -31,6 +31,10 @@ interface FeedActionsState {
   loaded: boolean;
   load: () => Promise<void>;
   notInterested: (video: VideoSummary) => Promise<void>;
+  /** Takes a not-interested mark back: the video and its channel return to the feeds. */
+  undoNotInterested: (video: VideoSummary) => void;
+  /** Lifts any not-interested mark on the video, so more like it can show again. */
+  interested: (video: VideoSummary) => Promise<void>;
   /** Hides a video from every feed, e.g. after a thumbs-down on the watch page. */
   hideVideo: (videoId: string) => void;
   blockChannel: (video: Pick<VideoSummary, "channelId" | "channelName">) => Promise<void>;
@@ -176,6 +180,24 @@ export const useFeedActionsStore = create<FeedActionsState>((set, get) => {
       }));
       persist();
       recapAction("NOT_INTERESTED");
+    },
+
+    // "I want more like this" only ever undoes a not-interested mark on Android —
+    // no positive signal is stored anywhere, so the undo is the whole action.
+    undoNotInterested: (video) => {
+      const m = meta(video);
+      set((s) => {
+        const dismissedVideoIds = new Set(s.dismissedVideoIds);
+        dismissedVideoIds.delete(video.id);
+        const suppressedChannelIds = new Map(s.suppressedChannelIds);
+        if (m.channelId) suppressedChannelIds.delete(m.channelId);
+        return { dismissedVideoIds, suppressedChannelIds };
+      });
+      persist();
+    },
+
+    interested: async (video) => {
+      get().undoNotInterested(video);
     },
 
     hideVideo: (videoId) => {

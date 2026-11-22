@@ -5,6 +5,13 @@ import { isLocalMediaId } from "./localMediaId";
 import { usePlayerStore } from "../store/usePlayerStore";
 import { useSettingsStore } from "../store/useSettingsStore";
 
+/** Whether SponsorBlock is off for the video playing, per the settings-menu toggle. */
+export function useSponsorBlockOffForVideo(): boolean {
+  const offVideoId = usePlayerStore((s) => s.sponsorBlockOffVideoId);
+  const currentVideoId = usePlayerStore((s) => s.currentVideo?.id);
+  return offVideoId != null && currentVideoId != null && offVideoId === currentVideoId;
+}
+
 /**
  * Keeps the store's segments on the video this player is playing. It lives with
  * the player because the pop-out window and a queued video in the mini player
@@ -13,12 +20,15 @@ import { useSettingsStore } from "../store/useSettingsStore";
 export function useSponsorBlockSegments(videoId: string | null | undefined) {
   const offlineRecord = useDownloadedVideoRecord(videoId);
   const setSegments = usePlayerStore((s) => s.setSponsorBlockSegments);
+  const offForVideo = useSponsorBlockOffForVideo();
 
   useEffect(() => {
     // Cleared first, so a slow or failed request can't skip this video at the
     // last video's timestamps.
     setSegments([]);
     if (!videoId || isLocalMediaId(videoId)) return;
+    // Off for this video: no segments, so nothing is skipped or drawn.
+    if (offForVideo) return;
 
     let cancelled = false;
     void (async () => {
@@ -40,5 +50,5 @@ export function useSponsorBlockSegments(videoId: string | null | undefined) {
     return () => {
       cancelled = true;
     };
-  }, [videoId, offlineRecord, setSegments]);
+  }, [videoId, offlineRecord, setSegments, offForVideo]);
 }

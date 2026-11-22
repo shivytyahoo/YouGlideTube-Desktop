@@ -3,6 +3,8 @@ import { getVideoStoryboard } from "./api/youtube";
 import { storyboardFrameAt, type StoryboardFrame } from "./seekPreview";
 import type { StoryboardLevel } from "../types/video";
 import { useHoverPreviewStore } from "../store/useHoverPreviewStore";
+import { useAppSettingsStore } from "../store/useAppSettingsStore";
+import { SETTINGS } from "./settings/schema";
 import { useImageProxyStore } from "../store/useImageProxyStore";
 import { proxiedImage } from "./imageProxy";
 
@@ -39,6 +41,13 @@ async function preloadImage(url: string): Promise<void> {
     img.onload = () => resolve();
     img.onerror = () => reject(new Error(`Failed to load storyboard sheet: ${url}`));
   });
+}
+
+/** How the feed preview quality setting scales the storyboard level a hover preview asks for. */
+export function previewQualityScale(setting: string | undefined): number {
+  if (setting === "low") return 0.5;
+  if (setting === "high") return 2;
+  return 1;
 }
 
 /**
@@ -195,8 +204,9 @@ export function useHoverPreview({
 
         const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
         const size = measureRef.current?.();
-        const effectiveHeight = size && size.height > 0 ? size.height : 180 * dpr;
-        const effectiveWidth = size && size.width > 0 ? size.width : 320 * dpr;
+        const scale = previewQualityScale(useAppSettingsStore.getState().values[SETTINGS.FEED_PREVIEW_QUALITY]);
+        const effectiveHeight = (size && size.height > 0 ? size.height : 180 * dpr) * scale;
+        const effectiveWidth = (size && size.width > 0 ? size.width : 320 * dpr) * scale;
 
         const level = pickHoverPreviewLevel(levels, effectiveHeight, effectiveWidth);
         if (!level || !isMountedRef.current) {

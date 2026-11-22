@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Gauge,
   Monitor,
+  Repeat,
   Scaling,
   Pause,
   Sliders,
@@ -21,6 +22,9 @@ import { SubtitleCustomizer } from "./SubtitleCustomizer";
 import { AddSubtitleFileRow, RemoveSubtitleFileButton, SubtitleTimingRow } from "./SubtitleFilesRows";
 import { isLocalCaption, localCaptionPath } from "../../lib/captionText";
 import { useBoolPref } from "../../lib/usePreference";
+import { useSettingsStore } from "../../store/useSettingsStore";
+import { useUiStore } from "../../store/useUiStore";
+import { SponsorBlockIcon } from "../ui/SponsorBlockIcon";
 import { IS_MAIN_WINDOW } from "../../lib/appWindow";
 import { AmbientModeIcon } from "../ui/AmbientModeIcon";
 import { ToggleSwitch } from "../ui/ToggleSwitch";
@@ -31,6 +35,8 @@ import { useEqActive } from "../../lib/audio/eq/useEqualizer";
 import { videoEqAvailable } from "../../lib/audio/mediaEqEngine";
 import { useEqStore } from "../../store/useEqStore";
 import { videoCodecLabel } from "../../lib/settings/playerRuntime";
+import { groupQualitiesByResolution } from "../../lib/qualityGrouping";
+import { useAppSettingsStore } from "../../store/useAppSettingsStore";
 import { getString } from "../../lib/i18n/index";
 import { LOOK_SPEEDS } from "../../lib/spherical/view";
 import { useLookSpeed } from "../../lib/spherical/useLookSpeed";
@@ -116,6 +122,8 @@ interface PlayerSettingsMenuProps {
   setSelectedAudioTrackId: (id: string | null) => void;
   speedOptions: PlaybackRate[];
   speedSliderEnabled: boolean;
+  /** The chips under the speed slider; the full `speedOptions` list when unset. */
+  speedSliderPresets?: PlaybackRate[];
   playbackRate: PlaybackRate;
   onSelectPlaybackRate: (rate: PlaybackRate) => void;
   /** The 360 view of the playing video, or null where the player can't show one (the mini player). */
@@ -140,11 +148,27 @@ export function PlayerSettingsMenu({
   setSelectedAudioTrackId,
   speedOptions,
   speedSliderEnabled,
+  speedSliderPresets,
   playbackRate,
   onSelectPlaybackRate,
   spherical = null,
 }: PlayerSettingsMenuProps) {
   const [lookSpeed, setLookSpeed] = useLookSpeed();
+  const groupedQualityEnabled = useAppSettingsStore((state) => state.values[SETTINGS.GROUPED_QUALITY_SELECTOR] === "true");
+  const groupedQualities = groupedQualityEnabled ? groupQualitiesByResolution(qualities) : null;
+  const [videoLoop, setVideoLoop] = useBoolPref(SETTINGS.VIDEO_LOOP_ENABLED);
+  const [, setAutoplay] = useBoolPref(SETTINGS.AUTOPLAY_ENABLED);
+  // Android's loop and autoplay exclude each other: looping a video never auto-advances.
+  const toggleVideoLoop = (next: boolean) => {
+    if (next) setAutoplay(false);
+    setVideoLoop(next);
+  };
+  const sponsorBlockEnabled = useSettingsStore((s) => s.sponsorBlockEnabled);
+  const sponsorBlockOffVideoId = usePlayerStore((s) => s.sponsorBlockOffVideoId);
+  const currentVideoId = usePlayerStore((s) => s.currentVideo?.id);
+  const setSponsorBlockOffForVideo = usePlayerStore((s) => s.setSponsorBlockOffForVideo);
+  const sponsorBlockOffForVideo = sponsorBlockOffVideoId !== null && sponsorBlockOffVideoId === currentVideoId;
+  const showToast = useUiStore((s) => s.showToast);
   const eqActive = useEqActive();
   const eqEditorHosted = useEqStore((s) => s.editorHosted);
   const openEqEditor = useEqStore((s) => s.setEditorOpen);
@@ -205,6 +229,32 @@ export function PlayerSettingsMenu({
     null;
   const audioPlayable = (quality: StreamVariant) =>
     isDashPlayback || quality.hasAudio || audioTracks.some((track) => !!track.localUrl);
+
+  /** One quality row; grouped mode shows the codec as the row's label under its resolution header. */
+  const qualityRow = (quality: StreamVariant, label: string, sublabel?: string | null) => {
+    const playable = audioPlayable(quality);
+    return (
+      <button
+        key={quality.id}
+        type="button"
+        onClick={() => {
+          if (!playable) return;
+          pick(() => onSelectQuality?.(quality), true);
+        }}
+        className={cx(
+          ROW,
+          "text-chrome-zinc-100",
+          playable ? "hover:bg-chrome-white/10" : "cursor-not-allowed text-chrome-zinc-500",
+        )}
+      >
+        <span className="flex flex-col text-start leading-tight">
+          <span>{label}</span>
+          {sublabel && <span className="text-xs font-normal text-chrome-zinc-400">{sublabel}</span>}
+        </span>
+        {check(selectedQualityId === quality.id)}
+      </button>
+    );
+  };
 
   const pick = (apply: () => void, close = false) => {
     apply();
@@ -330,6 +380,25 @@ export function PlayerSettingsMenu({
             {spherical && toggleRow(getString("player_settings_spherical_view"), spherical.shown, <Rotate3d size={18} />, spherical.onToggle)}
             {spherical?.shown &&
               settingRow(getString("player_settings_spherical_drag_speed"), `${lookSpeed}x`, <Move3d size={18} />, () => onPaneChange("look-speed"))}
+            {toggleRow(
+              getString(videoLoop ? "player_menu_loop_on" : "player_menu_loop"),
+              videoLoop,
+              <Repeat size={18} />,
+              toggleVideoLoop,
+            )}
+            {sponsorBlockEnabled &&
+              toggleRow(
+                getString("player_sponsorblock_off_for_video"),
+                sponsorBlockOffForVideo,
+                <SponsorBlockIcon className="h-[18px] w-[18px]" />,
+                (next) => {
+                  setSponsorBlockOffForVideo(next);
+                  showToast({
+                    variant: "info",
+                    message: getString(next ? "player_sponsorblock_off_for_video" : "player_sponsorblock_on_for_video"),
+                  });
+                },
+              )}
           </div>
         )}
 
@@ -362,6 +431,24 @@ export function PlayerSettingsMenu({
                   onChange={(event) => onSelectPlaybackRate(Number(event.target.value) as PlaybackRate)}
                   className="h-1 w-full accent-primary"
                 />
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {(speedSliderPresets ?? speedOptions.filter((speed) => speed <= 4)).map((speed) => (
+                    <button
+                      key={speed}
+                      type="button"
+                      aria-pressed={playbackRate === speed}
+                      onClick={() => onSelectPlaybackRate(speed)}
+                      className={cx(
+                        "rounded-full px-2.5 py-1 text-xs font-semibold transition-colors",
+                        playbackRate === speed
+                          ? "bg-primary text-on-primary"
+                          : "bg-chrome-white/10 text-chrome-zinc-200 hover:bg-chrome-white/20",
+                      )}
+                    >
+                      {speedLabel(speed)}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
             {speedOptions.map((speed) => (
@@ -394,31 +481,23 @@ export function PlayerSettingsMenu({
               {check(selectedQualityId === "auto")}
             </button>
 
-            {qualities.map((quality) => {
-              const codec = videoCodecLabel(quality.mimeType);
-              const playable = audioPlayable(quality);
-              return (
-                <button
-                  key={quality.id}
-                  type="button"
-                  onClick={() => {
-                    if (!playable) return;
-                    pick(() => onSelectQuality?.(quality), true);
-                  }}
-                  className={cx(
-                    ROW,
-                    "text-chrome-zinc-100",
-                    playable ? "hover:bg-chrome-white/10" : "cursor-not-allowed text-chrome-zinc-500",
+            {groupedQualities ? (
+              groupedQualities.map((group) => (
+                <div key={group.label}>
+                  <div className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-chrome-zinc-400">
+                    {group.label}
+                  </div>
+                  {group.items.map((quality) =>
+                    qualityRow(quality, videoCodecLabel(quality.mimeType) || quality.qualityLabel),
                   )}
-                >
-                  <span className="flex flex-col text-start leading-tight">
-                    <span>{quality.qualityLabel}</span>
-                    {codec && <span className="text-xs font-normal text-chrome-zinc-400">{codec}</span>}
-                  </span>
-                  {check(selectedQualityId === quality.id)}
-                </button>
-              );
-            })}
+                </div>
+              ))
+            ) : (
+              qualities.map((quality) => {
+                const codec = videoCodecLabel(quality.mimeType);
+                return qualityRow(quality, quality.qualityLabel, codec || undefined);
+              })
+            )}
           </div>
         )}
 

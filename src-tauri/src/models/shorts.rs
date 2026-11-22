@@ -23,6 +23,11 @@ pub struct ShortItem {
     pub linked_video_id: Option<String>,
     #[serde(default)]
     pub linked_video_title: Option<String>,
+    /// The sound the reel plays, from the pivot button's attribution title.
+    #[serde(default)]
+    pub sound_title: Option<String>,
+    #[serde(default)]
+    pub sound_thumbnail_url: Option<String>,
 }
 
 /// A page of Shorts plus the continuation token for the next batch.
@@ -80,6 +85,8 @@ impl ShortItem {
             sequence_params: None,
             linked_video_id: None,
             linked_video_title: None,
+            sound_title: None,
+            sound_thumbnail_url: None,
         }
     }
 }

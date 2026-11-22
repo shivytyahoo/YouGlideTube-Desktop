@@ -198,7 +198,7 @@ class MusicAudioEngine {
 
   // --- transport ----------------------------------------------------------
 
-  async load(url: string, mime: string | null, listedSeconds: number | null = null): Promise<void> {
+  async load(url: string, mime: string | null, listedSeconds: number | null = null, options?: { readAhead?: boolean }): Promise<void> {
     const el = this.active.el;
     if (!el) return;
     this.loadToken += 1;
@@ -208,6 +208,9 @@ class MusicAudioEngine {
     this.active.listed = listedSeconds;
     this.active.listedEndTaken = false;
     this.applyGain();
+    // Disk read-ahead off means the element only fetches metadata until
+    // playback actually starts, instead of buffering the file ahead.
+    el.preload = options?.readAhead === false ? "metadata" : "auto";
     el.src = url;
     try {
       el.load();

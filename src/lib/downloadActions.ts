@@ -26,6 +26,12 @@ export function preferredDownloadHeight(values: SettingsValues): number {
   return Number.isFinite(height) && height > 0 ? height : AUTO_DOWNLOAD_HEIGHT;
 }
 
+/** The one-tap quick download's quality, separate from the dialog's default. */
+export function quickDownloadHeight(values: SettingsValues): number {
+  const height = Number.parseInt(values[SETTINGS.QUICK_DOWNLOAD_QUALITY] ?? "", 10);
+  return Number.isFinite(height) && height > 0 ? height : AUTO_DOWNLOAD_HEIGHT;
+}
+
 /** Songs are saved as AAC so they can carry tags: the best AAC on offer, or the
  *  small one for "Data saver". */
 export function musicDownloadQuality(values: SettingsValues): MusicAudioQuality {
@@ -114,7 +120,7 @@ export function startVideoDownload(
   values: SettingsValues,
   overrides: DownloadOverrides = {},
 ): Promise<DownloadStarted> {
-  const height = preferredDownloadHeight(values);
+  const height = quickDownloadHeight(values);
   const selection: VideoSelection = {
     formatId: "",
     height,

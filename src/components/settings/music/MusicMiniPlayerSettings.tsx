@@ -17,6 +17,8 @@ import {
   miniBarTimeOptions,
   miniBarWidthOptions,
   miniCoverTapOptions,
+  miniCoverMotionOptions,
+  miniCoverLongPressOptions,
   miniPlayerStyleOptions,
   serializeMiniBarButtons,
   useMiniPlayerLook,
@@ -35,6 +37,8 @@ export function MusicMiniPlayerSettings() {
   const [, setTime] = usePreference(SETTINGS.MINI_BAR_TIME);
   const [, setSungLine] = usePreference(SETTINGS.LYRICS_IN_MINI_PLAYER);
   const [, setCoverTap] = usePreference(SETTINGS.MINI_COVER_TAP);
+  const [, setCoverMotion] = usePreference(SETTINGS.MINI_COVER_MOTION);
+  const [, setCoverLongPress] = usePreference(SETTINGS.MINI_COVER_LONG_PRESS);
   const [swipeLeft, setSwipeLeft] = usePreference(SETTINGS.MINI_BAR_SWIPE_LEFT_ACTION);
   const [swipeRight, setSwipeRight] = usePreference(SETTINGS.MINI_BAR_SWIPE_RIGHT_ACTION);
   const chosen = look.buttons;
@@ -77,6 +81,12 @@ export function MusicMiniPlayerSettings() {
           </SettingItem>
           <SettingItem title={getString('mini_cover_tap')} description={getString('mini_cover_tap_summary')}>
             <Select value={look.coverTap} onChange={setCoverTap} options={miniCoverTapOptions()} />
+          </SettingItem>
+          <SettingItem title={getString('settings_mini_cover_motion')} description={getString('settings_mini_cover_motion_desc')}>
+            <Select value={look.coverMotion} onChange={setCoverMotion} options={miniCoverMotionOptions()} />
+          </SettingItem>
+          <SettingItem title={getString('settings_mini_cover_long_press')} description={getString('settings_mini_cover_long_press_desc')}>
+            <Select value={look.coverLongPress} onChange={setCoverLongPress} options={miniCoverLongPressOptions()} />
           </SettingItem>
           <SettingItem title={getString('mini_bar_buttons')} description={getString('mini_bar_buttons_summary')}>
             <span className="text-xs font-medium text-chrome-neutral-400">

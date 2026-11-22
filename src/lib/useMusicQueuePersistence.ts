@@ -13,6 +13,11 @@ const SAVE_DELAY_MS = 5_000;
 // A queue saved before Show Music went off stays saved, but doesn't come back while it is off.
 const restoreEnabled = () => getSettingValue(SETTINGS.MUSIC_RESTORE_QUEUE) !== "false" && musicEnabledNow();
 
+// The mini player is the queue's visible face at launch: with its restore
+// off, the saved queue stays saved but the player does not come back.
+const miniPlayerRestoreEnabled = () =>
+  restoreEnabled() && getSettingValue(SETTINGS.RESTORE_MUSIC_MINI_PLAYER) !== "false";
+
 const settingsLoaded = (): Promise<void> =>
   new Promise((resolve) => {
     if (useAppSettingsStore.getState().loaded) {
@@ -81,7 +86,7 @@ export function useMusicQueuePersistence() {
     void (async () => {
       await settingsLoaded();
       if (cancelled) return;
-      if (restoreEnabled() && !useMusicPlayerStore.getState().currentTrack) {
+      if (miniPlayerRestoreEnabled() && !useMusicPlayerStore.getState().currentTrack) {
         const saved = parseSavedQueue(await loadMusicQueueState().catch(() => null));
         if (cancelled) return;
         if (saved) useMusicPlayerStore.getState().restoreSavedQueue(saved);

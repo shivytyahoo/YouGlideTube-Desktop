@@ -5,6 +5,8 @@ import { lyricsRequestFor } from "./lyricsHelper";
 import { fetchLyricsAhead, stopFetchingAhead } from "./lyricsAhead";
 import { EMPTY_LYRICS, useLyricsStore, type LyricsView } from "../../store/useLyricsStore";
 import { useMusicPlayerStore } from "../../store/useMusicPlayerStore";
+import { getSettingValue } from "../../store/useAppSettingsStore";
+import { SETTINGS } from "../settings/schema";
 
 // A song without a listed duration waits this long for the audio element's before looking up.
 const AUDIO_DURATION_WAIT_MS = 3000;
@@ -42,6 +44,9 @@ export function useLyricsLookup(): void {
         if (timer) clearTimeout(timer);
         timer = null;
         if (!track) {
+          useLyricsStore.getState().clear();
+        } else if (getSettingValue(SETTINGS.LYRICS_ON_DEMAND) === "true") {
+          // Lyrics on demand: nothing is fetched until the lyrics view opens.
           useLyricsStore.getState().clear();
         } else if ((track.duration ?? 0) > 0) {
           start(track, track.duration ?? 0);

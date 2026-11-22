@@ -568,6 +568,24 @@ async fn handle_connection(
         )
         .await;
     }
+    // The homepage BotGuard challenge the mint page fetches first (see
+    // webview_pot::cached_challenge_json): 404 when none is cached, and the
+    // page falls back to the legacy WAA Create challenge.
+    if path == "/potchallenge" {
+        return match crate::api::innertube::core::webview_pot::cached_challenge_json() {
+            Some(json) => {
+                write_full_body(
+                    &mut socket,
+                    "application/json; charset=utf-8",
+                    "no-store",
+                    json.as_bytes(),
+                    head_only,
+                )
+                .await
+            }
+            None => write_status_only(&mut socket, 404, "Not Found", "No homepage challenge cached").await,
+        };
+    }
     if path == "/nsolve/player.js" {
         let script = request_url
             .query_pairs()

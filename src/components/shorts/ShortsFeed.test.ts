@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ShortItem } from "../../types/shorts";
 
 const loadMore = vi.fn();
+const retry = vi.fn();
 const items: ShortItem[] = Array.from({ length: 8 }, (_, i) => ({
   id: `s${i + 1}`,
   title: `Short ${i + 1}`,
@@ -27,6 +28,7 @@ let feedState = {
   loadMore,
   moreLikeThis: vi.fn(),
   reset: vi.fn(),
+  retry,
 };
 let routeState: unknown = null;
 
@@ -38,6 +40,7 @@ vi.mock("./ShortPlayer", () => ({ ShortPlayer: () => null }));
 vi.mock("react-router-dom", () => ({
   useParams: () => ({ videoId: "s1" }),
   useLocation: () => ({ state: routeState }),
+  useNavigate: () => vi.fn(),
 }));
 
 const { ShortsFeed } = await import("./ShortsFeed");
@@ -81,9 +84,11 @@ beforeEach(() => {
     loadMore,
     moreLikeThis: vi.fn(),
     reset: vi.fn(),
+    retry,
   };
   routeState = null;
   loadMore.mockReset();
+  retry.mockReset();
   scrollIntoView.mockReset();
   observerCallback = null;
   (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = FakeIntersectionObserver;
@@ -140,5 +145,21 @@ describe("ShortsFeed next button", () => {
     goToIndex(items.length - 1);
 
     expect(nextButton().disabled).toBe(true);
+  });
+
+  it("shows a retry button on a load error and retries when tapped", async () => {
+    feedState = { ...feedState, items: [], error: "boom" };
+    await renderFeed();
+
+    const button = host.querySelector("button");
+    expect(button?.textContent).toContain("Retry");
+    await act(async () => button?.click());
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a back pill when opened on a short", async () => {
+    await renderFeed();
+    expect(host.querySelector('button[aria-label="Back"]')).not.toBeNull();
+    expect(host.querySelector("h1")).toBeNull();
   });
 });

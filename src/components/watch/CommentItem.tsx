@@ -1,14 +1,18 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Heart, Pin, ThumbsUp } from "lucide-react";
+import { Heart, Loader2, MoreVertical, Pin, ThumbsUp, Trash2 } from "lucide-react";
 import { ChannelLabel } from "../video/CardMeta";
 import { LinkedText } from "./LinkedText";
+import { Button } from "../ui/Button";
+import { MediaMenu } from "../ui/MediaMenu";
+import type { MenuAnchor } from "../ui/AnchoredPortalMenu";
 import { formatCount } from "../../lib/utils";
 import { getString } from "../../lib/i18n/index";
 import { upgradeAvatarUrl } from "../../lib/thumbnails";
 import { useProxiedImageUrl } from "../../lib/useProxiedImageUrl";
+import { useConfirmStore } from "../../store/useConfirmStore";
 import type { Comment } from "../../types/video";
-import { isRtlText } from "../../lib/direction";
+import { alignToEnd, isRtlText } from "../../lib/direction";
 
 const PREVIEW_LENGTH = 280;
 
@@ -50,11 +54,101 @@ function CommentText({ comment, className }: { comment: Comment; className: stri
   );
 }
 
-/** One comment or reply: author line with its badges, text, likes and the creator's heart. */
-export function CommentItem({ comment, reply = false }: { comment: Comment; reply?: boolean }) {
+/** The inline reply box under a comment, as Android's `CommentReplyComposer`:
+ * success closes the box, failure keeps the text and shows why it stayed. */
+function ReplyComposer({
+  onSubmit,
+  onClose,
+}: {
+  onSubmit: (text: string) => Promise<boolean>;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <div className="mt-3 space-y-2">
+      <textarea
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setFailed(false);
+        }}
+        placeholder={getString("comment_add_reply")}
+        rows={2}
+        className="w-full resize-none rounded-lg border border-chrome-neutral-800 bg-surface-container-low p-3 text-sm text-chrome-neutral-100 outline-none transition-colors duration-200 ease-out placeholder:text-chrome-neutral-600 focus:border-chrome-neutral-700"
+      />
+      {failed ? (
+        <p className="text-sm text-chrome-red-400">{getString("comment_post_failed")}</p>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-full px-3 py-1.5 text-sm font-medium text-chrome-neutral-300 transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-chrome-neutral-100"
+        >
+          {getString("cancel")}
+        </button>
+        <Button
+          onClick={async () => {
+            if (!draft.trim() || posting) return;
+            setPosting(true);
+            const ok = await onSubmit(draft);
+            setPosting(false);
+            if (!ok) {
+              setFailed(true);
+              return;
+            }
+            onClose();
+          }}
+          disabled={!draft.trim() || posting}
+        >
+          {posting ? <Loader2 className="animate-spin" size={14} /> : null}
+          {getString("comment_reply")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** One comment or reply: author line with its badges, text, likes and the creator's heart.
+ * A comment that carries a reply token offers a Reply box; the viewer's own comment
+ * offers Delete behind its options menu, after a confirm dialog. */
+export function CommentItem({
+  comment,
+  reply = false,
+  onPostReply,
+  onDelete,
+}: {
+  comment: Comment;
+  reply?: boolean;
+  onPostReply?: (comment: Comment, text: string) => Promise<boolean>;
+  onDelete?: (comment: Comment) => Promise<boolean>;
+}) {
   const navigate = useNavigate();
   const openAuthor = () => comment.authorChannelId && navigate(`/channel/${comment.authorChannelId}`);
   const likes = comment.likeCountText || (comment.likeCount ? formatCount(comment.likeCount) : null);
+  const [showComposer, setShowComposer] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
+  const [deleteFailed, setDeleteFailed] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  const canReply = Boolean(comment.replyParams && onPostReply);
+  const canDelete = Boolean(comment.isOwn && comment.deleteAction && onDelete);
+
+  const askDelete = async () => {
+    setMenuAnchor(null);
+    const confirmed = await useConfirmStore.getState().ask({
+      title: getString("comment_delete_title"),
+      message: getString("comment_delete_body"),
+      confirmLabel: getString("delete"),
+      destructive: true,
+    });
+    if (!confirmed) return;
+    const ok = await onDelete?.(comment);
+    if (!ok) setDeleteFailed(true);
+  };
 
   return (
     <div className={`flex ${reply ? "gap-3 text-xs" : "gap-4"}`}>
@@ -91,7 +185,7 @@ export function CommentItem({ comment, reply = false }: { comment: Comment; repl
           comment={comment}
           className={`mt-1 select-text text-chrome-neutral-200 ${reply ? "font-normal" : "text-sm"}`}
         />
-        {(likes || comment.isHearted) && (
+        {(likes || comment.isHearted || canReply || canDelete) && (
           <div className={`mt-2 flex items-center gap-3 text-chrome-neutral-400 ${reply ? "text-[10px]" : "text-xs"}`}>
             {likes && (
               <span className="flex items-center gap-1">
@@ -103,9 +197,57 @@ export function CommentItem({ comment, reply = false }: { comment: Comment; repl
                 <Heart size={reply ? 11 : 13} className="fill-primary text-primary" />
               </span>
             )}
+            {canReply && (
+              <button
+                type="button"
+                onClick={() => setShowComposer((value) => !value)}
+                className="font-semibold text-chrome-neutral-300 transition-colors duration-200 ease-out hover:text-chrome-neutral-100"
+              >
+                {getString("comment_reply")}
+              </button>
+            )}
+            {canDelete && (
+              <button
+                ref={menuButtonRef}
+                type="button"
+                aria-label={getString("comment_options")}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  const rect = menuButtonRef.current?.getBoundingClientRect();
+                  if (rect) setMenuAnchor({ top: rect.bottom + 8, flipBottom: rect.top - 8, ...alignToEnd(rect) });
+                }}
+                className="grid h-6 w-6 place-items-center rounded-full transition-colors duration-200 ease-out hover:bg-surface-container-high hover:text-chrome-neutral-100"
+              >
+                <MoreVertical size={reply ? 14 : 16} />
+              </button>
+            )}
           </div>
         )}
+        {deleteFailed && (
+          <p className="mt-2 text-sm text-chrome-red-400">{getString("comment_delete_failed")}</p>
+        )}
+        {showComposer && canReply && (
+          <ReplyComposer
+            onSubmit={(text) => onPostReply!(comment, text)}
+            onClose={() => setShowComposer(false)}
+          />
+        )}
       </div>
+      {menuAnchor && (
+        <MediaMenu
+          anchor={menuAnchor}
+          onClose={() => setMenuAnchor(null)}
+          actions={[
+            {
+              id: "delete",
+              label: getString("delete"),
+              icon: <Trash2 size={16} />,
+              danger: true,
+              onSelect: () => void askDelete(),
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }

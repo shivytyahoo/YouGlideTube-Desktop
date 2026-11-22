@@ -16,6 +16,10 @@ pub(super) struct TrackInspection {
     pub sample_count: u32,
     pub first_chunk_offset: u64,
     pub sample_bytes: u64,
+    /// The `mdhd` language, packed as three 5-bit letters (`und` = 0x55C4).
+    /// Read by the multi-audio mux tests, not by validation.
+    #[allow(dead_code)]
+    pub language: u16,
 }
 
 #[derive(Debug, Default)]
@@ -209,10 +213,10 @@ fn parse_moov(moov: &[u8], inspection: &mut Mp4Inspection) -> Result<(), String>
             .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
             .ok_or("A track has no handler")?;
         let mdhd = child(mdia, b"mdhd").ok_or("A track has no mdhd box")?;
-        let (timescale, duration) = if mdhd.first() == Some(&1) {
-            (be32(mdhd, 20)?, be64(mdhd, 24)?)
+        let (timescale, duration, language) = if mdhd.first() == Some(&1) {
+            (be32(mdhd, 20)?, be64(mdhd, 24)?, be16(mdhd, 32)?)
         } else {
-            (be32(mdhd, 12)?, u64::from(be32(mdhd, 16)?))
+            (be32(mdhd, 12)?, u64::from(be32(mdhd, 16)?), be16(mdhd, 20)?)
         };
         if timescale > 0 {
             inspection.duration_seconds = inspection
@@ -244,6 +248,7 @@ fn parse_moov(moov: &[u8], inspection: &mut Mp4Inspection) -> Result<(), String>
             sample_count,
             first_chunk_offset,
             sample_bytes,
+            language,
         });
     }
     Ok(())
@@ -277,6 +282,12 @@ fn boxes(data: &[u8]) -> impl Iterator<Item = ([u8; 4], &[u8])> {
 
 fn child<'a>(data: &'a [u8], want: &[u8]) -> Option<&'a [u8]> {
     boxes(data).find_map(|(kind, payload)| (kind == want).then_some(payload))
+}
+
+fn be16(data: &[u8], offset: usize) -> Result<u16, String> {
+    data.get(offset..offset + 2)
+        .map(|bytes| u16::from_be_bytes([bytes[0], bytes[1]]))
+        .ok_or_else(|| "The finished file's index is truncated".to_string())
 }
 
 fn be32(data: &[u8], offset: usize) -> Result<u32, String> {

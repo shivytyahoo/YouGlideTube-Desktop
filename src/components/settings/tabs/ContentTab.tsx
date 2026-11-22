@@ -2,10 +2,12 @@ import { SettingsGroup } from '../SettingsGroup';
 import { SettingItem } from '../SettingItem';
 import { ToggleSwitch } from '../../ui/ToggleSwitch';
 import { Select } from '../../ui/Select';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useBoolPref, usePreference, useNumberPref } from '../../../lib/usePreference';
 import { getString } from '../../../lib/i18n/index';
 import { SETTINGS } from '../../../lib/settings/schema';
 import { isSettingDisabledUntilWired } from '../../../lib/settings/values';
+import { moveNavTab, orderedNavTabs, type NavTabId } from '../../../lib/navTabOrder';
 import { GRID_COLUMN_OPTIONS, GRID_COLUMNS_DEFAULT } from '../../../lib/useGridColumns';
 import { useHideWatched } from '../../../lib/useWatchedFilter';
 import { BlockedKeywordsPanel } from '../BlockedKeywordsPanel';
@@ -48,6 +50,7 @@ export function ContentTab() {
   const [tabsOn, setTabsOn] = useBoolPref(SETTINGS.TABS_ENABLED, false);
   const [shortsPlaybackMode, setShortsPlaybackMode] = usePreference(SETTINGS.SHORTS_PLAYBACK_MODE, 'loop');
   const [shortsAutoScrollSeconds, setShortsAutoScrollSeconds] = useNumberPref(SETTINGS.SHORTS_AUTO_SCROLL_SECONDS, 10);
+  const [shortsUiMode, setShortsUiMode] = usePreference(SETTINGS.SHORTS_UI_MODE, 'default');
   const [musicNav, setMusicNav] = useBoolPref(SETTINGS.MUSIC_NAVIGATION_ENABLED, true);
   const [musicContent, setMusicContent] = useBoolPref(SETTINGS.MUSIC_CONTENT_ENABLED, true);
   const [categoriesTab, setCategoriesTab] = useBoolPref(SETTINGS.CATEGORIES_NAV_TAB_ENABLED, false);
@@ -56,6 +59,18 @@ export function ContentTab() {
   // A page turned off since it was picked opens Home, so the select shows Home too.
   const startPageValue = START_PAGES.find((page) => page.path === startPagePath(startPage, startPageVisibility))?.value ?? '0';
   const [homeMaxVideoAge, setHomeMaxVideoAge] = usePreference(SETTINGS.HOME_MAX_VIDEO_AGE, '0');
+  const [homeLayout, setHomeLayout] = usePreference(SETTINGS.HOME_LAYOUT, 'grid');
+  const [subsShortsShelf, setSubsShortsShelf] = useBoolPref(SETTINGS.SUBS_SHORTS_SHELF, true);
+  const [commentsPreview, setCommentsPreview] = useBoolPref(SETTINGS.COMMENTS_PREVIEW, true);
+  const [relatedCardStyle, setRelatedCardStyle] = usePreference(SETTINGS.RELATED_CARD_STYLE, 'compact');
+  const [navTabOrderRaw, setNavTabOrderRaw] = usePreference(SETTINGS.NAV_TAB_ORDER, '[]');
+  const navTabOrder = orderedNavTabs(navTabOrderRaw);
+  const NAV_TAB_LABELS: Record<NavTabId, string> = {
+    home: getString('home'),
+    shorts: getString('sidebar_shorts'),
+    explore: getString('sidebar_explore'),
+    music: getString('sidebar_music'),
+  };
 
   return (
     <div className="space-y-6 pb-8">
@@ -73,6 +88,17 @@ export function ContentTab() {
               value: String(count),
               label: getString('settings_grid_columns_option', count),
             }))}
+          />
+        </SettingItem>
+        <SettingItem title={getString('settings_home_layout')} description={getString('settings_home_layout_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.HOME_LAYOUT)}>
+          <Select
+            value={homeLayout}
+            onChange={setHomeLayout}
+            disabled={isSettingDisabledUntilWired(SETTINGS.HOME_LAYOUT)}
+            options={[
+              { value: 'grid', label: getString('settings_home_layout_grid') },
+              { value: 'list', label: getString('settings_home_layout_list') },
+            ]}
           />
         </SettingItem>
         <SettingItem title={getString('settings_video_title_lines')} description={getString('settings_video_title_lines_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.VIDEO_TITLE_MAX_LINES)}>
@@ -101,6 +127,7 @@ export function ContentTab() {
         <SettingItem title={getString('settings_home_shorts_shelf')} description={getString('settings_home_shorts_shelf_desc')} disabled={!shortsContent || isSettingDisabledUntilWired(SETTINGS.HOME_SHORTS_SHELF_ENABLED)}><ToggleSwitch checked={homeShortsShelf} onChange={setHomeShortsShelf} disabled={!shortsContent || isSettingDisabledUntilWired(SETTINGS.HOME_SHORTS_SHELF_ENABLED)} /></SettingItem>
         <SettingItem title={getString('settings_continue_watching')} description={getString('settings_continue_watching_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.CONTINUE_WATCHING_ENABLED)}><ToggleSwitch checked={continueWatching} onChange={setContinueWatching} disabled={isSettingDisabledUntilWired(SETTINGS.CONTINUE_WATCHING_ENABLED)} /></SettingItem>
         <SettingItem title={getString('settings_home_subscriptions')} description={getString('settings_home_subscriptions_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.HOME_SUBSCRIPTIONS_ENABLED)}><ToggleSwitch checked={homeSubscriptions} onChange={setHomeSubscriptions} disabled={isSettingDisabledUntilWired(SETTINGS.HOME_SUBSCRIPTIONS_ENABLED)} /></SettingItem>
+        <SettingItem title={getString('settings_subs_shorts_shelf')} description={getString('settings_subs_shorts_shelf_desc')} disabled={!shortsContent || isSettingDisabledUntilWired(SETTINGS.SUBS_SHORTS_SHELF)}><ToggleSwitch checked={subsShortsShelf} onChange={setSubsShortsShelf} disabled={!shortsContent || isSettingDisabledUntilWired(SETTINGS.SUBS_SHORTS_SHELF)} /></SettingItem>
         <SettingItem title={getString('settings_home_refresh_on_reselect')} description={getString('settings_home_refresh_on_reselect_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.REFRESH_HOME_ON_RESELECT)}><ToggleSwitch checked={refreshOnReselect} onChange={setRefreshOnReselect} disabled={isSettingDisabledUntilWired(SETTINGS.REFRESH_HOME_ON_RESELECT)} /></SettingItem>
         <SettingItem title={getString('settings_home_max_age')} description={getString('settings_home_max_age_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.HOME_MAX_VIDEO_AGE)}>
           <Select value={homeMaxVideoAge} onChange={setHomeMaxVideoAge} disabled={isSettingDisabledUntilWired(SETTINGS.HOME_MAX_VIDEO_AGE)} options={[
@@ -117,6 +144,13 @@ export function ContentTab() {
 
       <SettingsGroup title={getString('settings_group_watch_page')}>
         <SettingItem title={getString('settings_comments')} description={getString('settings_comments_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.COMMENTS_ENABLED)}><ToggleSwitch checked={comments} onChange={setComments} disabled={isSettingDisabledUntilWired(SETTINGS.COMMENTS_ENABLED)} /></SettingItem>
+        <SettingItem title={getString('settings_comments_preview')} description={getString('settings_comments_preview_desc')} disabled={!comments || isSettingDisabledUntilWired(SETTINGS.COMMENTS_PREVIEW)}><ToggleSwitch checked={commentsPreview} onChange={setCommentsPreview} disabled={!comments || isSettingDisabledUntilWired(SETTINGS.COMMENTS_PREVIEW)} /></SettingItem>
+        <SettingItem title={getString('settings_related_card_style')} description={getString('settings_related_card_style_desc')} disabled={!relatedVideos || isSettingDisabledUntilWired(SETTINGS.RELATED_CARD_STYLE)}>
+          <Select value={relatedCardStyle} onChange={setRelatedCardStyle} disabled={!relatedVideos || isSettingDisabledUntilWired(SETTINGS.RELATED_CARD_STYLE)} options={[
+            { value: 'compact', label: getString('settings_related_card_compact') },
+            { value: 'full_width', label: getString('settings_related_card_full_width') },
+          ]} />
+        </SettingItem>
         <SettingItem title={getString('settings_notes')} description={getString('settings_notes_desc')}><ToggleSwitch checked={notes} onChange={setNotes} /></SettingItem>
         <SettingItem title={getString('settings_channel_notes')} description={getString('settings_channel_notes_desc')} disabled={!notes}><ToggleSwitch checked={channelNotes} onChange={setChannelNotes} disabled={!notes} /></SettingItem>
         <SettingItem title={getString('settings_video_notes')} description={getString('settings_video_notes_desc')} disabled={!notes}><ToggleSwitch checked={videoNotes} onChange={setVideoNotes} disabled={!notes} /></SettingItem>
@@ -170,6 +204,13 @@ export function ContentTab() {
             })} />
           </SettingItem>
         )}
+        <SettingItem title={getString('settings_shorts_ui_mode')} description={getString('settings_shorts_ui_mode_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.SHORTS_UI_MODE)}>
+          <Select value={shortsUiMode} onChange={setShortsUiMode} disabled={isSettingDisabledUntilWired(SETTINGS.SHORTS_UI_MODE)} options={[
+            { value: 'default', label: getString('settings_shorts_ui_mode_default') },
+            { value: 'simple', label: getString('settings_shorts_ui_mode_simple') },
+            { value: 'impressive', label: getString('settings_shorts_ui_mode_impressive') },
+          ]} />
+        </SettingItem>
       </SettingsGroup>
 
       <SettingsGroup title={getString('music')}>
@@ -190,6 +231,33 @@ export function ContentTab() {
         <SettingItem title={getString('settings_shorts_tab')} disabled={!shortsContent || isSettingDisabledUntilWired(SETTINGS.SHORTS_NAVIGATION_ENABLED)}><ToggleSwitch checked={shortsNav} onChange={setShortsNav} disabled={!shortsContent || isSettingDisabledUntilWired(SETTINGS.SHORTS_NAVIGATION_ENABLED)} /></SettingItem>
         <SettingItem title={getString('settings_music_tab')} disabled={!musicContent || isSettingDisabledUntilWired(SETTINGS.MUSIC_NAVIGATION_ENABLED)}><ToggleSwitch checked={musicNav} onChange={setMusicNav} disabled={!musicContent || isSettingDisabledUntilWired(SETTINGS.MUSIC_NAVIGATION_ENABLED)} /></SettingItem>
         <SettingItem title={getString('settings_categories_tab')} description={getString('settings_categories_tab_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.CATEGORIES_NAV_TAB_ENABLED)}><ToggleSwitch checked={categoriesTab} onChange={setCategoriesTab} disabled={isSettingDisabledUntilWired(SETTINGS.CATEGORIES_NAV_TAB_ENABLED)} /></SettingItem>
+        <SettingItem title={getString('settings_nav_tab_order')} description={getString('settings_nav_tab_order_desc')}>
+          <div className="flex flex-col gap-1">
+            {navTabOrder.map((tab, index) => (
+              <div key={tab} className="flex items-center gap-1">
+                <span className="min-w-20 text-sm text-chrome-neutral-300">{NAV_TAB_LABELS[tab]}</span>
+                <button
+                  type="button"
+                  aria-label={`${NAV_TAB_LABELS[tab]} up`}
+                  disabled={index === 0}
+                  onClick={() => setNavTabOrderRaw(moveNavTab(navTabOrderRaw, tab, -1))}
+                  className="rounded-md p-1 text-chrome-neutral-300 hover:bg-chrome-white/10 disabled:opacity-30"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`${NAV_TAB_LABELS[tab]} down`}
+                  disabled={index === navTabOrder.length - 1}
+                  onClick={() => setNavTabOrderRaw(moveNavTab(navTabOrderRaw, tab, 1))}
+                  className="rounded-md p-1 text-chrome-neutral-300 hover:bg-chrome-white/10 disabled:opacity-30"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </SettingItem>
       </SettingsGroup>
 
     </div>

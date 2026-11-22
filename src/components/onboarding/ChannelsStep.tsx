@@ -5,23 +5,42 @@ import { EmptyState } from "../ui/EmptyState";
 import { SearchInput } from "../ui/SearchInput";
 import { getPlural, getString } from "../../lib/i18n/index";
 import { useChannelSearch } from "../../lib/useChannelSearch";
+import { getAccountSignedIn } from "../../lib/api/account";
 import { useSubscriptionStore } from "../../store/useSubscriptionStore";
+import { useNotificationStore } from "../../store/useNotificationStore";
+import { useUiStore } from "../../store/useUiStore";
 import { ONBOARDING_CARD_GRID } from "./constants";
 
-export function ChannelsStep() {
+export function ChannelsStep({ onRequestSignIn }: { onRequestSignIn?: () => void }) {
   const [searchQuery, setSearchQuery] = useState("");
   const subscriptions = useSubscriptionStore((state) => state.subscriptions);
   const loadSubscriptions = useSubscriptionStore((state) => state.loadSubscriptions);
+  const loadChannelPreferences = useNotificationStore((state) => state.loadChannelPreferences);
+  const showToast = useUiStore((state) => state.showToast);
   const { channels, loading } = useChannelSearch(searchQuery);
 
   useEffect(() => {
     void loadSubscriptions();
-  }, [loadSubscriptions]);
+    void loadChannelPreferences();
+  }, [loadSubscriptions, loadChannelPreferences]);
 
-  const toggleSubscribed = (channel: (typeof channels)[number]) => {
+  // A signed-out subscribe tap asks for sign-in instead of writing a local
+  // subscription, as Android's ChannelsStep does.
+  const signInGate = async (): Promise<boolean> => {
+    if (await getAccountSignedIn()) return true;
+    showToast({ message: getString("onboarding_channels_sign_in_required"), variant: "error" });
+    onRequestSignIn?.();
+    return false;
+  };
+
+  const toggleSubscribed = async (channel: (typeof channels)[number]) => {
     const { isSubscribed, subscribe, unsubscribe } = useSubscriptionStore.getState();
-    if (isSubscribed(channel.channelId)) void unsubscribe(channel.channelId, { learn: true });
-    else void subscribe(channel.channelId, channel.name, channel.avatarUrl ?? undefined, { learn: true });
+    if (isSubscribed(channel.channelId)) {
+      void unsubscribe(channel.channelId, { learn: true });
+      return;
+    }
+    if (!(await signInGate())) return;
+    void subscribe(channel.channelId, channel.name, channel.avatarUrl ?? undefined, { learn: true });
   };
 
   return (
@@ -61,7 +80,9 @@ export function ChannelsStep() {
                 name={channel.name}
                 avatarUrl={channel.avatarUrl}
                 subtitle={channel.subscriberCountText ?? channel.handle}
-                onOpen={() => toggleSubscribed(channel)}
+                onOpen={() => void toggleSubscribed(channel)}
+                onSubscribeRequest={signInGate}
+                showNotificationToggle
               />
             ))}
           </div>

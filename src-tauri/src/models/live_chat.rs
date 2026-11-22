@@ -32,6 +32,13 @@ pub struct LiveChatMessage {
     /// Where in a replayed stream the message was sent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub video_offset_ms: Option<u64>,
+    /// The token for this message's context menu (`liveChatItemContextMenuEndpoint.params`),
+    /// carried so the viewer's own messages can be deleted without refetching the chat.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub menu_params: Option<String>,
+    /// The menu endpoint's path, e.g. `live_chat/get_item_context_menu`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub menu_api_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

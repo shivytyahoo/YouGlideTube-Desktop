@@ -187,11 +187,92 @@ async fn run_sidecar(content_binding: &str) -> Option<MintedToken> {
     })
 }
 
-/// Mint (or reuse a cached) attestation token bound to `content_binding`.
+/// The 11-character visitor ID a GVS streaming token must be bound to.
 ///
-/// For logged-out playback `content_binding` must be the session **visitor
-/// data** — the binding YouTube's `/player` and GVS/SABR servers validate. The
-/// same visitor data must then be used in the requests the token accompanies.
+/// Port of Android `VisitorId`: `visitorData` is a base64url protobuf several
+/// hundred characters long, and its first field is the short visitor ID. GVS
+/// binds a logged-out streaming token to **that ID**, not to the surrounding
+/// blob — binding to the blob produces a token the server accepts at load time
+/// and refuses once enforcement kicks in (`sabr.media_serving_enforcement_id_error`
+/// on the SABR path, a plain 403 past the free window on direct URLs).
+/// Mirrors yt-dlp's `_extract_visitor_id`, including its default of preferring
+/// the visitor ID over the raw blob.
+pub fn extract_visitor_id(visitor_data: &str) -> Option<String> {
+    if visitor_data.is_empty() {
+        return None;
+    }
+    // Field 1 (`0x0A`), length 11 (`0x0B`) — the two header bytes before the
+    // ID itself.
+    const ID_START: usize = 2;
+    const ID_LENGTH: usize = 11;
+    let decoded = decode_b64url_loose(visitor_data)?;
+    if decoded.len() < ID_START + ID_LENGTH {
+        return None;
+    }
+    let id = std::str::from_utf8(&decoded[ID_START..ID_START + ID_LENGTH]).ok()?;
+    let is_id_char = |c: char| c.is_ascii_alphanumeric() || c == '-' || c == '_';
+    if id.chars().all(is_id_char) {
+        Some(id.to_string())
+    } else {
+        None
+    }
+}
+
+/// The identifier a GVS/streaming token should be minted against for this
+/// session: the extracted visitor ID, or the full visitor data when it cannot
+/// be read — matching yt-dlp's fallback.
+#[must_use]
+pub fn gvs_binding(visitor_data: &str) -> String {
+    extract_visitor_id(visitor_data).unwrap_or_else(|| visitor_data.to_string())
+}
+
+/// Base64url with optional padding, tolerant of the `-`/`_` alphabet.
+/// Mirrors the SABR engine's `decode_b64_loose` without depending on it.
+fn decode_b64url_loose(input: &str) -> Option<Vec<u8>> {
+    use base64::Engine;
+    let normalized = input.replace('-', "+").replace('_', "/");
+    let trimmed = normalized.trim_end_matches('=');
+    base64::engine::general_purpose::STANDARD_NO_PAD
+        .decode(trimmed)
+        .ok()
+}
+
+/// BgUtils documents a healthy content-bound PO token as 110-128 **characters**
+/// of base64url — the unit matters. An earlier reading compared 110-128 against
+/// the *decoded bytes*, which no real token can reach (measured over 88 mints
+/// on Android, every token was 116 or 120 characters / 87 or 90 decoded
+/// bytes), and classed every token cold. Port of Android
+/// `PoTokenAttestationPolicy`, whose current rule is that length is a stable
+/// property of the session: a short token is logged, not re-minted — re-running
+/// the same challenge cannot lengthen it, it only holds the attestation lock
+/// for seconds on every mint. A token the server actually refuses is handled
+/// by evidence, not length: the refusal forces the next mint to re-attest
+/// (`remint_po_token`).
+pub const MIN_TRUSTED_POT_LENGTH: usize = 110;
+
+/// Length of a base64 token in characters, ignoring padding.
+#[must_use]
+pub fn po_token_length_chars(base64_token: &str) -> usize {
+    base64_token.trim_end_matches('=').len()
+}
+
+/// Whether a minted token is shorter than any healthy one. A low-trust token
+/// is still used — see [`MIN_TRUSTED_POT_LENGTH`].
+#[must_use]
+pub fn is_low_trust_po_token(base64_token: &str) -> bool {
+    po_token_length_chars(base64_token) < MIN_TRUSTED_POT_LENGTH
+}
+
+/// Mint (or reuse a cached) attestation token bound to `content_binding`.
+/// The two bindings are minted separately and must not be mixed:
+/// - the `/player` request and the SABR `StreamerContext.po_token` bind to
+///   the **video id** (Android mints its player pot that way, and measured
+///   the video-id-bound token to work in the session);
+/// - the direct format URLs bind to the **visitor ID** ([`gvs_binding`]),
+///   the 11-character ID extracted from the session visitor data — that
+///   token rides on the URLs as `pot=`, never in the session.
+/// For logged-out playback the binding must match the identity the requests
+/// the token accompanies carry.
 pub async fn mint_po_token(content_binding: &str) -> Option<MintedToken> {
     if content_binding.is_empty() {
         return None;
@@ -215,6 +296,30 @@ pub async fn mint_po_token(content_binding: &str) -> Option<MintedToken> {
         },
         None => run_sidecar(content_binding).await?,
     };
+    // Observability, without ever logging the token or the binding itself: a
+    // SABR session that dies on attestation is otherwise indistinguishable
+    // from a good one until the server refuses it mid-playback.
+    let binding_kind = if content_binding.len() == 11 {
+        "short-id"
+    } else {
+        "visitor-data"
+    };
+    let token_chars = po_token_length_chars(&minted.po_token);
+    if is_low_trust_po_token(&minted.po_token) {
+        warn!(
+            binding_kind,
+            binding_chars = content_binding.len(),
+            token_chars,
+            "Minted a low-trust PO token; using it anyway — length is a property of the session, re-minting cannot lengthen it"
+        );
+    } else {
+        debug!(
+            binding_kind,
+            binding_chars = content_binding.len(),
+            token_chars,
+            "Minted PO token via BotGuard"
+        );
+    }
     cache.insert(content_binding.to_string(), minted.clone());
     Some(minted)
 }
@@ -286,5 +391,47 @@ mod tests {
     fn dev_layouts_follow_the_working_directory() {
         let candidates = sidecar_candidates("integrity.cjs", None, Some(Path::new("/repo")), None);
         assert!(candidates.contains(&PathBuf::from("/repo/src-tauri/sidecar/integrity.cjs")));
+    }
+
+    fn visitor_data_for(id: &str) -> String {
+        use base64::Engine;
+        let mut bytes = vec![0x0Au8, 0x0Bu8];
+        bytes.extend_from_slice(id.as_bytes());
+        bytes.extend_from_slice(b"trailing-protobuf-bytes");
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
+    }
+
+    #[test]
+    fn visitor_id_is_the_first_field_of_visitor_data() {
+        // Android VisitorIdTest's shape: field 1, length 11, then the ID.
+        assert_eq!(
+            extract_visitor_id(&visitor_data_for("dDVKxQaQeTg")).as_deref(),
+            Some("dDVKxQaQeTg")
+        );
+        assert_eq!(
+            gvs_binding(&visitor_data_for("dDVKxQaQeTg")),
+            "dDVKxQaQeTg"
+        );
+    }
+
+    #[test]
+    fn visitor_id_falls_back_to_the_blob_when_it_cannot_be_read() {
+        assert_eq!(extract_visitor_id(""), None);
+        assert_eq!(extract_visitor_id("not-base64!!!"), None);
+        assert_eq!(extract_visitor_id("aGk"), None);
+        let blob = visitor_data_for("bad id!!!!!");
+        assert_eq!(extract_visitor_id(&blob), None);
+        assert_eq!(gvs_binding(&blob), blob);
+    }
+
+    #[test]
+    fn trust_is_measured_in_characters_not_bytes() {
+        // Android measured every healthy token at 116 or 120 characters
+        // (87 or 90 decoded bytes): a byte reading would class them all cold.
+        assert!(!is_low_trust_po_token(&"a".repeat(116)));
+        assert!(!is_low_trust_po_token(&"a".repeat(120)));
+        assert!(!is_low_trust_po_token(&format!("{}==", "a".repeat(116))));
+        assert!(is_low_trust_po_token(&"a".repeat(109)));
+        assert_eq!(po_token_length_chars(&format!("{}==", "a".repeat(116))), 116);
     }
 }

@@ -14,6 +14,8 @@ export function shortSummaryToItem(short: ShortVideoSummary): ShortItem {
     commentCountText: null,
     publishedText: short.publishedText ?? null,
     sequenceParams: null,
+    soundTitle: null,
+    soundThumbnailUrl: null,
   };
 }
 

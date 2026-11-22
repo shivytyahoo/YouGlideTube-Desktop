@@ -1,7 +1,7 @@
 import { getString } from "../../lib/i18n/index";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
-import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { useShortsFeed, type ShortsQueueEnd } from "../../lib/useShortsFeed";
 import { listenForShortsKeys } from "../../lib/shortsKeys";
 import { prefetchShortStreams } from "../../lib/useShortStream";
@@ -10,6 +10,9 @@ import { finishShortView, startShortView } from "../../lib/shortViews";
 import { SETTINGS } from "../../lib/settings/schema";
 import { useAppSettingsStore } from "../../store/useAppSettingsStore";
 import { usePlayerStore } from "../../store/usePlayerStore";
+import { SHORTS_RESELECTED_EVENT, shortsReselectAction } from "../../lib/shortsReselect";
+import { queueSourceContinuesIntoFeed, type ShortsQueueSource } from "../../lib/shortsQueueSource";
+import { Button } from "../ui/Button";
 import { ShortPlayer } from "./ShortPlayer";
 import type { ShortItem, ShortsPanelState } from "../../types/shorts";
 
@@ -20,10 +23,12 @@ const RENDER_RADIUS = 2;
 export function ShortsFeed() {
   const { videoId } = useParams<{ videoId?: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   const routeState = location.state as {
     initialShort?: ShortItem;
     initialQueue?: ShortItem[];
     queueEnd?: ShortsQueueEnd;
+    queueSource?: ShortsQueueSource;
   } | null;
   const initialShort = useMemo(() => {
     const candidate = routeState?.initialShort;
@@ -37,11 +42,26 @@ export function ShortsFeed() {
     return candidate;
   }, [routeState, videoId]);
   const queueEnd = initialQueue ? routeState?.queueEnd : undefined;
-  const { items, loading, loadingMore, error, loadMore, moreLikeThis } = useShortsFeed(
+  // A channel, subscriptions or snapshot queue continues into the feed once
+  // its own items run out, so it never stops at the end of the handed list.
+  const queueSource = useMemo<ShortsQueueSource | null>(() => {
+    const source = routeState?.queueSource;
+    if (!source) return null;
+    return queueSourceContinuesIntoFeed(source) ? source : null;
+  }, [routeState?.queueSource]);
+  const effectiveQueueEnd: ShortsQueueEnd | undefined = useAppSettingsStore(
+    (state) => state.values[SETTINGS.SHORTS_CONTINUE_INTO_FEED],
+  ) === "false"
+    ? "stop"
+    : queueSource
+      ? "feed"
+      : queueEnd;
+  const { items, loading, loadingMore, error, loadMore, moreLikeThis, retry } = useShortsFeed(
     videoId,
     initialShort,
     initialQueue,
-    queueEnd,
+    effectiveQueueEnd,
+    queueSource,
   );
   const [activeIndex, setActiveIndex] = useState(0);
   const [panelState, setPanelState] = useState<ShortsPanelState>("none");
@@ -163,6 +183,21 @@ export function ShortsFeed() {
     feedStateRef.current = { activeIndex, itemCount: items.length };
   }, [activeIndex, items.length]);
 
+  // A reselect of the Shorts tab scrolls back to the top of the reel; at the
+  // top it reloads the feed, like Home's reselect.
+  useEffect(() => {
+    const onReselect = () => {
+      const { activeIndex: current } = feedStateRef.current;
+      if (shortsReselectAction(current) === "scroll") {
+        slideRefs.current[0]?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        retry();
+      }
+    };
+    window.addEventListener(SHORTS_RESELECTED_EVENT, onReselect);
+    return () => window.removeEventListener(SHORTS_RESELECTED_EVENT, onReselect);
+  }, [retry]);
+
   const scrollToIndex = useCallback((index: number) => {
     const clamped = Math.max(0, Math.min(index, feedStateRef.current.itemCount - 1));
     slideRefs.current[clamped]?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -214,16 +249,42 @@ export function ShortsFeed() {
 
   if (!loading && items.length === 0) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-background px-6 text-center">
+      <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-background px-6 text-center">
         <p className="text-sm text-chrome-neutral-400">
           {error ? "Couldn't load Shorts right now." : "No Shorts to show yet."}
         </p>
+        {error && (
+          <Button variant="secondary" onClick={retry}>
+            {getString("retry")}
+          </Button>
+        )}
       </div>
     );
   }
 
+  // The strip over the top of the reel: a back pill when the queue was opened
+  // from somewhere else, the tab's own title when it is the Shorts tab.
+  const showBackButton = !!videoId;
+
   return (
     <div className="relative h-full w-full bg-background" data-panel={panelState}>
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center justify-between px-4 pt-4">
+        {showBackButton ? (
+          <button
+            type="button"
+            aria-label={getString("back")}
+            onClick={() => navigate(-1)}
+            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-chrome-black/55 text-chrome-white transition-colors hover:bg-chrome-black/75"
+          >
+            <ArrowLeft className="h-5 w-5 rtl:-scale-x-100" />
+          </button>
+        ) : (
+          <h1 className="text-xl font-bold text-chrome-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+            {getString("shorts")}
+          </h1>
+        )}
+        <span />
+      </div>
       <div
         ref={containerRef}
         className="h-full w-full snap-y snap-mandatory overflow-y-auto"
@@ -278,7 +339,7 @@ export function ShortsFeed() {
           // At the last loaded item the button fetches more, like a swipe or
           // the keyboard does, instead of going dead; it only disables while
           // that fetch is running, or when the queue deliberately ends here.
-          disabled={activeIndex >= items.length - 1 && (loadingMore || queueEnd === "stop")}
+          disabled={activeIndex >= items.length - 1 && (loadingMore || effectiveQueueEnd === "stop")}
           onClick={advanceToNext}
         >
           {activeIndex >= items.length - 1 && loadingMore ? (

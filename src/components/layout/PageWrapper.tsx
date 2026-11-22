@@ -1,9 +1,11 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getString } from '../../lib/i18n/index';
 import { Topbar } from './Topbar';
 import { Sidebar } from './Sidebar';
 import { NavigationType, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { useUiStore } from '../../store/useUiStore';
+import { useAppSettingsStore } from '../../store/useAppSettingsStore';
+import { SETTINGS } from '../../lib/settings/schema';
 import { ScrollContainerContext } from '../../lib/useScrollContainer';
 import { usePageEnterMotion } from '../../lib/usePageEnterMotion';
 import { SIDEBAR_MENU_BUTTON_ID } from './Topbar';
@@ -72,6 +74,29 @@ export function PageWrapper() {
   }, [location.pathname, usesDrawer, setWatchSidebarOpen]);
 
   const drawerRef = useRef<HTMLDivElement>(null);
+  // Hide the nav rail while scrolling down through a feed, and bring it back
+  // on any upward scroll — only when the setting asks for it.
+  const hideNavOnScroll = useAppSettingsStore((state) => state.values[SETTINGS.HIDE_NAV_ON_SCROLL] === 'true');
+  // Mobile interface mode drops the sidebar rail, like the phone app: navigation
+  // moves to the drawer behind the topbar menu button.
+  const interfaceMobile = useAppSettingsStore((state) => state.values[SETTINGS.INTERFACE_MODE] === 'mobile');
+  const [navHidden, setNavHidden] = useState(false);
+  useEffect(() => {
+    if (!hideNavOnScroll) {
+      setNavHidden(false);
+      return;
+    }
+    const main = mainRef.current;
+    if (!main) return;
+    let lastY = main.scrollTop;
+    const onScroll = () => {
+      const y = main.scrollTop;
+      setNavHidden(y > 80 && y > lastY);
+      lastY = y;
+    };
+    main.addEventListener('scroll', onScroll, { passive: true });
+    return () => main.removeEventListener('scroll', onScroll);
+  }, [hideNavOnScroll]);
   useEffect(() => {
     if (!isWatchSidebarOpen) return;
     drawerRef.current?.querySelector<HTMLElement>('a, button')?.focus({ preventScroll: true });
@@ -88,7 +113,13 @@ export function PageWrapper() {
     <div className="flex h-full flex-col bg-background text-chrome-zinc-100 overflow-hidden font-sans">
       <Topbar />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
+        {!interfaceMobile && (
+          <div
+            className={`hidden shrink-0 overflow-hidden transition-all duration-300 sm:block ${navHidden ? 'w-0 opacity-0' : 'w-60'}`}
+          >
+            <Sidebar />
+          </div>
+        )}
         <main
           ref={mainRef}
           className={

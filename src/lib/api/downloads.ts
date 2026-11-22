@@ -67,6 +67,9 @@ export interface VideoSelection {
   container: DownloadContainer;
   /** An audio track's key (a dub); the original when left out. */
   audioTrack?: string;
+  /** Every audio track to mux into the one file, primary first; wins over
+   *  `audioTrack` when present. One key means one track, as before. */
+  audioTracks?: string[];
 }
 
 export interface SubtitleChoice {

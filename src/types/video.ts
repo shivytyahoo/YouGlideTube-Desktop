@@ -248,6 +248,10 @@ export interface LiveChatMessage {
   superChatAmount?: string | null;
   superChatArgb?: number | null;
   superChatHeaderArgb?: number | null;
+  /** The token for this message's context menu, for deleting the viewer's own messages. */
+  menuParams?: string | null;
+  /** The menu endpoint's path, e.g. `live_chat/get_item_context_menu`. */
+  menuApiUrl?: string | null;
   /** Where in a replayed stream the message was sent. */
   videoOffsetMs?: number | null;
 }
@@ -339,7 +343,8 @@ export type SearchFeature =
   | "hdr"
   | "vr180"
   | "3d"
-  | "location";
+  | "location"
+  | "purchased";
 
 export interface SearchVideosRequest {
   query: string;
@@ -637,6 +642,14 @@ export interface Comment {
   /** The comment is by the video's own channel. */
   isCreator?: boolean;
   isArtist?: boolean;
+  /** The reply dialog's own token (`createReplyParams`); null when replies can't be posted. */
+  replyParams?: string | null;
+  /** The path the reply posts to; `comment/create_comment_reply` when the command names none. */
+  replyPath?: string | null;
+  /** The comment is the viewer's own. */
+  isOwn?: boolean;
+  /** The own comment's delete perform-action endpoint, as raw JSON. */
+  deleteAction?: string | null;
 }
 
 /** One way to order the comments, and the token that loads them that way. */

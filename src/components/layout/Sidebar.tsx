@@ -10,9 +10,12 @@ import { SectionHeader, SubscriptionsNav } from './SidebarSections';
 import { SidebarTabs } from './SidebarTabs';
 import { getString } from '../../lib/i18n/index';
 import { announceHomeReselected } from '../../lib/homeReselect';
+import { announceMusicReselected } from '../../lib/musicReselect';
+import { announceShortsReselected } from '../../lib/shortsReselect';
 import { openInNewTab } from '../../lib/openTarget';
 import { useShortsEnabled } from '../../lib/useShortsContent';
 import { useMusicEnabled } from '../../lib/useMusicContent';
+import { orderedNavTabs } from '../../lib/navTabOrder';
 import { SETTINGS } from '../../lib/settings/schema';
 import { useNotesEnabled } from '../../lib/useNotes';
 
@@ -54,6 +57,9 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
   const showMusicNav = musicEnabled && musicNavEnabled;
   const showCategoriesNav = useAppSettingsStore((state) => state.values[SETTINGS.CATEGORIES_NAV_TAB_ENABLED] !== 'false');
   const notesEnabled = useNotesEnabled();
+  const navTabOrder = orderedNavTabs(
+    useAppSettingsStore((state) => state.values[SETTINGS.NAV_TAB_ORDER]),
+  );
 
   const isOverlay = mode === 'overlay';
   const expanded = isOverlay || isSidebarExpanded;
@@ -73,6 +79,15 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
     if (location.pathname === '/') announceHomeReselected();
   };
 
+  const handleMusicClick = () => {
+    closeOverlay?.();
+    if (location.pathname === '/music') announceMusicReselected();
+  };
+  const handleShortsClick = () => {
+    closeOverlay?.();
+    if (location.pathname.startsWith('/shorts')) announceShortsReselected();
+  };
+
   return (
     <aside
       data-expanded={expanded}
@@ -85,10 +100,30 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
       {/* Always 240 px wide, so labels never rewrap while the rail opens and closes. */}
       <div className="flex min-h-0 w-60 flex-1 flex-col overflow-y-auto overflow-x-hidden py-2">
         <nav className="flex flex-col gap-1.5">
-          <SidebarItem onOpenInNewTab={openInNewTab} to="/" end {...navIconPair('home')} label={getString('home')} onClick={handleHomeClick} collapsed={collapsed} />
-          {showShortsNav && <SidebarItem onOpenInNewTab={openInNewTab} to="/shorts" {...shortsNavIconPair} label={getString('sidebar_shorts')} onClick={closeOverlay} collapsed={collapsed} />}
-          {showCategoriesNav && <SidebarItem onOpenInNewTab={openInNewTab} to="/explore" {...navIconPair('explore')} label={getString('sidebar_explore')} onClick={closeOverlay} collapsed={collapsed} />}
-          {showMusicNav && <SidebarItem onOpenInNewTab={openInNewTab} to="/music" {...navIconPair('music')} label={getString('sidebar_music')} onClick={closeOverlay} collapsed={collapsed} />}
+          {navTabOrder.map((tab) => {
+            const props =
+              tab === 'home'
+                ? { to: '/', label: getString('home'), onClick: handleHomeClick, end: true as const, icons: navIconPair('home') }
+                : tab === 'shorts'
+                  ? { to: '/shorts', label: getString('sidebar_shorts'), onClick: handleShortsClick, icons: shortsNavIconPair }
+                  : tab === 'explore'
+                    ? { to: '/explore', label: getString('sidebar_explore'), onClick: closeOverlay, icons: navIconPair('explore') }
+                    : { to: '/music', label: getString('sidebar_music'), onClick: handleMusicClick, icons: navIconPair('music') };
+            const visible = tab === 'home' || (tab === 'shorts' ? showShortsNav : tab === 'explore' ? showCategoriesNav : showMusicNav);
+            if (!visible) return null;
+            return (
+              <SidebarItem
+                key={tab}
+                onOpenInNewTab={openInNewTab}
+                to={props.to}
+                end={props.end}
+                {...props.icons}
+                label={props.label}
+                onClick={props.onClick}
+                collapsed={collapsed}
+              />
+            );
+          })}
         </nav>
 
         <SidebarTabs collapsed={collapsed} onNavigate={closeOverlay} />

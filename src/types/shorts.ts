@@ -13,6 +13,9 @@ export interface ShortItem {
   /** The full video this Short links to. */
   linkedVideoId?: string | null;
   linkedVideoTitle?: string | null;
+  /** The sound the reel plays under, from the reel overlay's sound pivot. */
+  soundTitle?: string | null;
+  soundThumbnailUrl?: string | null;
 }
 
 export interface ShortsFeed {

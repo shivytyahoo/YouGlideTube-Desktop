@@ -46,17 +46,22 @@ beforeEach(() => {
 afterEach(() => act(() => root.unmount()));
 
 describe("player settings menu", () => {
-  it("leaves autoplay, SponsorBlock and notes to the bar and the page", () => {
+  it("leaves autoplay and notes to the bar and the page", () => {
     const text = host.textContent ?? "";
     expect(text).not.toContain(getString("player_menu_autoplay"));
-    expect(text).not.toContain("SponsorBlock");
     expect(text).not.toContain("Note at");
+  });
+
+  it("holds the per-video loop and SponsorBlock-off switches", () => {
+    const text = host.textContent ?? "";
+    expect(text).toContain(getString("player_menu_loop"));
+    expect(text).toContain(getString("player_sponsorblock_off_for_video"));
   });
 
   it("keeps its switches at the bottom, under the rows that open panes", () => {
     const rows = [...host.querySelector('[role="menu"]')!.querySelectorAll("button, [role='switch']")];
     const switches = rows.filter((row) => row.getAttribute("role") === "switch");
-    expect(switches).toHaveLength(2);
-    expect(rows.slice(-2)).toEqual(switches);
+    expect(switches).toHaveLength(4);
+    expect(rows.slice(-4)).toEqual(switches);
   });
 });

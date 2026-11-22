@@ -74,9 +74,9 @@ struct StreamPlan<'a> {
 }
 
 /// Fetches only the segments covering `clip` for the video track (when there
-/// is one) and the audio track, into their part files. The video rides along
-/// with the audio's plan: both tracks are planned first, so a stream with no
-/// usable index fails the attempt before any bytes are written for the other.
+/// is one) and every audio track, into their part files. The video rides along
+/// with the audio plans: all tracks are planned first, so a stream with no
+/// usable index fails the attempt before any bytes are written for the others.
 ///
 /// Bytes are counted into the job's progress as they land. On any outcome
 /// other than `Fetched`, the part files are removed and the counted bytes are
@@ -85,7 +85,7 @@ struct StreamPlan<'a> {
 /// prefix of the full stream, so the full download must not resume from it.
 pub async fn fetch_clip_segments<'a>(
     video: Option<ClipTrack<'a>>,
-    audio: ClipTrack<'a>,
+    audios: &[ClipTrack<'a>],
     clip: ClipRange,
 ) -> Result<ClipAttempt, String> {
     let clip_start_us = clip.start_ms.saturating_mul(1000);
@@ -93,7 +93,7 @@ pub async fn fetch_clip_segments<'a>(
     // Fresh part files, including a previous full attempt's worker fragments:
     // a segment file is init + selected segments, so no saved bytes from a
     // full attempt fit it.
-    for track in video.iter().chain(std::iter::once(&audio)) {
+    for track in video.iter().chain(audios.iter()) {
         clear_parts(track.fetch.path).await;
     }
 
@@ -105,10 +105,12 @@ pub async fn fetch_clip_segments<'a>(
             PlanOutcome::Denied => return Ok(ClipAttempt::Denied),
         }
     }
-    match plan_stream(&audio, clip_start_us, clip_end_us).await? {
-        PlanOutcome::Planned(plan) => plans.push(plan),
-        PlanOutcome::NotSegmented => return Ok(ClipAttempt::NotSegmented),
-        PlanOutcome::Denied => return Ok(ClipAttempt::Denied),
+    for audio in audios {
+        match plan_stream(audio, clip_start_us, clip_end_us).await? {
+            PlanOutcome::Planned(plan) => plans.push(plan),
+            PlanOutcome::NotSegmented => return Ok(ClipAttempt::NotSegmented),
+            PlanOutcome::Denied => return Ok(ClipAttempt::Denied),
+        }
     }
 
     let total_bytes: u64 = plans.iter().map(|plan| plan.total_bytes).sum();

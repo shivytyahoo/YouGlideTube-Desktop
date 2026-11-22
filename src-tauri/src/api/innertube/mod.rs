@@ -34,8 +34,10 @@ pub struct InnertubeClient {
     /// per-client timeout while a fresh connection fetches it in about 2 s.
     pub(crate) playback_client: reqwest::Client,
     pub(crate) identity: identity::visitor::VisitorIdentity,
-    /// Google sign-in session; when present, every request carries
-    /// SAPISIDHASH auth (computed fresh per call). `None` keeps every call
+    /// Google sign-in session; when present, requests from a client that
+    /// supports login carry SAPISIDHASH auth (computed fresh per call).
+    /// Clients that never log in (`VISIONOS`, `IOS`, the VR builds) stay
+    /// anonymous — see `auth_headers_for`. `None` keeps every call
     /// anonymous. Tests construct the client without it.
     pub(crate) auth: Option<std::sync::Arc<crate::auth::AuthSession>>,
 }

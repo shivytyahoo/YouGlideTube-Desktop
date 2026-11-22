@@ -1,4 +1,6 @@
+import { useRef } from "react";
 import { getString } from "../../../lib/i18n/index";
+import { LONG_PRESS_MS } from "../../../lib/pointerGesture";
 import { useMusicPlayerStore } from "../../../store/useMusicPlayerStore";
 import { MusicArtwork } from "../MusicArtwork";
 import { MusicCardMenu } from "../MusicCardMenu";
@@ -19,6 +21,33 @@ export function DockTrackInfo({ model, round }: { model: DockModel; round: boole
   const ring = round && look.coverRing;
   const coverPlays = round && look.coverTap === "play_pause";
   const sung = round && look.sungLine && model.track;
+  // The cover spins slowly while playing, like a disc, when its motion is on.
+  const coverMotion = round && look.coverMotion === "on" && playing;
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFired = useRef(false);
+  const clearLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+  const onCoverPointerDown = () => {
+    if (!round || look.coverLongPress === "nothing") return;
+    longPressFired.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      if (look.coverLongPress === "play_pause") useMusicPlayerStore.getState().togglePlay();
+      else if (look.coverLongPress === "open") openOverlay("full");
+    }, LONG_PRESS_MS);
+  };
+  // A fired long-press must not also trigger the tap underneath it.
+  const onCoverClickCapture = (event: React.MouseEvent) => {
+    if (longPressFired.current) {
+      event.stopPropagation();
+      event.preventDefault();
+      longPressFired.current = false;
+    }
+  };
   return (
     <>
       <button
@@ -38,13 +67,20 @@ export function DockTrackInfo({ model, round }: { model: DockModel; round: boole
                 }
               : undefined
           }
+          onClickCapture={onCoverClickCapture}
+          onPointerDown={onCoverPointerDown}
+          onPointerUp={clearLongPress}
+          onPointerLeave={clearLongPress}
+          onPointerCancel={clearLongPress}
         >
-          <MusicArtwork
-            src={shown.thumbnail}
-            alt={shown.title}
-            loading={busy}
-            className={`h-full w-full ${shape} ring-1 ring-chrome-neutral-800/60 transition-transform duration-200 ease-out group-hover/art:scale-[1.04]`}
-          />
+          <span className={`block h-full w-full ${coverMotion ? "mini-cover-motion" : ""}`}>
+            <MusicArtwork
+              src={shown.thumbnail}
+              alt={shown.title}
+              loading={busy}
+              className={`h-full w-full ${shape} ring-1 ring-chrome-neutral-800/60 transition-transform duration-200 ease-out group-hover/art:scale-[1.04]`}
+            />
+          </span>
           {playing && !busy && (
             <span className={`pointer-events-none absolute grid place-items-center bg-chrome-black/35 text-chrome-white ${round ? "inset-1" : "inset-0"} ${shape}`}>
               <PlayingWave className={round ? "h-3.5" : "h-4"} />

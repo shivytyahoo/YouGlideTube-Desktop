@@ -850,6 +850,36 @@ pub async fn create_comment(
     Ok(true)
 }
 
+/// Posts a reply to a comment, with the reply dialog's own token and path
+/// the comment carried — never the top-level box's token. Returns the reply
+/// the answer itself carried, when it carried one. Signed in only.
+#[tauri::command]
+pub async fn create_comment_reply(
+    youtube_service: State<'_, YoutubeService>,
+    reply_params: String,
+    reply_path: Option<String>,
+    comment_text: String,
+) -> Result<Option<crate::models::comment::Comment>, ErrorResponse> {
+    youtube_service
+        .create_comment_reply(&reply_params, reply_path.as_deref(), &comment_text)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+/// Deletes one of the viewer's own comments, with the delete action its menu
+/// carried. Signed in only.
+#[tauri::command]
+pub async fn delete_comment(
+    youtube_service: State<'_, YoutubeService>,
+    delete_action: String,
+) -> Result<bool, ErrorResponse> {
+    youtube_service
+        .delete_comment(&delete_action)
+        .await
+        .map_err(ErrorResponse::from)?;
+    Ok(true)
+}
+
 /// Likes or unlikes a community post, with the toggle endpoint the posts
 /// page carried. Signed in only.
 #[tauri::command]
@@ -875,6 +905,37 @@ pub async fn get_live_chat(
 
     youtube_service
         .get_live_chat(&video_id, continuation, replay_offset_ms)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+/// Posts one message to a live chat. The channel is the video's uploader,
+/// which the send params bind to the video.
+#[tauri::command]
+pub async fn send_live_chat_message(
+    video_id: String,
+    channel_id: String,
+    text: String,
+    youtube_service: State<'_, YoutubeService>,
+) -> Result<(), ErrorResponse> {
+    validate_video_id(&video_id).map_err(ErrorResponse::from)?;
+
+    youtube_service
+        .send_live_chat_message(&video_id, &channel_id, &text)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
+/// Deletes one of the viewer's own live chat messages, via the menu token
+/// the chat page carried for it.
+#[tauri::command]
+pub async fn delete_live_chat_message(
+    menu_params: String,
+    menu_api_url: Option<String>,
+    youtube_service: State<'_, YoutubeService>,
+) -> Result<(), ErrorResponse> {
+    youtube_service
+        .delete_live_chat_message(&menu_params, menu_api_url.as_deref())
         .await
         .map_err(ErrorResponse::from)
 }

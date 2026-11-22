@@ -19,6 +19,13 @@ export const SEEK_TOTAL_RESET_MS = 400;
 /** How much of the player's width each seek side takes, for clicks and for the tint. */
 export const SEEK_ZONE_FRACTION = 0.35;
 
+/** The seek-zone width setting as a fraction of the player's width. */
+export function seekZoneFraction(setting: string | undefined): number {
+  if (setting === "narrow") return 0.2;
+  if (setting === "edge_to_edge") return 0.5;
+  return SEEK_ZONE_FRACTION;
+}
+
 /** Another step on the side that is showing adds up; anything else starts a new total. */
 export function nextSeekFeedback(previous: SeekFeedback | null, direction: SeekDirection, step: number): SeekFeedback {
   const continuing = previous !== null && previous.visible && previous.direction === direction;
@@ -31,10 +38,10 @@ export function nextSeekFeedback(previous: SeekFeedback | null, direction: SeekD
 }
 
 /** Which seek side a click at `x` across a layer `width` wide falls on, or null for the middle. */
-export function seekSideAt(x: number, width: number): SeekDirection | null {
+export function seekSideAt(x: number, width: number, fraction = SEEK_ZONE_FRACTION): SeekDirection | null {
   if (width <= 0) return null;
-  if (x < width * SEEK_ZONE_FRACTION) return "backward";
-  if (x > width * (1 - SEEK_ZONE_FRACTION)) return "forward";
+  if (x < width * fraction) return "backward";
+  if (x > width * (1 - fraction)) return "forward";
   return null;
 }
 

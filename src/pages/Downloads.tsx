@@ -6,10 +6,12 @@ import { Download as DownloadIcon, Loader2, ListChecks, Search, Trash2 } from "l
 import type { VideoSummary } from "../types/video";
 import type { SongItem } from "../types/music";
 import type { DownloadProgress } from "../lib/api/downloads";
+import { cancelDownload } from "../lib/api/downloads";
 import { getString } from "../lib/i18n/index";
 import {
   downloadRecordToSong,
   downloadRecordToVideo,
+  incompleteDownloads,
   isActiveStatus,
   useDownloadsLibrary,
 } from "../lib/useDownloads";
@@ -236,6 +238,20 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
     stopSelecting();
   };
 
+  /** Cancels every in-flight download on one tab; each is stopped before its partial files are deleted. */
+  const removeIncomplete = (audioOnly: boolean) => {
+    const ids = incompleteDownloads(inProgress, audioOnly).map((item) => item.id);
+    if (ids.length === 0) return;
+    void Promise.all(
+      ids.map((id) =>
+        cancelDownload(id).catch((error) => console.warn("Failed to cancel a download", error)),
+      ),
+    );
+  };
+
+  const incompleteVideos = useMemo(() => incompleteDownloads(inProgress, false), [inProgress]);
+  const incompleteMusic = useMemo(() => incompleteDownloads(inProgress, true), [inProgress]);
+
   const handleClearAll = async () => {
     await clear();
     if (collectionRecords.length > 0) {
@@ -357,9 +373,17 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
           <div className="mt-8 flex flex-col gap-10">
             {showVideos ? (
               <section className="min-w-0">
-                <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
-                  {getString("downloads_videos_section")}
-                </h2>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h2 className="text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
+                    {getString("downloads_videos_section")}
+                  </h2>
+                  {incompleteVideos.length > 0 ? (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => removeIncomplete(false)}>
+                      <Trash2 size={16} />
+                      {getString("downloads_remove_incomplete")}
+                    </Button>
+                  ) : null}
+                </div>
                 <div className="video-grid gap-y-8" style={cardGridStyle}>
                   {videoEntries.map((entry) => (
                     <SelectableRow
@@ -385,9 +409,17 @@ export const Downloads: React.FC<DownloadsProps> = ({ onPlay }) => {
 
             {showMusic ? (
               <section className="min-w-0">
-                <h2 className="mb-4 text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
-                  {getString("downloads_music_section")}
-                </h2>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h2 className="text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
+                    {getString("downloads_music_section")}
+                  </h2>
+                  {incompleteMusic.length > 0 ? (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => removeIncomplete(true)}>
+                      <Trash2 size={16} />
+                      {getString("downloads_remove_incomplete")}
+                    </Button>
+                  ) : null}
+                </div>
                 <div className="grid grid-cols-1 gap-x-4 gap-y-1 md:grid-cols-2 xl:grid-cols-3">
                   {musicEntries.map((entry, index) => (
                     <SelectableRow

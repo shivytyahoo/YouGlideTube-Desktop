@@ -190,11 +190,13 @@ pub async fn set_setting(
 }
 
 /// Settings the backend acts on itself, applied at startup and whenever saved.
-pub(crate) const BACKEND_SETTINGS: [&str; 11] = [
+pub(crate) const BACKEND_SETTINGS: [&str; 13] = [
     remote_decoder::SETTING_KEY,
     audio_preference::STABLE_VOLUME_SETTING,
     locale::CONTENT_LANGUAGE_SETTING,
     locale::CONTENT_COUNTRY_SETTING,
+    locale::MUSIC_CONTENT_LANGUAGE_SETTING,
+    locale::MUSIC_CONTENT_COUNTRY_SETTING,
     app_proxy::ENABLED_SETTING,
     app_proxy::TYPE_SETTING,
     app_proxy::HOST_SETTING,
@@ -218,6 +220,10 @@ pub(crate) fn apply_backend_setting(key: &str, value: Option<&str>) {
         locale::set_content_language(value);
     } else if key == locale::CONTENT_COUNTRY_SETTING {
         locale::set_content_country(value);
+    } else if key == locale::MUSIC_CONTENT_LANGUAGE_SETTING {
+        locale::set_music_content_language(value);
+    } else if key == locale::MUSIC_CONTENT_COUNTRY_SETTING {
+        locale::set_music_content_country(value);
     }
 }
 

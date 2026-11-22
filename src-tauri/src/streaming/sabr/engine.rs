@@ -724,9 +724,12 @@ impl SabrEngine {
         &self.audio_tracks
     }
 
-    // Mint a new PO token, bound to the video id like the one the session opened
-    // with (the Android app's binding), and install it for subsequent requests.
-    // Returns whether a token was obtained.
+    // Mint a new PO token, bound to the video id like the one the session
+    // opened with, and install it for subsequent requests. Android's
+    // SabrOrchestrator installs the video-id-bound player token on refresh
+    // too — the visitor-bound token belongs on the format URLs, not the
+    // session. Re-minting (not reusing the cache) matters: handing back the
+    // cached token the server just refused would only be refused again.
     async fn refresh_po_token(&self) -> bool {
         match crate::api::innertube::core::botguard::remint_po_token(&self.descriptor.video_id)
             .await

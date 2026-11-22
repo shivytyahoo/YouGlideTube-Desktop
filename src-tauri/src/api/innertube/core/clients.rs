@@ -68,6 +68,18 @@ pub struct YouTubeClient {
     /// from [`Self::attestation`], which says whether one would be *valid*: the
     /// embedded TV player is web-family but is served fine without a token.
     pub use_web_po_tokens: bool,
+    /// Whether the signed-in session's Cookie + `SAPISIDHASH` may be sent on
+    /// this client's requests. Mirrors Android `YouTubeClient.loginSupported`:
+    /// `VISIONOS`/`IOS`/`ANDROID_VR` never log in, and a valid session sent on
+    /// them is a deterministic HTTP 400 (anonymous requests answer fine), while
+    /// the signed-in browse/search/feed calls go out as `WEB`/`WEB_REMIX`.
+    ///
+    /// Two desktop deviations from Android's base definitions, both deliberate:
+    /// `WEB` and `MWEB` are true here because the desktop has no per-call-site
+    /// `copy(loginSupported = true)` — Android sends auth on `WEB` for browse
+    /// by copying it at the call site — and `TV_TIZEN` is true because the
+    /// ladder relies on it for restricted content and its requests accept auth.
+    pub login_supported: bool,
     /// The runtime whose tokens this client's requests and URLs accept.
     pub attestation: AttestationPlatform,
     /// `context.client.platform` ("DESKTOP", "MOBILE"), sent only by the web clients.
@@ -94,6 +106,17 @@ impl YouTubeClient {
             visitor_data,
             Some(&country),
             &super::locale::content_language(),
+        )
+    }
+
+    /// [`Self::context`] for music requests: the music language and country when
+    /// the user set them, else the content language and country.
+    #[must_use]
+    pub fn context_music(&self, visitor_data: Option<&str>) -> Value {
+        self.context_in(
+            visitor_data,
+            Some(&super::locale::music_content_country()),
+            &super::locale::music_content_language(),
         )
     }
 
@@ -223,6 +246,7 @@ pub const VISIONOS: YouTubeClient = YouTubeClient {
     use_signature_timestamp: false,
     is_embedded: false,
     use_web_po_tokens: false,
+    login_supported: false,
     attestation: AttestationPlatform::IosGuard,
     platform: None,
     original_url: None,
@@ -243,6 +267,7 @@ pub const ANDROID_VR: YouTubeClient = YouTubeClient {
     use_signature_timestamp: false,
     is_embedded: false,
     use_web_po_tokens: false,
+    login_supported: false,
     attestation: AttestationPlatform::DroidGuard,
     platform: None,
     original_url: None,
@@ -287,6 +312,7 @@ pub const ANDROID: YouTubeClient = YouTubeClient {
     use_signature_timestamp: true,
     is_embedded: false,
     use_web_po_tokens: false,
+    login_supported: true,
     attestation: AttestationPlatform::DroidGuard,
     platform: None,
     original_url: None,
@@ -302,6 +328,9 @@ pub const ANDROID_MUSIC: YouTubeClient = YouTubeClient {
     user_agent: "com.google.android.apps.youtube.music/7.21.50 (Linux; U; Android 14) gzip",
     device_make: None,
     device_model: None,
+    // Android's base definition leaves this false; timed lyrics are public
+    // metadata, so the anonymous request is the right one.
+    login_supported: false,
     ..ANDROID
 };
 
@@ -318,6 +347,7 @@ pub const ANDROID_CREATOR: YouTubeClient = YouTubeClient {
     use_signature_timestamp: true,
     is_embedded: false,
     use_web_po_tokens: false,
+    login_supported: true,
     attestation: AttestationPlatform::DroidGuard,
     platform: None,
     original_url: None,
@@ -338,6 +368,7 @@ pub const IOS: YouTubeClient = YouTubeClient {
     use_signature_timestamp: false,
     is_embedded: false,
     use_web_po_tokens: false,
+    login_supported: false,
     attestation: AttestationPlatform::IosGuard,
     platform: None,
     original_url: None,
@@ -368,6 +399,7 @@ pub const WEB: YouTubeClient = YouTubeClient {
     use_signature_timestamp: true,
     is_embedded: false,
     use_web_po_tokens: true,
+    login_supported: true,
     attestation: AttestationPlatform::Web,
     platform: Some("DESKTOP"),
     original_url: Some("https://www.youtube.com"),
@@ -444,6 +476,7 @@ pub const TV_TIZEN: YouTubeClient = YouTubeClient {
     use_signature_timestamp: true,
     is_embedded: false,
     use_web_po_tokens: false,
+    login_supported: true,
     attestation: AttestationPlatform::Web,
     platform: None,
     original_url: None,
@@ -476,4 +509,33 @@ const ALL: &[YouTubeClient] = &[
 pub fn by_name(name: &str) -> Option<&'static YouTubeClient> {
     ALL.iter()
         .find(|client| client.name.eq_ignore_ascii_case(name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn login_supported_mirrors_android() {
+        // Android's YouTubeClient.kt: the clients that never log in 400 when a
+        // valid session is sent on them, so they must stay anonymous.
+        assert!(!VISIONOS.login_supported);
+        assert!(!IOS.login_supported);
+        assert!(!IPADOS.login_supported);
+        assert!(!ANDROID_VR.login_supported);
+        assert!(!ANDROID_VR_1_65_10.login_supported);
+        assert!(!ANDROID_VR_1_43_32.login_supported);
+        assert!(!ANDROID_VR_NO_AUTH.login_supported);
+        assert!(!ANDROID_MUSIC.login_supported);
+        // The signed-in surface: browse/search/feed/subscriptions go out as
+        // these, and the ladder's restricted-content client accepts auth.
+        assert!(ANDROID.login_supported);
+        assert!(ANDROID_CREATOR.login_supported);
+        assert!(WEB.login_supported);
+        assert!(MWEB.login_supported);
+        assert!(WEB_REMIX.login_supported);
+        assert!(WEB_MUSIC_ANALYTICS.login_supported);
+        assert!(TVHTML5_SIMPLY_EMBEDDED_PLAYER.login_supported);
+        assert!(TV_TIZEN.login_supported);
+    }
 }

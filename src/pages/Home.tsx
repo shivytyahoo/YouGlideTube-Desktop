@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
+import { useUiStore } from "../store/useUiStore";
+import { getAccountSignedIn } from "../lib/api/account";
 import { useFeedHiddenFilter } from "../store/useFeedActionsStore";
 import { usePlayerStore } from "../store/usePlayerStore";
 import { getString } from "../lib/i18n/index";
@@ -24,6 +26,8 @@ import {
 } from "../lib/useHomeChips";
 import { homeOriginLabel, homeReasonLine } from "../lib/homeOrigin";
 import { HOME_RESELECTED_EVENT, homeReselectAction } from "../lib/homeReselect";
+import { usePullToRefresh } from "../lib/usePullToRefresh";
+import { PullToRefreshIndicator } from "../components/common/PullToRefreshIndicator";
 import { useScrollContainer } from "../lib/useScrollContainer";
 import type { HomeMix } from "../lib/api/homeFeed";
 import type { VideoSummary } from "../types/video";
@@ -34,6 +38,7 @@ import { useHomeShortsShelf } from "../lib/useHomeShortsShelf";
 import { useShortsEnabled } from "../lib/useShortsContent";
 import { HomeFeedFooter } from "../components/home/HomeFeedFooter";
 import { HomeFeedMessage } from "../components/home/HomeFeedMessage";
+import { HomeGuestBanner } from "../components/home/HomeGuestBanner";
 import { HomeFeedButton } from "../components/home/HomeFeedButton";
 import { HomeChipRow } from "../components/home/HomeChipRow";
 import { HomeMixCard } from "../components/home/HomeMixCard";
@@ -57,6 +62,22 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   const navigate = useNavigate();
   const setQueue = usePlayerStore((state) => state.setQueue);
   const scrollContainer = useScrollContainer();
+  const openSignInDialog = useUiStore((state) => state.openSignInDialog);
+  // Null until the backend answers, so a signed-in feed never flashes the guest banner.
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getAccountSignedIn()
+      .then((value) => {
+        if (alive) setSignedIn(value);
+      })
+      .catch(() => {
+        if (alive) setSignedIn(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const { snapshot, failed, refresh, retryMore, reportViewport } = useHomeFeed(homeFeedEnabled);
   const continueWatching = useContinueWatching(continueWatchingEnabled);
   const chips = useHomeChips(homeFeedEnabled);
@@ -89,6 +110,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     },
     [setQueue, navigate],
   );
+  const homeLayout = useAppSettingsStore((state) => state.values[SETTINGS.HOME_LAYOUT]) === "list" ? "list" : "grid";
   const [refreshing, setRefreshing] = useState(false);
   const gridStyle = useGridStyle();
 
@@ -96,6 +118,12 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
     setRefreshing(true);
     void refresh().finally(() => setRefreshing(false));
   }, [refresh]);
+
+  const pullToRefresh = usePullToRefresh(scrollContainer, {
+    onRefresh: handleRefresh,
+    refreshing: refreshing || snapshot.loading,
+    disabled: !homeFeedEnabled,
+  });
 
   const { feed: chipFeed, reload: reloadChip } = chips;
   useEffect(() => {
@@ -216,6 +244,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
           onPlay={onPlay}
           onAddToQueue={onAddToQueue}
           trackImpressions
+          layout={homeLayout}
         />
       );
     }
@@ -232,13 +261,16 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
       />
     );
   } else if (visibleVideos.length === 0) {
-    body = (
-      <HomeFeedMessage
-        title={getString("home_feed_empty_title")}
-        body={getString("home_feed_empty_body")}
-        action={refreshButton}
-      />
-    );
+    body =
+      signedIn === false ? (
+        <HomeGuestBanner onSignIn={openSignInDialog} onSearch={() => navigate("/search")} />
+      ) : (
+        <HomeFeedMessage
+          title={getString("home_feed_empty_title")}
+          body={getString("home_feed_empty_body")}
+          action={refreshButton}
+        />
+      );
   } else {
     body = (
       <>
@@ -267,6 +299,7 @@ export const Home: React.FC<HomeProps> = ({ onPlay, onAddToQueue }) => {
   // `<main>` above owns the scroll; an auto-height block here would only add a painted layer.
   return (
     <div className="flex-1 space-y-6 px-8 py-6">
+      <PullToRefreshIndicator pullPx={pullToRefresh.pullPx} refreshing={pullToRefresh.refreshing} />
       {homeFeedEnabled && (
         <HomeChipRow chips={chipOptions} selected={chips.selected} onSelect={chips.select} />
       )}

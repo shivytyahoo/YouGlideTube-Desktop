@@ -19,8 +19,9 @@ function scrobblingAllowed(): boolean {
 }
 
 function send(event: ListenEvent): void {
-  // Android asks before scrobbling files on the device; Desktop has no such setting yet.
-  if (!scrobblingAllowed() || isLocalMediaId(event.track.videoId ?? event.track.id)) return;
+  // Local and offline files are scrobbled only when the listener allowed them.
+  const isLocal = isLocalMediaId(event.track.videoId ?? event.track.id);
+  if (!scrobblingAllowed() || (isLocal && !enabled(SETTINGS.SCROBBLE_LOCAL_FILES))) return;
   const track = scrobbleTrack(event.track, event.durationMs);
   if (event.kind === "nowPlaying") {
     if (enabled(SETTINGS.SCROBBLE_NOW_PLAYING)) void reportNowPlaying(track);

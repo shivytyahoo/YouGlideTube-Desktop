@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Hourglass,
   Languages,
+  Puzzle,
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { getString, type StringKey } from '../../lib/i18n/index';
@@ -62,6 +63,7 @@ const categoryGroups: CategoryGroup[] = [
       { id: 'quality', icon: <Gauge size={18} /> },
       { id: 'music', icon: <Music2 size={18} /> },
       { id: 'lyrics', icon: <MicVocal size={18} /> },
+      { id: 'integrations', icon: <Puzzle size={18} /> },
       { id: 'subscriptions', icon: <Bell size={18} /> },
     ],
   },
@@ -104,6 +106,11 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
   const [activeTab, setActiveTab] = useState<SettingsCategory>(
     requested && categories.some((cat) => cat.id === requested) ? requested : 'appearance',
   );
+  // A link inside Settings can ask for another tab while already on the page;
+  // the initial state above only runs on mount, so follow later requests too.
+  useEffect(() => {
+    if (requested && categories.some((cat) => cat.id === requested)) setActiveTab(requested);
+  }, [requested]);
   const query = useSettingsSearchStore((state) => state.query);
   const clearQuery = useSettingsSearchStore((state) => state.clearQuery);
   const [highlight, setHighlight] = useState<string | null>(null);

@@ -12,6 +12,7 @@ use crate::errors::{AppError, AppResult};
 use crate::services::notification_service::{PendingNotification, deliver};
 
 const KEY_REMINDERS: &str = "upcoming_video_reminders";
+const KEY_NOTIFY_REMINDERS: &str = "notif_reminders_enabled";
 const KIND_UPCOMING: &str = "UPCOMING_LIVE";
 const CHECK_EVERY: Duration = Duration::from_secs(30);
 const STARTUP_DELAY: Duration = Duration::from_secs(20);
@@ -80,6 +81,10 @@ async fn deliver_due(app: &AppHandle, pool: &sqlx::SqlitePool) -> AppResult<()> 
     }
     // Saved first: a reminder is never shown twice, even if the inbox write fails.
     save(pool, &waiting).await?;
+    // Reminders off means due ones are dropped, not delivered late when re-enabled.
+    if db::settings::get_setting(pool, KEY_NOTIFY_REMINDERS).await? == Some("false".to_string()) {
+        return Ok(());
+    }
     let pending: Vec<PendingNotification> = due
         .into_iter()
         .map(|reminder| PendingNotification {

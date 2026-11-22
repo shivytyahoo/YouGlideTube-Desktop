@@ -87,6 +87,45 @@ impl InnertubeClient {
         .await
     }
 
+    /// [`Self::post_player`], but the transport error comes back unconverted, so
+    /// the caller can tell a refusal (a 4xx — retrying the same request cannot
+    /// fix it) from a timeout or transport failure (worth one more try).
+    pub(crate) async fn post_player_raw(
+        &self,
+        client: &YouTubeClient,
+        payload: &mut Value,
+        referer: Option<&str>,
+    ) -> Result<Value, TransportError> {
+        self.post_via_raw(
+            &self.playback_client,
+            Host::Www,
+            "player",
+            client,
+            payload,
+            referer,
+            None,
+            &[],
+        )
+        .await
+    }
+
+    /// The signed-in headers for a request as `client`: `None` when signed out,
+    /// and `None` for a client that never logs in. Android's `VISIONOS` and
+    /// `IOS` carry `loginSupported = false`, and a valid session sent on them
+    /// is a deterministic HTTP 400 while the same request anonymous answers
+    /// fine — so the gate lives here, where every InnerTube call passes, not
+    /// at each call site.
+    #[must_use]
+    pub(crate) fn auth_headers_for(
+        &self,
+        client: &YouTubeClient,
+    ) -> Option<crate::auth::sapisid::AuthHeaders> {
+        if !client.login_supported {
+            return None;
+        }
+        self.auth.as_ref().and_then(|session| session.auth_headers())
+    }
+
     /// Send one request through the shared transport.
     ///
     /// A body without a context gets this client's, carrying the visitor
@@ -162,6 +201,13 @@ impl InnertubeClient {
             let visitor = self.fetch_visitor_data().await;
             let (language, country) = if endpoint == "player" {
                 ("en".to_string(), "US".to_string())
+            } else if host == Host::Music {
+                // Music browse/search follow the music language and country
+                // when set, else the content language and country.
+                (
+                    super::locale::music_content_language(),
+                    super::locale::music_content_country(),
+                )
             } else {
                 (
                     super::locale::content_language(),
@@ -173,8 +219,8 @@ impl InnertubeClient {
         let visitor = body_visitor(payload).map(ToOwned::to_owned);
         // The signed-in headers are computed fresh per call, so sign-in and
         // sign-out take effect on the very next request; `None` keeps the
-        // call anonymous.
-        let auth = self.auth.as_ref().and_then(|session| session.auth_headers());
+        // call anonymous — including for clients that never log in.
+        let auth = self.auth_headers_for(client);
         match send(http, &spec, payload, visitor.as_deref(), auth.as_ref()).await {
             Err(TransportError::Status { code: 400, .. }) if added && visitor.is_some() => {
                 strip_visitor(payload);
@@ -192,5 +238,67 @@ impl InnertubeClient {
             }
             result => result,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::innertube::core::clients;
+    use crate::auth::AuthSession;
+    use std::sync::Arc;
+
+    fn signed_in_client() -> (InnertubeClient, std::path::PathBuf) {
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("youglide-http-test-{}-{n}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let session = AuthSession::new(&dir);
+        session
+            .sign_in("SAPISID=abc123; SID=def456; other=1")
+            .unwrap();
+        let client = InnertubeClient {
+            auth: Some(Arc::new(session)),
+            ..Default::default()
+        };
+        (client, dir)
+    }
+
+    #[test]
+    fn signed_in_auth_is_withheld_from_clients_that_never_log_in() {
+        let (client, dir) = signed_in_client();
+        // The 400s in the user's log: a valid session on these clients is a
+        // refusal, while the same request anonymous answers fine.
+        assert!(client.auth_headers_for(&clients::VISIONOS).is_none());
+        assert!(client.auth_headers_for(&clients::IOS).is_none());
+        assert!(client.auth_headers_for(&clients::IPADOS).is_none());
+        assert!(client.auth_headers_for(&clients::ANDROID_VR).is_none());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn signed_in_auth_still_flows_to_browse_and_player_clients() {
+        let (client, dir) = signed_in_client();
+        // Signed-in browse/search/feed/subscriptions go out as WEB/WEB_REMIX,
+        // and the ladder's later clients keep their session too.
+        for candidate in [
+            &clients::WEB,
+            &clients::MWEB,
+            &clients::WEB_REMIX,
+            &clients::ANDROID,
+            &clients::TV_TIZEN,
+        ] {
+            let headers = client.auth_headers_for(candidate);
+            assert!(headers.is_some(), "{} must carry auth", candidate.name);
+            assert!(headers.unwrap().authorization.starts_with("SAPISIDHASH "));
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn signed_out_has_no_headers_for_any_client() {
+        let client = InnertubeClient::default();
+        assert!(client.auth_headers_for(&clients::WEB).is_none());
+        assert!(client.auth_headers_for(&clients::VISIONOS).is_none());
     }
 }

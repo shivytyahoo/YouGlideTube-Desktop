@@ -56,6 +56,14 @@ describe("classifyPlayerError", () => {
     expect(info.canOpenInBrowser).toBe(false);
   });
 
+  it("gives login-required its own sign-in state", () => {
+    const info = classifyPlayerError(new BackendApiError("sign in", "loginRequired", null));
+    expect(info.kind).toBe("loginRequired");
+    expect(info.title).toBe("Sign in required");
+    expect(info.retryable).toBe(false);
+    expect(info.canOpenInBrowser).toBe(true);
+  });
+
   it("falls back to a generic, retryable error for unrecognized kinds", () => {
     const info = classifyPlayerError(new BackendApiError("weird", "somethingNew", null));
     expect(info.kind).toBe("somethingNew");

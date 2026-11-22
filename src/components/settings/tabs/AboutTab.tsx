@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { ChevronRight, ExternalLink, FileText, Globe, History, Scale, Code2, Cpu, Monitor, Package, Fingerprint, Info, RefreshCw } from 'lucide-react';
+import { ChevronRight, ExternalLink, FileText, Globe, History, Scale, Code2, Cpu, Monitor, Package, Fingerprint, Info, RefreshCw, User } from 'lucide-react';
 import { SettingsGroup } from '../SettingsGroup';
 import Logo from '../../common/Logo';
 import { Button } from '../../ui/Button';
@@ -119,8 +119,11 @@ export function AboutTab() {
       </SettingsGroup>
 
       <SettingsGroup title={getString('about_links')}>
+        <LinkRow icon={<User size={16} />} label={getString('settings_creator')} value="shivytyahoo" href="https://github.com/shivytyahoo" />
+        <LinkRow icon={<Globe size={16} />} label={getString('about_website')} value="github.com/shivytyahoo/YouGlideTube" href="https://github.com/shivytyahoo/YouGlideTube" />
         <LinkRow icon={<Globe size={16} />} label={getString('about_link_android')} value="github.com/shivytyahoo/YouGlideTube" href="https://github.com/shivytyahoo/YouGlideTube" />
         <LinkRow icon={<Globe size={16} />} label={getString('about_link_desktop')} value="github.com/shivytyahoo/YouGlideTube-Desktop" href="https://github.com/shivytyahoo/YouGlideTube-Desktop" />
+        <LinkRow icon={<Code2 size={16} />} label={getString('about_newpipe_extractor')} value={getString('about_newpipe_extractor_desc')} href="https://github.com/TeamNewPipe/NewPipeExtractor" />
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_updates')}>

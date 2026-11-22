@@ -36,9 +36,17 @@ export function relatedItemToVideoSummary(item: RelatedContentItem): VideoSummar
  * What autoplay picks from, in order: the related videos with the one YouTube itself would
  * play next moved to the front. With no related videos left (the lane is off, empty or all
  * blocked), YouTube's pick alone, as a stub the player fills in like a cold open.
+ * The video playing never seeds its own autoplay, as in Android's PlayerRelatedVideosPolicy.
  */
-export function autoplayCandidates(related: RelatedContentItem[], autoplayVideoId: string | null | undefined): VideoSummary[] {
-  const videos = related.filter((item) => !item.itemType || item.itemType === "video").map(relatedItemToVideoSummary);
+export function autoplayCandidates(
+  related: RelatedContentItem[],
+  autoplayVideoId: string | null | undefined,
+  currentVideoId?: string | null,
+): VideoSummary[] {
+  const videos = related
+    .filter((item) => !item.itemType || item.itemType === "video")
+    .map(relatedItemToVideoSummary)
+    .filter((video) => !currentVideoId || video.id !== currentVideoId);
   if (!autoplayVideoId) return videos;
   const index = videos.findIndex((video) => video.id === autoplayVideoId);
   const pick = videos[index];

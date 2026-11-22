@@ -49,6 +49,12 @@ describe("pickAutoVideoTrack", () => {
   it("uses what's left when a machine can't decode a set", () => {
     expect(pickAutoVideoTrack([h264], "Auto")?.id).toBe(h264.id);
   });
+
+  it("settles a tie by the fallback codec when the preferred codec is absent", () => {
+    expect(pickAutoVideoTrack([av1, vp9], "H.264", "AV1")?.id).toBe(av1.id);
+    expect(pickAutoVideoTrack([av1, vp9], "H.264", "VP9")?.id).toBe(vp9.id);
+    expect(pickAutoVideoTrack([av1, vp9], "H.264")?.id).toBe(vp9.id);
+  });
 });
 
 describe("autoRepresentationToSwitchTo", () => {

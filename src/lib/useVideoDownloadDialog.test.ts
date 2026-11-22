@@ -27,7 +27,7 @@ vi.mock("./recap/recapQueue", async (original) => ({
   recapVideoAction: (...args: unknown[]) => recapVideoAction(...args),
 }));
 
-const { parseClipTimestamp, useVideoDownloadDialog } = await import("./useVideoDownloadDialog");
+const { parseClipTimestamp, resolveMultiAudioKeys, useVideoDownloadDialog } = await import("./useVideoDownloadDialog");
 
 const flush = () => act(async () => { for (let i = 0; i < 5; i += 1) await Promise.resolve(); });
 
@@ -227,5 +227,108 @@ describe("useVideoDownloadDialog clip", () => {
     expect(request?.clipEndMs).toBe(150_000);
     expect(request?.title).toBe("Título original (1:00–2:30)");
     expect(request?.mediaKind).toBe("audio");
+  });
+});
+
+describe("resolveMultiAudioKeys", () => {
+  const tracks = [
+    { key: "en", label: "English", languageCode: "en", isDefault: true, codec: "AAC", bitrate: 128_000, sizeBytes: 1000 },
+    { key: "hi", label: "Hindi", languageCode: "hi", isDefault: false, codec: "AAC", bitrate: 128_000, sizeBytes: 1000 },
+    { key: "es", label: "Spanish", languageCode: "es", isDefault: false, codec: "AAC", bitrate: 128_000, sizeBytes: 1000 },
+  ];
+
+  it("puts the primary first, then the ticked extras, dropping stale keys", () => {
+    expect(resolveMultiAudioKeys(tracks, "en", ["hi", "es"])).toEqual(["en", "hi", "es"]);
+    expect(resolveMultiAudioKeys(tracks, "hi", ["en", "gone", "en"])).toEqual(["hi", "en"]);
+    expect(resolveMultiAudioKeys(tracks, null, ["hi"])).toEqual(["hi"]);
+    expect(resolveMultiAudioKeys([], "en", ["hi"])).toEqual([]);
+  });
+});
+
+describe("useVideoDownloadDialog multi-audio", () => {
+  let host: HTMLDivElement;
+  let root: Root;
+  let dialog: ReturnType<typeof useVideoDownloadDialog>;
+
+  function Dialog({ video }: { video: VideoSummary }) {
+    dialog = useVideoDownloadDialog(video);
+    return null;
+  }
+
+  const open = async (id: string) => {
+    const video = { id, title: "Listed title", channelName: "RTVE", durationSeconds: 300 } as VideoSummary;
+    act(() => root.render(createElement(Dialog, { video })));
+    await flush();
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getOriginalTitle.mockResolvedValue("Título original");
+    getDownloadFormats.mockResolvedValue({
+      formats: [
+        {
+          formatId: "299+a", resolution: "1080p", width: 1920, height: 1080, fps: 30,
+          container: "mp4", videoCodec: "H.264", audioCodec: "AAC",
+          videoMimeType: "video/mp4", audioMimeType: "audio/mp4",
+          videoBitrate: null, audioBitrate: null, videoSizeBytes: null,
+          audioSizeBytes: null, estimatedSizeBytes: null,
+        },
+      ],
+      audioTracks: [
+        { key: "en", label: "English", languageCode: "en", isDefault: true, codec: "AAC", bitrate: 128_000, sizeBytes: 1000 },
+        { key: "hi", label: "Hindi", languageCode: "hi", isDefault: false, codec: "AAC", bitrate: 128_000, sizeBytes: 1000 },
+      ],
+      captions: [],
+    });
+    startDownload.mockResolvedValue({ id: "job-1", filePath: "/v/Cabin.mp4" });
+    setOriginalTitles(true);
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+    setOriginalTitles(false);
+  });
+
+  it("muxes every ticked language into one download", async () => {
+    await open(freshId());
+    expect(dialog.selectedAudioKeys).toEqual(["en"]);
+    expect(dialog.extraAudioTracks.map((track) => track.key)).toEqual(["hi"]);
+
+    act(() => {
+      dialog.toggleExtraAudioKey("hi");
+    });
+    expect(dialog.selectedAudioKeys).toEqual(["en", "hi"]);
+
+    let started: DownloadStarted | null = null;
+    await act(async () => {
+      started = await dialog.submit();
+    });
+
+    expect(started).toEqual({ id: "job-1", filePath: "/v/Cabin.mp4" });
+    expect(startDownload).toHaveBeenCalledTimes(1);
+    const request = startDownload.mock.calls[0]?.[0] as StartDownloadRequest | undefined;
+    expect(request?.title).toBe("Título original");
+    expect(request?.video?.audioTrack).toBeUndefined();
+    expect(request?.video?.audioTracks).toEqual(["en", "hi"]);
+  });
+
+  it("sends a single track the old way, with no language list", async () => {
+    await open(freshId());
+
+    let started: DownloadStarted | null = null;
+    await act(async () => {
+      started = await dialog.submit();
+    });
+
+    expect(started).toEqual({ id: "job-1", filePath: "/v/Cabin.mp4" });
+    expect(startDownload).toHaveBeenCalledTimes(1);
+    const request = startDownload.mock.calls[0]?.[0] as StartDownloadRequest | undefined;
+    expect(request?.title).toBe("Título original");
+    expect(request?.video?.audioTrack).toBeUndefined();
+    expect(request?.video?.audioTracks).toBeUndefined();
   });
 });

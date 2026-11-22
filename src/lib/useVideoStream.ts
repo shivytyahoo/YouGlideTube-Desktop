@@ -563,7 +563,13 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         sourcePlayed: pendingResumeRef.current === null && lastPlayedTimeRef.current > 0,
         hasNextSource: !!next,
       };
-      if (videoId && shouldAutoReResolve(reResolveHistoryRef.current, attempt)) {
+      // Except when the failing source is SABR: a SABR session dies on
+      // attestation, which leaves the same response's direct and dash-native
+      // formats untouched, so those are tried first and the fresh ladder walk
+      // — a full client ladder, seconds of loading — only happens once they
+      // are exhausted too.
+      const sabrFailureWithNextMode = sourceMode === "sabr-dash" && !!next;
+      if (videoId && !sabrFailureWithNextMode && shouldAutoReResolve(reResolveHistoryRef.current, attempt)) {
         reResolveHistoryRef.current = recordAutoReResolve(reResolveHistoryRef.current, videoId, resumeAt);
         recordPlayerEvent(
           `video auto re-resolve ${reResolveHistoryRef.current.count} after ${reason} at ${Math.round(resumeAt)}s`,

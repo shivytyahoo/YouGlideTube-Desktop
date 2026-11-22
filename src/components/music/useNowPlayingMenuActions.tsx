@@ -34,6 +34,7 @@ export function useNowPlayingMenuActions(
   const blockActions = useTrackBlockActions(track);
   const detailsActions = useTrackDetailsAction(track);
   const [crossfadeOn] = useBoolPref(SETTINGS.MUSIC_CROSSFADE_ENABLED);
+  const [musicVideoSwitch] = useBoolPref(SETTINGS.MUSIC_VIDEO_SWITCH, false);
   const crossfadePaused = useCrossfadePauseStore((s) => s.paused);
   const toggleCrossfadePause = useCrossfadePauseStore((s) => s.toggle);
 
@@ -58,7 +59,9 @@ export function useNowPlayingMenuActions(
   if (isLocalMediaId(videoIdOf(track))) return audioActions;
   return [
     ...radioActions,
-    ...watchVideoActions,
+    // The Song/Video switch: off by default, as on Android — only then does
+    // the "Watch video" action show in the playing track's menu.
+    ...(musicVideoSwitch ? watchVideoActions : []),
     ...navActions,
     {
       id: 'add-to-album',

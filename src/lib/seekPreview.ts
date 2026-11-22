@@ -39,6 +39,39 @@ export function storyboardTileHeight(level: StoryboardLevel, width = PREVIEW_WID
 }
 
 /**
+ * Draws a strip of frames around `seconds` into `container` — one tile per
+ * storyboard interval, the hovered moment in the middle — for the strip scrub
+ * preview. Tiles are created once and repainted as the pointer moves.
+ */
+export function paintStoryboardStrip(
+  container: HTMLElement,
+  level: StoryboardLevel,
+  seconds: number,
+  imageUrl: (url: string) => string,
+  count = 5,
+  tileWidth = 32,
+): void {
+  const intervalSeconds = Math.max(0.1, level.intervalMs / 1000);
+  while (container.children.length < count) {
+    const tile = document.createElement("div");
+    tile.className = "shrink-0 overflow-hidden bg-chrome-black bg-no-repeat";
+    tile.style.width = `${tileWidth}px`;
+    tile.style.height = `${storyboardTileHeight(level, tileWidth)}px`;
+    container.appendChild(tile);
+  }
+  while (container.children.length > count) {
+    container.removeChild(container.lastChild!);
+  }
+  const middle = Math.floor(count / 2);
+  for (let index = 0; index < count; index++) {
+    const tile = container.children[index] as HTMLElement;
+    paintStoryboardTile(tile, level, seconds + (index - middle) * intervalSeconds, imageUrl, tileWidth);
+    tile.style.outline = index === middle ? "2px solid var(--color-primary)" : "none";
+    tile.style.outlineOffset = "-2px";
+  }
+}
+
+/**
  * Draws the frame at `seconds` into `tile`, a box `width` wide, as a background. Sheets load
  * only when drawn, and each holds dozens of frames, so moving along a bar rarely fetches.
  */

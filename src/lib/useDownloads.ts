@@ -99,6 +99,17 @@ export function isActiveStatus(status: DownloadStatus): boolean {
   return ACTIVE_STATUSES.has(status);
 }
 
+/** The downloads still in flight on one tab, so one tap can clear them all, as Android's `removeIncompleteDownloads` does. */
+export function incompleteDownloads(
+  active: DownloadProgress[],
+  audioOnly: boolean,
+): DownloadProgress[] {
+  return active.filter(
+    (item) =>
+      isActiveStatus(item.status) && (audioOnly ? item.mediaKind !== "video" : item.mediaKind === "video"),
+  );
+}
+
 function useEnsureLibraryLoaded() {
   const loaded = useDownloadsLibraryStore((state) => state.loaded);
   const load = useDownloadsLibraryStore((state) => state.load);

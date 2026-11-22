@@ -2,7 +2,9 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BackendApiError } from "./api/errors";
-import { mergedEntryToRecord, useServerHistory } from "./useServerHistory";
+import { mergedEntryToRecord, SERVER_HISTORY_SNAPSHOT_KEY, useServerHistory } from "./useServerHistory";
+import { SETTINGS } from "./settings/schema";
+import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import type {
   MergedHistoryEntry,
   ServerHistoryEntry,
@@ -74,6 +76,10 @@ async function renderHarness() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
+  useAppSettingsStore.setState((state) => ({
+    values: { ...state.values, [SETTINGS.PAUSE_WATCH_HISTORY]: "false" },
+  }));
   getAccountSignedIn.mockResolvedValue(true);
   listen.mockResolvedValue(unlisten);
   deleteWatchRecord.mockResolvedValue(undefined);
@@ -287,6 +293,28 @@ describe("useServerHistory", () => {
       "v1",
       "local-1",
     ]);
+  });
+
+  it("freezes on the last snapshot while history is paused", async () => {
+    useAppSettingsStore.setState((state) => ({
+      values: { ...state.values, [SETTINGS.PAUSE_WATCH_HISTORY]: "true" },
+    }));
+    window.localStorage.setItem(
+      SERVER_HISTORY_SNAPSHOT_KEY,
+      JSON.stringify({ entries: [serverEntry("frozen-1")], clearHistoryToken: null }),
+    );
+
+    await renderHarness();
+
+    expect(getServerHistory).not.toHaveBeenCalled();
+    expect(latest.entries.map((entry) => entry.videoId)).toEqual(["frozen-1", "local-1"]);
+
+    // A refresh while paused still does not fetch.
+    await act(async () => {
+      await latest.refresh();
+    });
+    expect(getServerHistory).not.toHaveBeenCalled();
+    expect(latest.entries.map((entry) => entry.videoId)).toEqual(["frozen-1", "local-1"]);
   });
 
   it("drops to signed-out on a Validation error", async () => {

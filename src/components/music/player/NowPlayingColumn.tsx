@@ -5,6 +5,7 @@ import { Heart, MoreHorizontal } from "lucide-react";
 import { getString } from "../../../lib/i18n/index";
 import { SETTINGS } from "../../../lib/settings/schema";
 import { useBoolPref } from "../../../lib/usePreference";
+import { useAppSettingsStore } from "../../../store/useAppSettingsStore";
 import { useElementSize } from "../../../lib/useElementSize";
 import { useLikesStore } from "../../../store/useLikesStore";
 import { useMusicPlayerStore } from "../../../store/useMusicPlayerStore";
@@ -52,6 +53,8 @@ export function NowPlayingColumn({ track, compact, artworkHidden, onOpenEqualize
   const artSize = Math.round(Math.max(MIN_ART, Math.min(MAX_ART, height - DETAILS_HEIGHT, width)));
 
   const [hideArtwork] = useBoolPref(SETTINGS.MUSIC_HIDE_ARTWORK);
+  const coverShape = useAppSettingsStore((state) => state.values[SETTINGS.MUSIC_COVER_SHAPE]);
+  const coverRadius = coverShape === "square" ? "rounded-none" : coverShape === "circle" ? "rounded-full" : "rounded-2xl";
   const loading = useMusicPlayerStore((s) => s.isBuffering || s.loadingStreamId !== null);
   const closeOverlay = useMusicPlayerStore((s) => s.closeOverlay);
   const likedItems = useLikesStore((s) => s.items);
@@ -79,7 +82,7 @@ export function NowPlayingColumn({ track, compact, artworkHidden, onOpenEqualize
       <motion.div
         layout
         transition={LAYOUT_SPRING}
-        className={`relative aspect-square shrink-0 overflow-hidden rounded-2xl ${artworkHidden ? "invisible" : ""}`}
+        className={`relative aspect-square shrink-0 overflow-hidden ${coverRadius} ${artworkHidden ? "invisible" : ""}`}
         style={{ width: artSize }}
       >
         {hideArtwork ? (
@@ -91,7 +94,7 @@ export function NowPlayingColumn({ track, compact, artworkHidden, onOpenEqualize
               alt={track.title}
               loading={loading}
               iconClassName="h-16 w-16"
-              className="h-full w-full rounded-2xl"
+              className={`h-full w-full ${coverRadius}`}
             />
             {!artworkHidden && <AnimatedArtworkLoop track={track} />}
           </>

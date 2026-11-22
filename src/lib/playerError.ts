@@ -39,6 +39,12 @@ const SPECS: Record<string, KindSpec> = {
     retryable: false,
     openable: true,
   },
+  loginRequired: {
+    titleKey: "player_error_login_required_title",
+    hintKey: "player_error_login_required_hint",
+    retryable: false,
+    openable: true,
+  },
   privateContent: {
     titleKey: "player_error_private_title",
     hintKey: "player_error_private_hint",

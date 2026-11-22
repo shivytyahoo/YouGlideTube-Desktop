@@ -564,7 +564,9 @@ export const useMusicPlayerStore = create<MusicPlayerState>((set, get) => ({
           if (cover && now && videoIdOf(now) === videoId) set({ currentTrack: { ...now, thumbnail: cover } });
         }, () => {});
         musicAudioEngine.setLoudness(null, get().normalizationEnabled);
-        await musicAudioEngine.load(local.url, local.contentType, track.duration ?? null);
+        await musicAudioEngine.load(local.url, local.contentType, track.duration ?? null, {
+          readAhead: getSettingValue(SETTINGS.DISK_READ_AHEAD) !== "false",
+        });
         musicAudioEngine.seekWhenReady(options?.resumeAt ?? localResumeStart(local.positionSeconds, local.durationSeconds));
         await start();
         afterStart();

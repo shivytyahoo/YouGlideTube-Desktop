@@ -33,6 +33,16 @@ describe("resolveYoutubeThumbnailCandidates", () => {
     const url = "https://example.com/thumb.jpg";
     expect(resolveYoutubeThumbnailCandidates(ID, url)).toEqual([HQDEFAULT, url]);
   });
+
+  it("starts on maxresdefault when thumbnail quality is high", () => {
+    vi.stubGlobal("devicePixelRatio", 1);
+    expect(resolveYoutubeThumbnailCandidates(ID, null, false, "high")).toEqual([MAXRES, HQDEFAULT]);
+  });
+
+  it("never starts above hq720 when thumbnail quality is standard", () => {
+    vi.stubGlobal("devicePixelRatio", 2);
+    expect(resolveYoutubeThumbnailCandidates(ID, null, true, "standard")).toEqual([HQ720, HQDEFAULT]);
+  });
 });
 
 describe("thumbnailNeedsHighRes", () => {

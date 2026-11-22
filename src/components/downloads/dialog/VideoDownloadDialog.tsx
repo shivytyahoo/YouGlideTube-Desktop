@@ -21,6 +21,7 @@ import { useVideoDownloadDialog, type VideoDownloadMode } from "../../../lib/use
 import { useAppSettingsStore } from "../../../store/useAppSettingsStore";
 import type { VideoSummary } from "../../../types/video";
 import { PlayerErrorState } from "../../ui/PlayerErrorState";
+import { Checkbox } from "../../ui/Checkbox";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Select } from "../../ui/Select";
 import { TextInput } from "../../ui/TextInput";
@@ -56,6 +57,8 @@ export function VideoDownloadDialog({ video, onClose }: { video: VideoSummary; o
   const musicFolder = useAppSettingsStore(
     (store) => store.values[SETTINGS.MUSIC_DOWNLOAD_LOCATION] || getString("settings_system_default_music"),
   );
+  // Compact lays the quality rows out dense, without the codec and size detail.
+  const compactMenu = useAppSettingsStore((store) => store.values[SETTINGS.DOWNLOAD_MENU_STYLE] === "compact");
 
   const audioOptions = useMemo(
     () =>
@@ -181,7 +184,7 @@ export function VideoDownloadDialog({ video, onClose }: { video: VideoSummary; o
                   tabIndex={selected ? 0 : -1}
                   onClick={() => state.setSelectedId(row.formatId)}
                   onDoubleClick={() => void start()}
-                  className={`grid w-full grid-cols-[18px_64px_minmax(0,1fr)_auto] items-center gap-3 border-t border-chrome-neutral-800 px-3 py-2.5 text-start text-sm transition-colors duration-200 ease-out first:border-t-0 ${
+                  className={`grid w-full ${compactMenu ? "grid-cols-[18px_64px_minmax(0,1fr)] px-3 py-1.5" : "grid-cols-[18px_64px_minmax(0,1fr)_auto] px-3 py-2.5"} items-center gap-3 border-t border-chrome-neutral-800 text-start text-sm transition-colors duration-200 ease-out first:border-t-0 ${
                     selected ? "bg-surface-container" : "hover:bg-surface-container-low"
                   }`}
                 >
@@ -200,19 +203,23 @@ export function VideoDownloadDialog({ video, onClose }: { video: VideoSummary; o
                         {badge}
                       </span>
                     ) : null}
-                    <span className="truncate">
-                      {row.videoCodec}
-                      {row.fps ? ` · ${row.fps} fps` : ""}
-                    </span>
+                    {!compactMenu && (
+                      <span className="truncate">
+                        {row.videoCodec}
+                        {row.fps ? ` · ${row.fps} fps` : ""}
+                      </span>
+                    )}
                     {row.container === "mkv" ? (
                       <span className="rounded-md border border-chrome-neutral-700 px-1.5 py-0.5 font-mono text-[10px] text-chrome-neutral-300">
                         MKV
                       </span>
                     ) : null}
                   </span>
-                  <span className="font-mono text-xs text-chrome-neutral-400">
-                    {formatBytes(row.estimatedSizeBytes) ? `≈ ${formatBytes(row.estimatedSizeBytes)}` : ""}
-                  </span>
+                  {!compactMenu && (
+                    <span className="font-mono text-xs text-chrome-neutral-400">
+                      {formatBytes(row.estimatedSizeBytes) ? `≈ ${formatBytes(row.estimatedSizeBytes)}` : ""}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -239,6 +246,23 @@ export function VideoDownloadDialog({ video, onClose }: { video: VideoSummary; o
                 options={subtitleOptions}
               />
             </label>
+          </div>
+        ) : null}
+
+        {!audioMode && !state.loading && state.rows.length > 0 && state.extraAudioTracks.length > 0 ? (
+          <div className="grid gap-1.5">
+            <SectionLabel>{getString("download_audio_extra_languages")}</SectionLabel>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {state.extraAudioTracks.map((track) => (
+                <Checkbox
+                  key={track.key}
+                  checked={state.extraAudioKeys.includes(track.key)}
+                  onChange={() => state.toggleExtraAudioKey(track.key)}
+                >
+                  {`${track.label}${track.isDefault ? ` (${getString("download_audio_original")})` : ""}`}
+                </Checkbox>
+              ))}
+            </div>
           </div>
         ) : null}
 

@@ -8,6 +8,8 @@ import {
   restoreWatchRecord,
 } from "../lib/api/db";
 import type { WatchHistoryRecord } from "../types/db";
+import { visibleWatchHistory, watchHistoryPruneIds } from "../lib/watchHistoryRetention";
+import { useAppSettingsStore } from "./useAppSettingsStore";
 
 export const HISTORY_PAGE_SIZE = 200;
 /** Fired after watch history changed behind the stores, for example by a sync. */
@@ -27,6 +29,8 @@ interface HistoryState {
   restore: (record: WatchHistoryRecord) => Promise<void>;
   removeShorts: () => Promise<void>;
   clear: () => Promise<void>;
+  /** Deletes watch history past the retention period or max size, when auto-delete is on. */
+  prune: () => Promise<void>;
 }
 
 let inFlight = false;
@@ -45,12 +49,15 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     set({ loading: true });
     try {
       const records = await getWatchHistory(HISTORY_PAGE_SIZE, 0);
+      const values = useAppSettingsStore.getState().values;
+      const visible = visibleWatchHistory(records, values, Date.now());
       set({
-        records,
+        records: visible,
         offset: records.length,
         hasMore: records.length === HISTORY_PAGE_SIZE,
         loaded: true,
       });
+      void get().prune();
     } catch (error) {
       console.error("Failed to fetch history", error);
     } finally {
@@ -109,5 +116,14 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   clear: async () => {
     await clearWatchHistory();
     set({ records: [], offset: 0, hasMore: false });
+  },
+  prune: async () => {
+    const ids = watchHistoryPruneIds(get().records, useAppSettingsStore.getState().values, Date.now());
+    if (ids.length === 0) return;
+    await Promise.all(ids.map((id) => deleteWatchRecord(id).catch(() => {})));
+    set((state) => ({
+      records: state.records.filter((item) => !ids.includes(item.videoId)),
+      offset: Math.max(0, state.offset - ids.length),
+    }));
   },
 }));

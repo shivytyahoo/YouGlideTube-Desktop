@@ -17,6 +17,7 @@ import { NotificationsTab } from '../components/settings/tabs/NotificationsTab';
 import { PrivacyTab } from '../components/settings/tabs/PrivacyTab';
 import { WellbeingTab } from '../components/settings/tabs/WellbeingTab';
 import { LanguageTab } from '../components/settings/tabs/LanguageTab';
+import { IntegrationsTab } from '../components/settings/tabs/IntegrationsTab';
 
 const tabComponents: Record<SettingsCategory, React.FC> = {
   account: AccountTab,
@@ -35,6 +36,7 @@ const tabComponents: Record<SettingsCategory, React.FC> = {
   language: LanguageTab,
   downloads: DownloadsTab,
   data: DataTab,
+  integrations: IntegrationsTab,
   about: AboutTab,
 };
 

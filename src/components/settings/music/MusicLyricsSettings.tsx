@@ -38,6 +38,7 @@ export function MusicLyricsSettings() {
   const [autoRomanize, setAutoRomanize] = useBoolPref(SETTINGS.LYRICS_AUTO_ROMANIZE);
   const [romanizationOnly, setRomanizationOnly] = useBoolPref(SETTINGS.LYRICS_ROMANIZATION_ONLY);
   const [keepScreenOn, setKeepScreenOn] = useBoolPref(SETTINGS.LYRICS_KEEP_SCREEN_ON);
+  const [lyricsOnDemand, setLyricsOnDemand] = useBoolPref(SETTINGS.LYRICS_ON_DEMAND, false);
   const [blurOtherLines, setBlurOtherLines] = useBoolPref(SETTINGS.LYRICS_BLUR_OTHER_LINES);
   const [animation, setAnimation] = useLyricsAnimation();
   const [glow, setGlow] = useLyricsGlow();
@@ -112,6 +113,9 @@ export function MusicLyricsSettings() {
       )}
       <SettingItem title={getString('lyrics_sponsorblock_timing')} description={getString('lyrics_sponsorblock_timing_summary')}>
         <ToggleSwitch checked={videoTiming} onChange={setVideoTiming} />
+      </SettingItem>
+      <SettingItem title={getString('settings_lyrics_on_demand')} description={getString('settings_lyrics_on_demand_desc')}>
+        <ToggleSwitch checked={lyricsOnDemand} onChange={setLyricsOnDemand} />
       </SettingItem>
       {canKeepScreenOn() && (
         <SettingItem title={getString('lyrics_keep_screen_on')} description={getString('lyrics_keep_screen_on_summary')}>

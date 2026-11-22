@@ -38,6 +38,11 @@ pub enum Resolved {
     Pair {
         video: StreamSource,
         audio: StreamSource,
+        /// The ticked extra languages, in the order they were asked for.
+        extra_audios: Vec<StreamSource>,
+        /// One BCP 47 language code per audio track, primary first, for the
+        /// muxer's track languages; `None` writes "und".
+        audio_languages: Vec<Option<String>>,
         output: DownloadContainer,
         /// The format the links belong to; a refresh must find the same one.
         format_id: String,
@@ -51,6 +56,8 @@ pub enum Role {
     Single,
     Video,
     Audio,
+    /// The nth extra audio track of a multi-audio download.
+    ExtraAudio(usize),
 }
 
 struct SlotState {
@@ -116,6 +123,12 @@ fn source_for(resolved: &Resolved, role: Role) -> StreamSource {
         (Resolved::Single(source), _) | (Resolved::Pair { video: source, .. }, Role::Video) => {
             source.clone()
         }
+        (
+            Resolved::Pair {
+                extra_audios, audio, ..
+            },
+            Role::ExtraAudio(index),
+        ) => extra_audios.get(index).cloned().unwrap_or_else(|| audio.clone()),
         (Resolved::Pair { audio, .. }, Role::Audio | Role::Single) => audio.clone(),
     }
 }
@@ -171,7 +184,8 @@ async fn resolve_music(
 }
 
 fn resolve_video(info: &StreamInfo, selection: &VideoSelection) -> Result<Resolved, String> {
-    let formats = pair_downloadable_formats_with(info, selection.audio_track.as_deref());
+    let keys = selection.audio_keys();
+    let formats = pair_downloadable_formats_with(info, keys.first().map(String::as_str));
     let format = pick_format(&formats, selection)
         .ok_or("This video has no downloadable video and audio pair")?;
     let fallback_agent = info
@@ -179,12 +193,37 @@ fn resolve_video(info: &StreamInfo, selection: &VideoSelection) -> Result<Resolv
         .split_once('|')
         .map(|(_, agent)| agent.to_string())
         .unwrap_or_default();
-    let audio_agent = info
+    let primary_track = info
         .download_audio_tracks
         .iter()
-        .find(|track| track.local_url == format.audio_url)
+        .find(|track| track.local_url == format.audio_url);
+    let audio_agent = primary_track
         .and_then(|track| track.user_agent.clone())
         .unwrap_or_else(|| fallback_agent.clone());
+    let mut audio_languages = vec![primary_track.and_then(|track| track.language_code.clone())];
+    // One stream per ticked extra language, each the best AAC copy of its key.
+    // A key that is no longer offered is skipped, not fatal: the primary file
+    // still downloads with the languages that resolved.
+    let mut extra_audios = Vec::new();
+    for key in keys.iter().skip(1) {
+        let Some(track) = crate::api::innertube::download::aac_audio_track_for_key(info, key)
+        else {
+            continue;
+        };
+        audio_languages.push(track.language_code.clone());
+        extra_audios.push(StreamSource {
+            url: track.local_url.clone(),
+            user_agent: track
+                .user_agent
+                .clone()
+                .unwrap_or_else(|| fallback_agent.clone()),
+            mime_type: track.mime_type.clone().unwrap_or_default(),
+            loudness_db: None,
+            init_range: audio_range(track.init_range_start, track.init_range_end),
+            index_range: audio_range(track.index_range_start, track.index_range_end),
+            content_length: track.content_length,
+        });
+    }
     Ok(Resolved::Pair {
         video: StreamSource {
             url: format.video_url.clone(),
@@ -204,10 +243,20 @@ fn resolve_video(info: &StreamInfo, selection: &VideoSelection) -> Result<Resolv
             index_range: format.audio_index_range,
             content_length: format.audio_content_length,
         },
+        extra_audios,
+        audio_languages,
         output: format.container,
         format_id: format.format_id.clone(),
         captions: info.captions.clone(),
     })
+}
+
+/// A DASH range pair, when both ends are present and ordered.
+fn audio_range(start: Option<u64>, end: Option<u64>) -> Option<(u64, u64)> {
+    match (start, end) {
+        (Some(start), Some(end)) if end >= start => Some((start, end)),
+        _ => None,
+    }
 }
 
 /// The exact format the user chose when it is still offered; otherwise the closest:
@@ -243,6 +292,32 @@ pub fn pick_format<'a>(
 }
 
 impl Resolved {
+    /// Every audio stream of a pair, primary first; a single is itself.
+    pub fn audio_sources(&self) -> Vec<StreamSource> {
+        match self {
+            Self::Single(source) => vec![source.clone()],
+            Self::Pair {
+                audio,
+                extra_audios,
+                ..
+            } => {
+                let mut sources = vec![audio.clone()];
+                sources.extend(extra_audios.iter().cloned());
+                sources
+            }
+        }
+    }
+
+    /// One language code per audio source, primary first.
+    pub fn audio_languages(&self) -> Vec<Option<String>> {
+        match self {
+            Self::Single(_) => vec![None],
+            Self::Pair {
+                audio_languages, ..
+            } => audio_languages.clone(),
+        }
+    }
+
     /// The container each downloaded track's bytes arrive in.
     pub fn track_containers(&self) -> (DownloadContainer, DownloadContainer) {
         match self {
@@ -306,6 +381,7 @@ mod tests {
             video_codec: codec.into(),
             container: DownloadContainer::Mp4,
             audio_track: None,
+            audio_tracks: None,
         }
     }
 

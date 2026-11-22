@@ -416,6 +416,25 @@ pub struct VideoSelection {
     /// An audio track's key (a dub), when the user chose one.
     #[serde(default)]
     pub audio_track: Option<String>,
+    /// Every audio track to mux into the one file, primary first. When this
+    /// list is present it wins over `audio_track`; a caller that sends only
+    /// `audio_track` still gets its single track.
+    #[serde(default)]
+    pub audio_tracks: Option<Vec<String>>,
+}
+
+impl VideoSelection {
+    /// The audio keys to mux, primary first, with repeats dropped.
+    pub fn audio_keys(&self) -> Vec<String> {
+        let keys = match &self.audio_tracks {
+            Some(keys) if !keys.is_empty() => keys.clone(),
+            _ => self.audio_track.clone().into_iter().collect(),
+        };
+        let mut seen = HashSet::new();
+        keys.into_iter()
+            .filter(|key| seen.insert(key.clone()))
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -1340,8 +1359,45 @@ fn offline_captions(
 
 #[cfg(test)]
 mod tests {
-    use super::{ClipRange, DownloadMediaKind, is_orphaned_partial, offline_content_type};
+    use super::{ClipRange, DownloadMediaKind, VideoSelection, is_orphaned_partial, offline_content_type};
+    use crate::api::innertube::download::DownloadContainer;
     use std::collections::HashSet;
+
+    fn selection(audio_track: Option<&str>, audio_tracks: Option<Vec<&str>>) -> VideoSelection {
+        VideoSelection {
+            format_id: "299+a".into(),
+            height: Some(1080),
+            fps: Some(30),
+            video_codec: "H.264".into(),
+            container: DownloadContainer::Mp4,
+            audio_track: audio_track.map(str::to_owned),
+            audio_tracks: audio_tracks.map(|keys| keys.into_iter().map(str::to_owned).collect()),
+        }
+    }
+
+    #[test]
+    fn the_audio_key_list_wins_and_dedupes_primary_first() {
+        assert_eq!(
+            selection(Some("en"), Some(vec!["en", "hi", "hi", "es"])).audio_keys(),
+            vec!["en", "hi", "es"]
+        );
+        // A list that names only an extra still keeps the single track out:
+        // the list is the whole request, primary first.
+        assert_eq!(
+            selection(Some("en"), Some(vec!["hi"])).audio_keys(),
+            vec!["hi"]
+        );
+    }
+
+    #[test]
+    fn a_single_audio_track_still_resolves_on_its_own() {
+        assert_eq!(
+            selection(Some("hi"), None).audio_keys(),
+            vec!["hi"]
+        );
+        assert_eq!(selection(None, Some(vec![])).audio_keys(), Vec::<String>::new());
+        assert!(selection(None, None).audio_keys().is_empty());
+    }
 
     #[test]
     fn a_clip_needs_its_end_after_its_start() {

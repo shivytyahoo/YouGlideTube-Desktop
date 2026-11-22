@@ -21,7 +21,7 @@ pub struct SearchVideosRequest {
     #[serde(default)]
     pub content_type: Option<String>,
     /// Features that must all hold: `live` | `4k` | `hd` | `subtitles` |
-    /// `creative_commons` | `360` | `hdr` | `vr180` | `3d` | `location`.
+    /// `creative_commons` | `360` | `hdr` | `vr180` | `3d` | `location` | `purchased`.
     #[serde(default)]
     pub features: Vec<String>,
     /// Search for the query as typed, without the site's spelling correction.

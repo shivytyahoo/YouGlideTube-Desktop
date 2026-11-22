@@ -34,6 +34,11 @@ import { savePlaylistWhenLoaded } from "../lib/playlistTransfer";
 import { useDebounce } from "../lib/useDebounce";
 import { useMultiSelect } from "../lib/useMultiSelect";
 import { usePlaylistDetails, type PlaylistDetailsMeta } from "../lib/usePlaylistDetails";
+import {
+  applyServerPlaylistOrder,
+  loadServerPlaylistOrder,
+  saveServerPlaylistOrder,
+} from "../lib/serverPlaylistOrder";
 import { useServerWatchLater } from "../lib/useServerWatchLater";
 import { usePublishTitle } from "../lib/usePublishTitle";
 import { useCollectionDownloadState } from "../lib/useCollectionDownloads";
@@ -102,6 +107,17 @@ export function PlaylistDetailsPage({
     && serverPlaylists.some((playlist) => playlist.id === playlistId),
   );
 
+  // An account playlist has no reorder API, as Android does — a drag here
+  // is this device's own order, kept locally and never sent to the server.
+  const [serverOrder, setServerOrder] = useState<string[]>([]);
+  useEffect(() => {
+    setServerOrder(playlistId && isServerPlaylist ? loadServerPlaylistOrder(playlistId) : []);
+  }, [playlistId, isServerPlaylist]);
+  const orderedVideos = useMemo(
+    () => (isServerPlaylist ? applyServerPlaylistOrder(videos, serverOrder) : videos),
+    [isServerPlaylist, videos, serverOrder],
+  );
+
   const [storedSortOrder, setStoredSortOrder] = useState<string | null>(() =>
     playlistId ? loadPlaylistSortOrder(playlistId) : null,
   );
@@ -151,8 +167,8 @@ export function PlaylistDetailsPage({
   }, [needsWholePlaylist, hasMore, loadAllVideos, showServerWatchLater, serverWatchLater]);
 
   const displayVideos = useMemo(
-    () => sortPlaylistVideos(videos, sortOrder, isProtected),
-    [videos, sortOrder, isProtected],
+    () => sortPlaylistVideos(orderedVideos, sortOrder, isProtected),
+    [orderedVideos, sortOrder, isProtected],
   );
   const shownVideos = useMemo(
     () => filterVideosBySearch(displayVideos, appliedSearch),
@@ -166,14 +182,14 @@ export function PlaylistDetailsPage({
     [shownVideos, selection.selectedIds],
   );
 
-  const leadVideo = videos[0];
+  const leadVideo = orderedVideos[0];
   const heroThumbnailUrl = leadVideo?.thumbnailUrl ?? meta?.thumbnailUrl ?? null;
 
   const openCollectionDownload = useDownloadStore((state) => state.openCollection);
   const downloadState = useCollectionDownloadState(meta?.id, "playlist");
 
   const handleDownloadPlaylist = async () => {
-    if (!meta || videos.length === 0) return;
+    if (!meta || orderedVideos.length === 0) return;
     openCollectionDownload({
       kind: "playlist",
       meta: {
@@ -182,7 +198,7 @@ export function PlaylistDetailsPage({
         author: meta.channelName || undefined,
         thumbnailUrl: heroThumbnailUrl ?? meta.thumbnailUrl ?? undefined,
       },
-      load: () => (hasMore ? loadAllVideos().catch(() => videos) : Promise.resolve(videos)),
+      load: () => (hasMore ? loadAllVideos().catch(() => orderedVideos) : Promise.resolve(orderedVideos)),
     });
   };
 
@@ -245,10 +261,16 @@ export function PlaylistDetailsPage({
   };
 
   const handleReorder = async (nextVideos: VideoSummary[]) => {
-    // Account playlists keep the account's order; there is no reorder
-    // API here, as Android does.
-    if (isServerPlaylist) return;
     setVideos(nextVideos);
+    if (isServerPlaylist) {
+      // The account's order never changes; the drag is this device's own.
+      if (playlistId) {
+        const ids = nextVideos.map((video) => video.id);
+        setServerOrder(ids);
+        saveServerPlaylistOrder(playlistId, ids);
+      }
+      return;
+    }
     if (storedPlaylist) {
       await updateStoredPlaylistTracks(storedPlaylist.id, nextVideos);
     }
@@ -355,7 +377,7 @@ export function PlaylistDetailsPage({
 
   const editable = isProtected || isOwned || isServerPlaylist;
   const playlistContext = meta
-    ? { id: meta.id, title: meta.title, editable, reorderable: editable && sortOrder === "manual" && !isServerPlaylist }
+    ? { id: meta.id, title: meta.title, editable, reorderable: editable && sortOrder === "manual" }
     : null;
 
   const playQueue = (shuffle: boolean) => {
@@ -566,14 +588,14 @@ export function PlaylistDetailsPage({
         />
 
         <PlaylistSortableList
-          videos={videos}
+          videos={orderedVideos}
           displayVideos={shownVideos}
           sortOrder={sortOrder}
           sortOptions={availablePlaylistSortOrders(isLocalPlaylist)}
           onSortChange={handleSortChange}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
-          reorderable={!isServerPlaylist}
+          reorderable
           onReorder={handleReorder}
           onPlay={playFromPlaylist}
           onAddToQueue={onAddToQueue}

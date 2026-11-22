@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useMotionValueEvent, useTransform, type Motion
 import { ChevronDown, ListMusic, Mic2, Minimize2, SlidersHorizontal, Volume2, VolumeX } from "lucide-react";
 
 import { useMusicPlayerStore } from "../../../store/useMusicPlayerStore";
+import { useAppSettingsStore } from "../../../store/useAppSettingsStore";
 import { useMusicPlayerError } from "../../../lib/useMusicPlayerError";
 import { useCoverAppContent } from "../../../lib/useCoverAppContent";
 import { useMusicPlayerKeyboard } from "../../../lib/useMusicPlayerKeyboard";
@@ -63,6 +64,7 @@ export function FullLayer({ offsetX, offsetY }: { offsetX: MotionValue<number>; 
   const [lyricsExpanded, setLyricsExpanded] = useState(false);
   const wide = useMediaQuery(WIDE_QUERY);
   const [paneVisible, setPaneVisible] = useBoolPref(SETTINGS.MUSIC_SIDE_PANE_VISIBLE);
+  const animatedBackgrounds = useAppSettingsStore((state) => state.values[SETTINGS.ANIMATED_BACKGROUNDS] !== "false");
   const open = currentTrack !== null && viewState !== "dock";
   const isQueue = viewState === "queue";
   const isLyrics = viewState === "lyrics";
@@ -197,7 +199,7 @@ export function FullLayer({ offsetX, offsetY }: { offsetX: MotionValue<number>; 
           style={playerColors.style}
           artworkPlacement={artworkPlacement}
           track={playerColors.style === "immersive" ? currentTrack : null}
-          loopRunning={!fullBleedLyrics && entered}
+          loopRunning={!fullBleedLyrics && entered && animatedBackgrounds}
           blurred={fullBleedLyrics && lyricsBackground === "player"}
         />
 

@@ -630,24 +630,107 @@ fn watch_date_ms(date: &str) -> i64 {
         .unwrap_or(0)
 }
 
-/// Merges the server history (base) with this device's session plays:
-/// server entries first in server order, local-only plays appended
-/// newest-first, deduped by video id. A server row keeps the local resume
-/// position and length when this device has one.
+/// Merges the server history with this device's session plays into one
+/// newest-first order, keyed by the best-known watch time for each video,
+/// as Android's `mergeHistoryOrder` does. The server list carries no watch
+/// times, and its order cannot be trusted for entries this device knows —
+/// a local timestamp is the ground truth for its own video, so every entry
+/// sorts by its local timestamp where one exists. A server-only entry keeps
+/// its server-relative position by interpolation between the nearest local
+/// timestamps that bracket it (or a 1 s step past the nearest one at either
+/// end). With no overlap at all the server list cannot be anchored, so it
+/// keeps its order first and local rows follow, as before. A server row
+/// keeps the local resume position and length when this device has one, and
+/// its timestamp becomes the best-known watch time.
 #[must_use]
 pub fn merge_history_entries(
     server: Vec<ServerHistoryEntry>,
     local: &[WatchHistoryRecord],
 ) -> Vec<MergedHistoryEntry> {
+    let now_ms = chrono::Utc::now().timestamp_millis();
     let mut local_by_id: HashMap<&str, &WatchHistoryRecord> = HashMap::new();
     for record in local {
         local_by_id.insert(record.video_id.as_str(), record);
     }
+    let server_index: HashMap<String, usize> = server
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| (entry.video_id.clone(), index))
+        .collect();
+    let local_index: HashMap<String, usize> = local
+        .iter()
+        .enumerate()
+        .map(|(index, record)| (record.video_id.clone(), index))
+        .collect();
+    let known_server: Vec<(usize, &str)> = server
+        .iter()
+        .enumerate()
+        .filter(|(_, entry)| local_by_id.contains_key(entry.video_id.as_str()))
+        .map(|(index, entry)| (index, entry.video_id.as_str()))
+        .collect();
+
+    let mut effective: HashMap<String, i64> = HashMap::new();
+    if known_server.is_empty() {
+        for (index, entry) in server.iter().enumerate() {
+            effective.insert(entry.video_id.clone(), now_ms - index as i64 * 1000);
+        }
+        let mut local_only: Vec<&WatchHistoryRecord> = local
+            .iter()
+            .filter(|record| !server_index.contains_key(record.video_id.as_str()))
+            .collect();
+        local_only.sort_by_key(|record| std::cmp::Reverse(watch_date_ms(&record.watch_date)));
+        for (index, record) in local_only.iter().enumerate() {
+            effective.insert(
+                record.video_id.clone(),
+                now_ms - (server.len() + index) as i64 * 1000,
+            );
+        }
+    } else {
+        for (index, entry) in server.iter().enumerate() {
+            let id = entry.video_id.as_str();
+            if let Some(record) = local_by_id.get(id) {
+                effective.insert(entry.video_id.clone(), watch_date_ms(&record.watch_date));
+                continue;
+            }
+            let prev = known_server.iter().rev().find(|(known, _)| *known < index);
+            let next = known_server.iter().find(|(known, _)| *known > index);
+            let interpolated = match (prev, next) {
+                (Some((prev_index, prev_id)), Some((next_index, next_id))) => {
+                    let prev_ts = watch_date_ms(&local_by_id[prev_id].watch_date);
+                    let next_ts = watch_date_ms(&local_by_id[next_id].watch_date);
+                    prev_ts
+                        + (next_ts - prev_ts) * (index - prev_index) as i64
+                            / (next_index - prev_index) as i64
+                }
+                (Some((prev_index, prev_id)), None) => {
+                    watch_date_ms(&local_by_id[prev_id].watch_date)
+                        - (index - prev_index) as i64 * 1000
+                }
+                (None, Some((next_index, next_id))) => {
+                    watch_date_ms(&local_by_id[next_id].watch_date)
+                        + (next_index - index) as i64 * 1000
+                }
+                // `known_server` is non-empty, so one side always brackets.
+                (None, None) => now_ms,
+            };
+            effective.insert(entry.video_id.clone(), interpolated.min(now_ms));
+        }
+        for (id, record) in &local_by_id {
+            if !effective.contains_key(*id) {
+                effective.insert((*id).to_string(), watch_date_ms(&record.watch_date));
+            }
+        }
+    }
+
     let mut merged: Vec<MergedHistoryEntry> = Vec::with_capacity(server.len() + local.len());
     let mut server_ids: HashSet<String> = HashSet::new();
     for entry in server {
         server_ids.insert(entry.video_id.clone());
         let played = local_by_id.get(entry.video_id.as_str());
+        let timestamp_ms = effective
+            .get(&entry.video_id)
+            .copied()
+            .unwrap_or(entry.timestamp_ms);
         merged.push(MergedHistoryEntry {
             position_seconds: played.map_or(0, |record| record.watch_duration_seconds),
             duration_seconds: played
@@ -664,17 +747,16 @@ pub fn merge_history_entries(
             channel_id: entry.channel_id,
             thumbnail_url: entry.thumbnail_url,
             is_short: entry.is_short,
-            timestamp_ms: entry.timestamp_ms,
+            timestamp_ms,
             source: HistoryEntrySource::Server,
             remove_feedback_token: entry.remove_feedback_token,
         });
     }
-    let mut local_only: Vec<&WatchHistoryRecord> = local
-        .iter()
-        .filter(|record| !server_ids.contains(record.video_id.as_str()))
-        .collect();
-    local_only.sort_by_key(|record| std::cmp::Reverse(watch_date_ms(&record.watch_date)));
-    for record in local_only {
+    for record in local.iter().filter(|record| !server_ids.contains(record.video_id.as_str())) {
+        let timestamp_ms = effective
+            .get(&record.video_id)
+            .copied()
+            .unwrap_or_else(|| watch_date_ms(&record.watch_date));
         merged.push(MergedHistoryEntry {
             video_id: record.video_id.clone(),
             title: record.title.clone(),
@@ -686,11 +768,41 @@ pub fn merge_history_entries(
                 .and_then(|total| u64::try_from(total).ok()),
             position_seconds: record.watch_duration_seconds,
             is_short: record.is_short_video(),
-            timestamp_ms: watch_date_ms(&record.watch_date),
+            timestamp_ms,
             source: HistoryEntrySource::Local,
             remove_feedback_token: None,
         });
     }
+    // Newest first by best-known watch time; ties keep the server order,
+    // then the local order.
+    merged.sort_by(|a, b| {
+        b.timestamp_ms
+            .cmp(&a.timestamp_ms)
+            .then_with(|| {
+                server_index
+                    .get(a.video_id.as_str())
+                    .copied()
+                    .unwrap_or(usize::MAX)
+                    .cmp(
+                        &server_index
+                            .get(b.video_id.as_str())
+                            .copied()
+                            .unwrap_or(usize::MAX),
+                    )
+            })
+            .then_with(|| {
+                local_index
+                    .get(a.video_id.as_str())
+                    .copied()
+                    .unwrap_or(usize::MAX)
+                    .cmp(
+                        &local_index
+                            .get(b.video_id.as_str())
+                            .copied()
+                            .unwrap_or(usize::MAX),
+                    )
+            })
+    });
     merged
 }
 
@@ -1351,7 +1463,7 @@ mod tests {
     }
 
     #[test]
-    fn merge_keeps_server_first_overlays_position_and_appends_local_only() {
+    fn merge_interleaves_by_best_known_watch_time() {
         let server = vec![history_entry("a", 3000), history_entry("b", 2000)];
         let local = vec![
             local_row("a", "2026-11-21T10:00:00.000Z", 42, 100),
@@ -1363,13 +1475,56 @@ mod tests {
             .iter()
             .map(|entry| entry.video_id.as_str())
             .collect();
-        assert_eq!(ids, ["a", "b", "c", "d"]);
-        assert_eq!(merged[0].source, HistoryEntrySource::Server);
-        assert_eq!(merged[0].position_seconds, 42);
-        assert_eq!(merged[0].duration_seconds, Some(100));
-        assert_eq!(merged[2].source, HistoryEntrySource::Local);
-        assert_eq!(merged[2].position_seconds, 7);
+        // The just-watched local play heads the list; the server-only row
+        // sits one second below the local time that brackets it.
+        assert_eq!(ids, ["c", "a", "b", "d"]);
+        assert_eq!(merged[0].source, HistoryEntrySource::Local);
+        assert_eq!(merged[1].source, HistoryEntrySource::Server);
+        assert_eq!(merged[1].position_seconds, 42);
+        assert_eq!(merged[1].duration_seconds, Some(100));
+        assert_eq!(merged[1].timestamp_ms - merged[2].timestamp_ms, 1000);
         assert_eq!(merged[3].video_id, "d");
+    }
+
+    #[test]
+    fn merge_interpolates_server_only_rows_between_known_plays() {
+        let server = vec![
+            history_entry("x", 5000),
+            history_entry("a", 4000),
+            history_entry("y", 3000),
+            history_entry("b", 2000),
+            history_entry("z", 1000),
+        ];
+        let local = vec![
+            local_row("a", "2026-11-21T10:00:00.000Z", 0, 100),
+            local_row("b", "2026-11-21T08:00:00.000Z", 0, 100),
+        ];
+        let merged = merge_history_entries(server, &local);
+        let ids: Vec<&str> = merged
+            .iter()
+            .map(|entry| entry.video_id.as_str())
+            .collect();
+        // Above the first known play, between the two known plays, below
+        // the last one — the server order survives, anchored to local time.
+        assert_eq!(ids, ["x", "a", "y", "b", "z"]);
+        assert!(merged[0].timestamp_ms > merged[1].timestamp_ms);
+        assert!(merged[2].timestamp_ms > merged[3].timestamp_ms);
+        assert!(merged[4].timestamp_ms < merged[3].timestamp_ms);
+    }
+
+    #[test]
+    fn merge_without_overlap_keeps_server_first_then_local() {
+        let server = vec![history_entry("s1", 3000), history_entry("s2", 2000)];
+        let local = vec![
+            local_row("l1", "2026-11-21T12:00:00.000Z", 7, 60),
+            local_row("l2", "2026-11-21T09:00:00.000Z", 3, 30),
+        ];
+        let merged = merge_history_entries(server, &local);
+        let ids: Vec<&str> = merged
+            .iter()
+            .map(|entry| entry.video_id.as_str())
+            .collect();
+        assert_eq!(ids, ["s1", "s2", "l1", "l2"]);
     }
 
     #[test]

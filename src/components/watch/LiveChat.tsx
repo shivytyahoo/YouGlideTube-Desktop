@@ -1,10 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Loader2, Radio, ShieldCheck, BadgeCheck, ArrowDown, RotateCw, X } from "lucide-react";
+import { Loader2, Radio, ShieldCheck, BadgeCheck, ArrowDown, RotateCw, Send, Trash2, X } from "lucide-react";
 import { useLiveChat, type ChatView, type LiveChatState } from "../../lib/useLiveChat";
 import { useChatReplay } from "../../lib/useChatReplay";
+import { deleteLiveChatMessage, sendLiveChatMessage } from "../../lib/api/youtube";
+import { useGoogleAccount } from "../../lib/useGoogleAccount";
 import { getString } from "../../lib/i18n/index";
 import { selectionTouches } from "../../lib/textSelection";
 import { useProxyImageSrc } from "../../lib/useImageProxy";
+import { usePlayerStore } from "../../store/usePlayerStore";
+import { useUiStore } from "../../store/useUiStore";
 import type { LiveChatMessage, LiveChatSegment } from "../../types/video";
 import type { LiveChatProps } from "./types";
 
@@ -130,19 +134,21 @@ function ChatRow({ message }: { message: LiveChatMessage }) {
   );
 }
 
-function StreamChat({ videoId, view, ...panel }: ChatPanelSource) {
+function StreamChat({ videoId, view, channelId, signedIn, ...panel }: ChatPanelSource) {
   const chat = useLiveChat(videoId, true, view);
-  return <ChatPanel chat={chat} isReplay={false} view={view} {...panel} />;
+  return <ChatPanel chat={chat} isReplay={false} view={view} videoId={videoId} channelId={channelId} signedIn={signedIn} {...panel} />;
 }
 
 function ReplayChat({ videoId, view, ...panel }: ChatPanelSource) {
   const chat = useChatReplay(videoId, true, view);
-  return <ChatPanel chat={chat} isReplay view={view} {...panel} />;
+  return <ChatPanel chat={chat} isReplay view={view} videoId={videoId} {...panel} />;
 }
 
 interface ChatPanelSource {
   videoId: string;
   view: ChatView;
+  channelId?: string | null;
+  signedIn?: boolean;
   onViewChange: (view: ChatView) => void;
   fill?: boolean;
   onClose?: () => void;
@@ -151,10 +157,20 @@ interface ChatPanelSource {
 /** A live stream's chat, or a finished stream's chat replayed in step with the player. */
 export function LiveChat({ videoId, isReplay, fill, onClose }: LiveChatProps) {
   const [view, setView] = useState<ChatView>("top");
+  const { status } = useGoogleAccount();
+  const channelId = usePlayerStore((s) => s.currentVideo?.channelId);
   return isReplay ? (
     <ReplayChat videoId={videoId} view={view} onViewChange={setView} fill={fill} onClose={onClose} />
   ) : (
-    <StreamChat videoId={videoId} view={view} onViewChange={setView} fill={fill} onClose={onClose} />
+    <StreamChat
+      videoId={videoId}
+      view={view}
+      channelId={channelId}
+      signedIn={status === "signed-in"}
+      onViewChange={setView}
+      fill={fill}
+      onClose={onClose}
+    />
   );
 }
 
@@ -180,11 +196,62 @@ function ViewToggle({ view, onViewChange }: { view: ChatView; onViewChange: (vie
   );
 }
 
+function ChatComposer({ videoId, channelId }: { videoId: string; channelId: string }) {
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const showToast = useUiStore((s) => s.showToast);
+
+  const send = async () => {
+    const trimmed = text.trim();
+    if (!trimmed || sending) return;
+    setSending(true);
+    try {
+      await sendLiveChatMessage(videoId, channelId, trimmed);
+      setText("");
+    } catch {
+      showToast({ variant: "error", message: getString("live_chat_send_failed") });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void send();
+      }}
+      className="flex shrink-0 items-center gap-2 border-t border-chrome-neutral-800 px-3 py-2"
+    >
+      <input
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        maxLength={500}
+        placeholder={getString("live_chat_message_placeholder")}
+        aria-label={getString("live_chat_message_placeholder")}
+        className="min-w-0 flex-1 rounded-full bg-surface-container-high px-3 py-2 text-sm text-chrome-neutral-100 placeholder:text-chrome-neutral-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      />
+      <button
+        type="submit"
+        disabled={!text.trim() || sending}
+        aria-label={getString("live_chat_send")}
+        title={getString("live_chat_send")}
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-primary transition-colors hover:bg-surface-container-high disabled:opacity-40"
+      >
+        <Send size={17} />
+      </button>
+    </form>
+  );
+}
+
 function ChatPanel({
   chat,
   isReplay,
   view,
   onViewChange,
+  videoId,
+  channelId,
+  signedIn = false,
   fill = false,
   onClose,
 }: {
@@ -192,6 +259,9 @@ function ChatPanel({
   isReplay: boolean;
   view: ChatView;
   onViewChange: (view: ChatView) => void;
+  videoId: string;
+  channelId?: string | null;
+  signedIn?: boolean;
   fill?: boolean;
   onClose?: () => void;
 }) {
@@ -199,6 +269,24 @@ function ChatPanel({
 
   const listRef = useRef<HTMLDivElement>(null);
   const [pinned, setPinned] = useState(true);
+  // Messages the viewer deleted: the poll keeps returning them until the
+  // server catches up, so they stay hidden locally.
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const showToast = useUiStore((s) => s.showToast);
+  const openSignInDialog = useUiStore((s) => s.openSignInDialog);
+
+  const handleDelete = (message: LiveChatMessage) => {
+    if (!message.menuParams) return;
+    void deleteLiveChatMessage(message.menuParams, message.menuApiUrl)
+      .then(() => {
+        setDeletedIds((previous) => new Set(previous).add(message.id));
+      })
+      .catch(() => {
+        showToast({ variant: "error", message: getString("live_chat_delete_failed") });
+      });
+  };
+
+  const visibleMessages = messages.filter((message) => !deletedIds.has(message.id));
 
   // Keep the view glued to the newest message unless the user has scrolled up to read history
   // or is highlighting a message, which a jump would drag out from under the pointer.
@@ -206,7 +294,7 @@ function ChatPanel({
     if (pinned && listRef.current && !selectionTouches(listRef.current)) {
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
-  }, [messages, pinned]);
+  }, [visibleMessages, pinned]);
 
   useEffect(() => {
     const element = listRef.current;
@@ -264,19 +352,34 @@ function ChatPanel({
 
       <div className="relative min-h-0 flex-1">
         <div ref={listRef} className="h-full select-text space-y-2.5 overflow-y-auto px-3 py-3">
-          {loading && messages.length === 0 ? (
+          {loading && visibleMessages.length === 0 ? (
             <div className="flex items-center gap-2 px-1 py-2 text-sm text-chrome-neutral-500">
               <Loader2 size={16} className="animate-spin" />
               {getString("live_chat_connecting")}
             </div>
-          ) : messages.length === 0 ? (
+          ) : visibleMessages.length === 0 ? (
             <p className="px-1 py-2 text-sm text-chrome-neutral-500">
               {ended ? getString("live_chat_ended") : getString("live_chat_empty")}
             </p>
           ) : (
-            messages.map((message) => <ChatRow key={message.id} message={message} />)
+            visibleMessages.map((message) => (
+              <div key={message.id} className="group relative">
+                <ChatRow message={message} />
+                {!isReplay && message.menuParams && (
+                  <button
+                    type="button"
+                    aria-label={getString("live_chat_delete")}
+                    title={getString("live_chat_delete")}
+                    onClick={() => handleDelete(message)}
+                    className="absolute end-1 top-1 hidden h-6 w-6 place-items-center rounded-full bg-chrome-black/70 text-chrome-neutral-300 transition-colors hover:text-chrome-white focus-visible:grid group-hover:grid"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+            ))
           )}
-          {ended && messages.length > 0 && (
+          {ended && visibleMessages.length > 0 && (
             <p className="px-1 pt-2 text-xs text-chrome-neutral-500">{getString("live_chat_ended")}</p>
           )}
         </div>
@@ -291,6 +394,22 @@ function ChatPanel({
           </button>
         )}
       </div>
+
+      {!isReplay &&
+        (signedIn && channelId ? (
+          <ChatComposer videoId={videoId} channelId={channelId} />
+        ) : (
+          <div className="flex shrink-0 items-center justify-between gap-2 border-t border-chrome-neutral-800 px-4 py-2.5">
+            <span className="text-xs text-chrome-neutral-400">{getString("live_chat_sign_in_to_chat")}</span>
+            <button
+              type="button"
+              onClick={openSignInDialog}
+              className="shrink-0 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary transition-transform active:scale-95"
+            >
+              {getString("player_error_sign_in")}
+            </button>
+          </div>
+        ))}
     </div>
   );
 }

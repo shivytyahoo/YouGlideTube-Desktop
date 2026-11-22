@@ -18,6 +18,8 @@ export function MusicPlaybackSettings() {
   const [swipeRight, setSwipeRight] = usePreference(SETTINGS.MUSIC_QUEUE_SWIPE_RIGHT);
   const [openPlayer, setOpenPlayer] = useBoolPref(SETTINGS.MUSIC_OPEN_PLAYER_ON_PLAY);
   const [pauseWhenMuted, setPauseWhenMuted] = useBoolPref(SETTINGS.MUSIC_PAUSE_WHEN_MUTED);
+  const [restoreMiniPlayer, setRestoreMiniPlayer] = useBoolPref(SETTINGS.RESTORE_MUSIC_MINI_PLAYER, true);
+  const [musicVideoSwitch, setMusicVideoSwitch] = useBoolPref(SETTINGS.MUSIC_VIDEO_SWITCH, false);
   const radioEnabled = useMusicPlayerStore((state) => state.radioEnabled);
   const toggleRadio = useMusicPlayerStore((state) => state.toggleRadio);
   const [endlessRadio, setEndlessRadio] = useBoolPref(SETTINGS.MUSIC_ENDLESS_RADIO, true);
@@ -59,6 +61,12 @@ export function MusicPlaybackSettings() {
       </SettingItem>
       <SettingItem title={getString('settings_open_music_player_on_play')} description={getString('settings_open_music_player_on_play_desc')}>
         <ToggleSwitch checked={openPlayer} onChange={setOpenPlayer} />
+      </SettingItem>
+      <SettingItem title={getString('settings_restore_music_mini_player')} description={getString('settings_restore_music_mini_player_desc')}>
+        <ToggleSwitch checked={restoreMiniPlayer} onChange={setRestoreMiniPlayer} />
+      </SettingItem>
+      <SettingItem title={getString('settings_music_video_switch')} description={getString('settings_music_video_switch_desc')}>
+        <ToggleSwitch checked={musicVideoSwitch} onChange={setMusicVideoSwitch} />
       </SettingItem>
       {/* The backend can't read the system volume on Linux, so there only the app's own mute counts. */}
       <SettingItem title={getString('settings_pause_when_muted')} description={getString(IS_LINUX_RUNTIME ? 'settings_pause_when_muted_desc_app_only' : 'settings_pause_when_muted_desc')}>

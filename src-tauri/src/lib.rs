@@ -135,16 +135,18 @@ use commands::tray::{
 };
 use commands::window::{PlayerFullscreenState, set_player_fullscreen};
 use commands::youtube::{
-    create_comment, fetch_subtitles, get_channel_about, get_channel_details, get_channel_page,
-    get_channel_tab, get_comments, get_dearrow_override, get_explore_destination,
-    get_explore_grid, get_explore_page, get_live_chat, get_mix_playlist, get_more_related_videos,
-    get_non_music_segments, get_original_title, get_paid_promotion, get_playlist_details,
-    get_post_comments, get_related_videos, get_return_youtube_dislike, get_sabr_debug_state,
+    create_comment, create_comment_reply, delete_comment, delete_live_chat_message,
+    fetch_subtitles, get_channel_about,
+    get_channel_details, get_channel_page, get_channel_tab, get_comments,
+    get_dearrow_override, get_explore_destination, get_explore_grid, get_explore_page,
+    get_live_chat, get_mix_playlist, get_more_related_videos, get_non_music_segments,
+    get_original_title, get_paid_promotion, get_playlist_details, get_post_comments,
+    get_related_videos, get_return_youtube_dislike, get_sabr_debug_state,
     get_search_suggestions, get_sponsorblock_segments, get_stream_info, like_post,
     get_subscription_rotation_feed, get_subscription_rss_feed, get_unplayable_video_ids,
     get_video_category, get_video_details, get_video_metadata, get_video_storyboard,
     parse_subscription_export, resolve_channel_id, scan_subscription_collaborations, search_videos,
-    stream_subscription_rss_feed, submit_sponsorblock_segment,
+    send_live_chat_message, stream_subscription_rss_feed, submit_sponsorblock_segment,
 };
 use services::discord_presence::DiscordPresence;
 use services::music_service::MusicService;
@@ -249,10 +251,11 @@ pub fn run() {
     #[cfg(target_os = "linux")]
     let libva_fallback = appimage::apply_libva_fallback();
 
-    // In-app updates are off until a release server is configured: with no
-    // updater endpoints in tauri.conf.json there is nothing to check against,
-    // so the updater plugin is never registered (see below) and the About
-    // page says updates aren't set up yet instead of offering a check.
+    // In-app updates run against the published release's latest.json (see
+    // `plugins.updater.endpoints` in tauri.conf.json): with no endpoints
+    // there is nothing to check against, so the updater plugin is never
+    // registered (see below) and the About page says updates aren't set up
+    // yet instead of offering a check.
     // `PluginConfig` is a map of plugin name to its JSON config, so the
     // updater entry is looked up by name: a non-empty `endpoints` array
     // means a release server is configured.
@@ -618,8 +621,12 @@ pub fn run() {
             get_comments,
             get_post_comments,
             create_comment,
+            create_comment_reply,
+            delete_comment,
             like_post,
             get_live_chat,
+            send_live_chat_message,
+            delete_live_chat_message,
             get_explore_destination,
             get_explore_page,
             get_explore_grid,

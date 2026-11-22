@@ -110,4 +110,28 @@ describe("feed actions", () => {
     await expect(useFeedActionsStore.getState().blockChannel(card("a"))).rejects.toThrow("db");
     expect(useFeedActionsStore.getState().blockedChannelIds.size).toBe(0);
   });
+
+  it("lets 'I want more like this' lift a not-interested mark", async () => {
+    await useFeedActionsStore.getState().notInterested(card("a"));
+    await useFeedActionsStore.getState().interested(card("a"));
+    const state = useFeedActionsStore.getState();
+    expect(state.dismissedVideoIds.has("a")).toBe(false);
+    expect(state.suppressedChannelIds.has("UC1")).toBe(false);
+  });
+
+  it("undoes a not-interested mark without touching other videos", async () => {
+    await useFeedActionsStore.getState().notInterested(card("a"));
+    await useFeedActionsStore.getState().notInterested(card("b"));
+    useFeedActionsStore.getState().undoNotInterested(card("a"));
+    const state = useFeedActionsStore.getState();
+    expect(state.dismissedVideoIds.has("a")).toBe(false);
+    expect(state.dismissedVideoIds.has("b")).toBe(true);
+  });
+
+  it("interested on a video never marked changes nothing", async () => {
+    await useFeedActionsStore.getState().interested(card("a"));
+    const state = useFeedActionsStore.getState();
+    expect(state.dismissedVideoIds.size).toBe(0);
+    expect(state.suppressedChannelIds.size).toBe(0);
+  });
 });

@@ -2,7 +2,17 @@ import type { AudioTrack, CaptionTrack, StreamVariant } from "../../types/video"
 import type { PlaybackRate } from "../../store/usePlayerStore";
 import { codecRank } from "../codecPreference";
 
-export const DEFAULT_PLAYBACK_RATES: PlaybackRate[] = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+/** Android's default list: the picker runs to 4x, not 2x. */
+export const DEFAULT_PLAYBACK_RATES: PlaybackRate[] = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 3.5, 4];
+
+/** The chips under Android's speed slider: the custom presets when set (up to 4x), else the fixed set. */
+export const DEFAULT_SLIDER_SPEED_PRESETS: PlaybackRate[] = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+export function playbackSpeedSliderPresets(rawValue: string, enabled: boolean): PlaybackRate[] {
+  if (!enabled) return DEFAULT_SLIDER_SPEED_PRESETS;
+  const presets = parseCustomSpeedPresets(rawValue, true).filter((speed) => speed <= 4);
+  return presets.length > 0 ? presets : DEFAULT_SLIDER_SPEED_PRESETS;
+}
 
 export function normalizePlaybackRate(value: string | number, fallback: PlaybackRate = 1): PlaybackRate {
   const parsed = typeof value === "number" ? value : Number(value);

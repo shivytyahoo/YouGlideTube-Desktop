@@ -80,8 +80,15 @@ export const miniBarButtonLimit = (width: MiniBarWidth): number => BUTTON_LIMITS
 
 const PROGRESS: readonly MiniBarProgress[] = ["none", "fill", "edge", "line", "wavy_line"];
 const COVER_TAPS: readonly MiniCoverTap[] = ["open", "play_pause"];
+const COVER_MOTIONS: readonly MiniCoverMotion[] = ["on", "off"];
+const COVER_LONG_PRESSES: readonly MiniCoverLongPress[] = ["nothing", "play_pause", "open"];
 const TIMES: readonly MiniBarTime[] = ["off", "elapsed", "remaining"];
 const WIDTHS: readonly MiniBarWidth[] = ["compact", "regular", "wide"];
+
+/** Whether the mini player cover animates while music plays. */
+export type MiniCoverMotion = "on" | "off";
+/** What a long-press on the mini player cover does. */
+export type MiniCoverLongPress = "nothing" | "play_pause" | "open";
 
 export interface MiniPlayerLook {
   style: MiniPlayerStyle;
@@ -90,6 +97,8 @@ export interface MiniPlayerLook {
   coverRing: boolean;
   barProgress: MiniBarProgress;
   coverTap: MiniCoverTap;
+  coverMotion: MiniCoverMotion;
+  coverLongPress: MiniCoverLongPress;
   time: MiniBarTime;
   width: MiniBarWidth;
   /** The line being sung in place of the artist. */
@@ -106,6 +115,8 @@ export function useMiniPlayerLook(): MiniPlayerLook {
   const [coverRing] = usePreference(SETTINGS.MINI_COVER_RING);
   const [barProgress] = usePreference(SETTINGS.MINI_BAR_PROGRESS);
   const [coverTap] = usePreference(SETTINGS.MINI_COVER_TAP);
+  const [coverMotion] = usePreference(SETTINGS.MINI_COVER_MOTION);
+  const [coverLongPress] = usePreference(SETTINGS.MINI_COVER_LONG_PRESS);
   const [time] = usePreference(SETTINGS.MINI_BAR_TIME);
   const [width] = usePreference(SETTINGS.MINI_BAR_WIDTH);
   const [sungLine] = usePreference(SETTINGS.LYRICS_IN_MINI_PLAYER);
@@ -117,6 +128,8 @@ export function useMiniPlayerLook(): MiniPlayerLook {
     coverRing: coverRing !== "false",
     barProgress: oneOf(barProgress, PROGRESS, "none"),
     coverTap: oneOf(coverTap, COVER_TAPS, "open"),
+    coverMotion: oneOf(coverMotion, COVER_MOTIONS, "on"),
+    coverLongPress: oneOf(coverLongPress, COVER_LONG_PRESSES, "nothing"),
     time: oneOf(time, TIMES, "off"),
     width: pillWidth,
     sungLine: sungLine === "true",
@@ -135,6 +148,8 @@ export const miniBarSwipeOptions = () => SWIPE_ACTIONS.map((value) => ({ value, 
 
 export const miniBarProgressOptions = () => PROGRESS.map((value) => ({ value, label: getString(`mini_bar_progress_${value}`) }));
 export const miniCoverTapOptions = () => COVER_TAPS.map((value) => ({ value, label: getString(`mini_cover_tap_${value}`) }));
+export const miniCoverMotionOptions = () => COVER_MOTIONS.map((value) => ({ value, label: getString(`settings_mini_cover_motion_${value}`) }));
+export const miniCoverLongPressOptions = () => COVER_LONG_PRESSES.map((value) => ({ value, label: getString(`settings_mini_cover_long_press_${value}`) }));
 export const miniBarTimeOptions = () => TIMES.map((value) => ({ value, label: getString(`mini_bar_time_${value}`) }));
 export const miniBarWidthOptions = () => WIDTHS.map((value) => ({ value, label: getString(`mini_bar_width_${value}`) }));
 

@@ -11,6 +11,9 @@ import { IS_LINUX_RUNTIME } from "../../lib/platform";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import { useAmbientSettings } from "../../lib/ambient/useAmbientSettings";
 import { AMBIENT_INTENSITY_DEFAULT } from "../../lib/ambient/pipeline";
+import { SETTINGS } from "../../lib/settings/schema";
+import { useAppSettingsStore } from "../../store/useAppSettingsStore";
+import { parseShortsUiMode, shortsOverlayStyle } from "../../lib/shortsOverlayStyle";
 import { ShortVideoSurface } from "./ShortVideoSurface";
 import { ShortMetadata } from "./ShortMetadata";
 import { ShortActionBar } from "./ShortActionBar";
@@ -64,6 +67,25 @@ export function ShortPlayer({
   const rytdEnabled = useSettingsStore((s) => s.rytdEnabled);
   const ambient = useAmbientSettings();
   const [rydData, setRydData] = useState<RydData | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const uiMode = parseShortsUiMode(
+    useAppSettingsStore((state) => state.values[SETTINGS.SHORTS_UI_MODE]),
+  );
+  const overlayStyle = shortsOverlayStyle(uiMode);
+  // Impressive mode hides the chrome until a centre tap and hides it again on its own.
+  const [chromeVisible, setChromeVisible] = useState(true);
+  useEffect(() => {
+    setChromeVisible(!overlayStyle.controlsOnDemand);
+  }, [short.id, overlayStyle.controlsOnDemand]);
+  useEffect(() => {
+    if (!overlayStyle.controlsOnDemand || !chromeVisible) return;
+    const timer = window.setTimeout(() => setChromeVisible(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [chromeVisible, overlayStyle.controlsOnDemand]);
+  useEffect(() => {
+    setIsPlaying(false);
+  }, [short.id]);
+  const chromeShown = !overlayStyle.controlsOnDemand || chromeVisible;
   const commentCountText = short.commentCountText ?? fetchedCommentCountText;
   const volumeWheelRef = useWheelVolume({ volume, muted, onVolumeChange, onUnmute: onToggleMute });
 
@@ -137,11 +159,12 @@ export function ShortPlayer({
         layout={active}
         className="relative z-10 flex h-full w-full max-w-none flex-row items-end justify-center gap-6 px-6 lg:gap-8"
       >
-        {active ? (
+        {active && chromeShown ? (
           <ShortMetadata
             short={short}
             details={details}
             onOpenDescription={() => onRequestPanel("description")}
+            subscribeControl={overlayStyle.subscribeControl}
           />
         ) : (
           <div className="mb-4 w-[260px] lg:w-[280px]" />
@@ -171,6 +194,9 @@ export function ShortPlayer({
               volume={volume}
               playbackMode={playbackMode}
               autoScrollSeconds={autoScrollSeconds}
+              controlsOnDemand={overlayStyle.controlsOnDemand}
+              onRequestChrome={() => setChromeVisible((value) => !value)}
+              onPlayingChange={setIsPlaying}
               onRequestAdvance={onRequestAdvance}
               onError={() => {
                 console.error(`[shorts] video error ${short.id}`, dashUrl, videoUrl);
@@ -242,7 +268,7 @@ export function ShortPlayer({
           </motion.div>
         </motion.div>
 
-        {active ? (
+        {active && chromeShown ? (
           <ShortActionBar
             short={short}
             details={details}
@@ -252,6 +278,9 @@ export function ShortPlayer({
             onRequestAdvance={onRequestAdvance}
             onMoreLikeThis={onMoreLikeThis}
             likeFromSurfaceRef={likeFromSurfaceRef}
+            showRailLabels={overlayStyle.showRailLabels}
+            toastOnSave={overlayStyle.toastOnSave}
+            isPlaying={isPlaying}
           />
         ) : (
           <div className="mb-4 w-[260px] lg:w-[280px]" />

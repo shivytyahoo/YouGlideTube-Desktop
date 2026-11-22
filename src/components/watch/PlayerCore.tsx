@@ -62,6 +62,7 @@ export function PlayerCore({ videoId, videoDetails, onEnded }: PlayerCoreProps) 
   const queueAutoplayEnabled = useAppSettingsStore((s) => s.values[SETTINGS.QUEUE_AUTOPLAY_ENABLED] !== "false");
   const autoplayDelaySeconds = useAppSettingsStore((s) => Number(s.values[SETTINGS.AUTOPLAY_COUNTDOWN_SECONDS] ?? 0));
   const showToast = useUiStore((s) => s.showToast);
+  const openSignInDialog = useUiStore((s) => s.openSignInDialog);
 
   const stream = useVideoStream(videoId);
   const captions = useCaptionsWithLocal(videoId, stream.captions);
@@ -351,6 +352,7 @@ export function PlayerCore({ videoId, videoDetails, onEnded }: PlayerCoreProps) 
       isLoading={stream.loadingStream}
       error={stream.streamError}
       errorInfo={errorInfo}
+      onSignIn={openSignInDialog}
       onCopyLogs={handleCopyLogs}
       onOpenInBrowser={handleOpenInBrowser}
       qualities={stream.streamVariants}

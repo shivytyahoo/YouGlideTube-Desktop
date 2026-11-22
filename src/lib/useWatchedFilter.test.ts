@@ -2,7 +2,7 @@
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
-import { resolveHideWatched, useSubscriptionsHiddenFilter, useWatchedVideoIds } from "./useWatchedFilter";
+import { resolveHideWatched, resolveHideWatchedForSurface, useSubscriptionsHiddenFilter, useWatchedVideoIds } from "./useWatchedFilter";
 import { SETTINGS } from "./settings/schema";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import { HISTORY_UPDATED_EVENT } from "../store/useHistoryStore";
@@ -22,6 +22,22 @@ describe("resolveHideWatched", () => {
   it("lets the surface's choice win either way", () => {
     expect(resolveHideWatched("false", "true")).toBe(false);
     expect(resolveHideWatched("true", "false")).toBe(true);
+  });
+});
+
+describe("resolveHideWatchedForSurface", () => {
+  it("hides watched in the subscriptions feed until the viewer opts out", () => {
+    expect(resolveHideWatchedForSurface("subscriptions", undefined, undefined)).toBe(true);
+    expect(resolveHideWatchedForSurface("subscriptions", "", "")).toBe(true);
+    expect(resolveHideWatchedForSurface("subscriptions", "false", undefined)).toBe(false);
+    expect(resolveHideWatchedForSurface("subscriptions", undefined, "false")).toBe(false);
+    expect(resolveHideWatchedForSurface("subscriptions", "true", "false")).toBe(true);
+  });
+
+  it("keeps the home feed opt-in", () => {
+    expect(resolveHideWatchedForSurface("home", undefined, undefined)).toBe(false);
+    expect(resolveHideWatchedForSurface("home", undefined, "true")).toBe(true);
+    expect(resolveHideWatchedForSurface("home", "false", "true")).toBe(false);
   });
 });
 

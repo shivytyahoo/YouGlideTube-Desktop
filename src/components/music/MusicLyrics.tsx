@@ -1,9 +1,11 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import type { SongItem } from "../../types/music";
 import type { Rgb } from "../../lib/useDominantColor";
 import type { LyricsAlign } from "../../lib/lyrics/display/presentation";
 import { useLyrics } from "../../lib/lyrics/useLyrics";
+import { lyricsRequestFor } from "../../lib/lyrics/lyricsHelper";
+import { fetchLyricsAhead } from "../../lib/lyrics/lyricsAhead";
 import { useVideoFittedLyrics } from "../../lib/lyrics/videoTiming";
 import type { LyricsEntry } from "../../lib/lyrics/types";
 import { useLyricsStore } from "../../store/useLyricsStore";
@@ -78,6 +80,18 @@ export function MusicLyrics({ track, variant, accent, backdrop, active, classNam
   const [glow] = useLyricsGlow();
   const [keepScreenOn] = useBoolPref(SETTINGS.LYRICS_KEEP_SCREEN_ON);
   useKeepScreenOn(keepScreenOn && active && isPlaying);
+  const [lyricsOnDemand] = useBoolPref(SETTINGS.LYRICS_ON_DEMAND, false);
+  const lyricsVideoId = useLyricsStore((s) => s.videoId);
+  // Lyrics on demand: the lookup does not start at song start (see
+  // useLyricsLookup), so opening the lyrics view is what starts it.
+  useEffect(() => {
+    if (!active || !lyricsOnDemand || !track) return;
+    const videoId = track.videoId ?? track.id;
+    if (lyricsVideoId === videoId) return;
+    useLyricsStore.getState().load(lyricsRequestFor(track, track.duration ?? songDuration), () => {
+      fetchLyricsAhead(videoId);
+    });
+  }, [active, lyricsOnDemand, track, lyricsVideoId, songDuration]);
   const covered = useLyricsStore((s) => s.covered);
   const { theme, variant: themeVariant } = useTheme();
   const textColor = useMemo(() => hexToRgb(theme.variants[themeVariant].onSurface), [theme, themeVariant]);

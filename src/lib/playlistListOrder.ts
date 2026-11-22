@@ -6,6 +6,24 @@ import { profileStorage } from "./storage/profileStorage";
 
 const ORDER_STORAGE_KEY = "youglidetube_playlist_list_order";
 const CUSTOM_ORDER_STORAGE_KEY = "youglidetube_playlist_custom_order";
+const COMPACT_STORAGE_KEY = "youglidetube_playlists_compact";
+
+/** The Playlists page's grid/list layout, as Android's compact toggle keeps it. */
+export const loadPlaylistsCompact = (): boolean => {
+  try {
+    return profileStorage.getItem(COMPACT_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+};
+
+export const savePlaylistsCompact = (compact: boolean) => {
+  try {
+    profileStorage.setItem(COMPACT_STORAGE_KEY, String(compact));
+  } catch (error) {
+    console.error("Failed to persist playlists layout", error);
+  }
+};
 
 export const PLAYLIST_LIST_ORDERS = ["newest", "oldest", "name", "custom"] as const;
 

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronUp, ListChecks, Loader2, Pencil, Plus, RefreshCw, Trash2, User } from "lucide-react";
 import { SETTINGS } from "../lib/settings/schema";
 import { useSubscriptionStore } from "../store/useSubscriptionStore";
+import { useUiStore } from "../store/useUiStore";
 import { useChannelShortsStore } from "../store/useChannelShortsStore";
 import { useNotificationStore } from "../store/useNotificationStore";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
@@ -23,7 +24,7 @@ import { SubscriptionsManage } from "../components/subscriptions/SubscriptionsMa
 import { channelCountLabel } from "../lib/channelGroupLabels";
 import { useSubscriptionChannelDetails, useSubscriptionFeed } from "../lib/useSubscriptionFeed";
 import { useServerSubscriptions } from "../lib/useServerSubscriptions";
-import { unsubscribeChannel } from "../lib/accountSubscribe";
+import { unsubscribeChannel, restoreSubscription } from "../lib/accountSubscribe";
 import { useBoolPref, usePreference } from "../lib/usePreference";
 import { useShortsEnabled } from "../lib/useShortsContent";
 import { isVideoOfChannel } from "../lib/subscriptionFeedMerge";
@@ -94,7 +95,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
   const loadShortsExcluded = useChannelShortsStore((state) => state.load);
   const showSubscriptionShorts =
     useAppSettingsStore(
-      (state) => state.values[SETTINGS.SUBSCRIPTION_SHOW_SHORTS] !== "false" && state.values[SETTINGS.SHORTS_SHELF_ENABLED] !== "false",
+      (state) => state.values[SETTINGS.SUBSCRIPTION_SHOW_SHORTS] !== "false" && state.values[SETTINGS.SHORTS_SHELF_ENABLED] !== "false" && state.values[SETTINGS.SUBS_SHORTS_SHELF] !== "false",
     ) && shortsEnabled;
   const finishedShorts = useFinishedShortIds();
   const showSubscriptionLive = useAppSettingsStore((state) => state.values[SETTINGS.SUBSCRIPTION_SHOW_LIVE] !== "false");
@@ -111,6 +112,22 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
   
   const [showGroupsModal, setShowGroupsModal] = useState(false);
   const [editingGroup, setEditingGroup] = useState<SubscriptionGroup | null>(null);
+
+  /** Unsubscribes, then offers Undo: tapping it re-subscribes, as Android's
+   *  `unsubscribeWithUndo` snackbar does. */
+  const handleUnsubscribe = useCallback(async (channelId: string) => {
+    const removed = await unsubscribeChannel(channelId);
+    if (!removed) return;
+    useUiStore.getState().showToast({
+      message: getString("unsubscribed_from", removed.channel.name),
+      actions: [
+        {
+          label: getString("undo"),
+          onSelect: () => void restoreSubscription(removed),
+        },
+      ],
+    });
+  }, []);
 
   useEffect(() => {
     loadSubscriptions();
@@ -406,6 +423,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                           title={getString("shorts")}
                           shorts={shortsForShelf}
                           onPlay={onPlay}
+                          queueSource={{ kind: "subscriptions", startVideoId: "" }}
                         />
                       )}
                       <VideoGrid
@@ -440,7 +458,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
                 channelNotifications={channelNotifications}
                 onSetNotification={setChannelNotification}
                 onOpenChannel={(channelId) => navigate(`/channel/${channelId}`)}
-                onUnsubscribe={(channelId) => void unsubscribeChannel(channelId)}
+                onUnsubscribe={(channelId) => void handleUnsubscribe(channelId)}
               />
             )}
           </>

@@ -8,7 +8,11 @@ export function parseAmbientIntensity(raw: string | undefined): number {
 }
 
 export function useAmbientSettings() {
-  const enabled = useAppSettingsStore((state) => state.values[SETTINGS.AMBIENT_MODE_ENABLED] === "true");
+  // Ambient light is an animated background: the master animated-backgrounds
+  // switch turns it off even when ambient mode itself is enabled.
+  const animatedBackgrounds = useAppSettingsStore((state) => state.values[SETTINGS.ANIMATED_BACKGROUNDS] !== "false");
+  const enabled =
+    useAppSettingsStore((state) => state.values[SETTINGS.AMBIENT_MODE_ENABLED] === "true") && animatedBackgrounds;
   const glow = useAppSettingsStore((state) => state.values[SETTINGS.AMBIENT_GLOW_ENABLED] === "true");
   const intensity = useAppSettingsStore((state) => parseAmbientIntensity(state.values[SETTINGS.AMBIENT_MODE_INTENSITY]));
   return { enabled, glow, intensity };

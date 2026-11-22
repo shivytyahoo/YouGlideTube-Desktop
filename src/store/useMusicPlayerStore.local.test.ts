@@ -111,7 +111,7 @@ describe("a library file in the music player", () => {
   it("plays from the file with no stream lookup", async () => {
     await useMusicPlayerStore.getState().playQueue([song(LOCAL_ID)], 0);
     expect(getLocalStream).toHaveBeenCalledWith(LOCAL_ID);
-    expect(engine.load).toHaveBeenCalledWith("http://127.0.0.1:1/stream/token", "audio/mpeg", 200);
+    expect(engine.load).toHaveBeenCalledWith("http://127.0.0.1:1/stream/token", "audio/mpeg", 200, { readAhead: true });
     expect(resolveMusicStream).not.toHaveBeenCalled();
     expect(useMusicPlayerStore.getState().streamError).toBeNull();
   });

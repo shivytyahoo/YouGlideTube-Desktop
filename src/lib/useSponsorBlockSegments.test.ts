@@ -20,15 +20,20 @@ vi.mock("./useDownloads", () => ({
 vi.mock("../store/useSettingsStore", () => ({
   useSettingsStore: { getState: () => ({ ...settings, loadSettings: async () => {} }) },
 }));
-vi.mock("../store/usePlayerStore", () => ({
-  usePlayerStore: (selector: (state: unknown) => unknown) =>
-    selector({
-      setSponsorBlockSegments: stableSetSegments,
-    }),
-}));
-const stableSetSegments = (segments: SponsorBlockSegment[]) => {
-  storeSegments = segments;
+const mockPlayerState: {
+  sponsorBlockOffVideoId: string | null;
+  currentVideo: { id: string } | null;
+  setSponsorBlockSegments: (segments: SponsorBlockSegment[]) => void;
+} = {
+  sponsorBlockOffVideoId: null,
+  currentVideo: null,
+  setSponsorBlockSegments: (segments) => {
+    storeSegments = segments;
+  },
 };
+vi.mock("../store/usePlayerStore", () => ({
+  usePlayerStore: (selector: (state: unknown) => unknown) => selector(mockPlayerState),
+}));
 
 import { useSponsorBlockSegments } from "./useSponsorBlockSegments";
 
@@ -51,6 +56,8 @@ describe("useSponsorBlockSegments", () => {
     getSponsorBlockSegments.mockReset();
     offlineRecords.clear();
     settings.sponsorBlockEnabled = true;
+    mockPlayerState.sponsorBlockOffVideoId = null;
+    mockPlayerState.currentVideo = null;
     storeSegments = [];
   });
 
@@ -107,5 +114,18 @@ describe("useSponsorBlockSegments", () => {
     await render("video-a");
     expect(getSponsorBlockSegments).not.toHaveBeenCalled();
     expect(storeSegments).toEqual([]);
+  });
+
+  it("stays empty when SponsorBlock is off for this video only", async () => {
+    mockPlayerState.currentVideo = { id: "video-a" };
+    mockPlayerState.sponsorBlockOffVideoId = "video-a";
+    await render("video-a");
+    expect(getSponsorBlockSegments).not.toHaveBeenCalled();
+    expect(storeSegments).toEqual([]);
+
+    mockPlayerState.sponsorBlockOffVideoId = null;
+    getSponsorBlockSegments.mockResolvedValue([segment("a")]);
+    await render("video-a");
+    expect(storeSegments.map((s) => s.UUID)).toEqual(["a"]);
   });
 });

@@ -5,6 +5,8 @@ import {
   ChevronRight,
   Expand,
   ListVideo,
+  Lock,
+  LockOpen,
   Maximize2,
   MessageSquareText,
   MessagesSquare,
@@ -12,11 +14,13 @@ import {
   Pause,
   PictureInPicture2,
   Play,
+  Repeat,
   ScrollText,
   Settings as SettingsIcon,
   SkipBack,
   SkipForward,
   Shrink,
+  Timer,
   Volume1,
   Volume2,
   VolumeX,
@@ -32,7 +36,7 @@ import type {
   VideoChapter,
 } from "../../types/video";
 import { HeatmapStrip } from "./HeatmapStrip";
-import { PREVIEW_WIDTH, paintStoryboardTile, pickStoryboardLevel, storyboardTileHeight } from "../../lib/seekPreview";
+import { PREVIEW_WIDTH, paintStoryboardStrip, paintStoryboardTile, pickStoryboardLevel, storyboardTileHeight } from "../../lib/seekPreview";
 import { proxiedImage } from "../../lib/imageProxy";
 import { useImageProxyStore } from "../../store/useImageProxyStore";
 import { AutoplaySwitch } from "./AutoplaySwitch";
@@ -48,6 +52,7 @@ import {
 } from "../../lib/playerProgress";
 import { SponsorBlockIcon } from "../ui/SponsorBlockIcon";
 import { sponsorBlockCategoryLabel } from "../../lib/sponsorBlockCategories";
+import { useSponsorBlockOffForVideo } from "../../lib/useSponsorBlockSegments";
 import { isPointSegment, seekBarSegments } from "../../lib/sponsorBlockPolicy";
 import { getString } from "../../lib/i18n/index";
 import { isAtLiveEdge, liveEdgePosition, liveWindow, readLiveTiming, secondsBehindLive } from "../../lib/liveEdge";
@@ -56,8 +61,10 @@ import { useWheelVolume } from "../../lib/useWheelVolume";
 import { useVolumeLevel } from "../../lib/audio/volumeBoost";
 import { usePlayerButton } from "../../lib/playerButtons";
 import { SETTINGS } from "../../lib/settings/schema";
+import { DEFAULT_PLAYBACK_RATES } from "../../lib/settings/playerRuntime";
 import { useAppSettingsStore } from "../../store/useAppSettingsStore";
 import { useBatterySaver } from "../../lib/useBatterySaver";
+import { useBoolPref } from "../../lib/usePreference";
 
 export interface PlayerControlsProps {
   title?: string;
@@ -105,6 +112,8 @@ export interface PlayerControlsProps {
   stepFrame?: (direction: 1 | -1) => void;
   speedOptions?: PlaybackRate[];
   speedSliderEnabled?: boolean;
+  /** The chips under the speed slider; the full `speedOptions` list when unset. */
+  speedSliderPresets?: PlaybackRate[];
   onSelectPlaybackRate?: (playbackRate: PlaybackRate) => void;
   /** The 360 view switch in the settings menu; null where it can't show. */
   spherical?: { shown: boolean; onToggle: (shown: boolean) => void } | null;
@@ -122,7 +131,7 @@ export interface PlayerControlsProps {
   activeQualityLabel?: string;
 }
 
-const defaultSpeedOptions: PlaybackRate[] = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+const defaultSpeedOptions: PlaybackRate[] = DEFAULT_PLAYBACK_RATES;
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -178,6 +187,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   stepFrame,
   speedOptions = defaultSpeedOptions,
   speedSliderEnabled = false,
+  speedSliderPresets,
   onSelectPlaybackRate,
   spherical = null,
   settingsOpen,
@@ -227,7 +237,22 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   const showCaptions = usePlayerButton("captions");
   const showTheater = usePlayerButton("theater");
   const showFullscreen = usePlayerButton("fullscreen");
+  const showLock = usePlayerButton("lock");
+  const showSleepTimer = usePlayerButton("sleepTimer");
+  const showSpeedIndicator = usePlayerButton("speedIndicator");
+  const [controlsLocked, setControlsLocked] = useState(false);
+  const seekBarWidth = useAppSettingsStore((state) => state.values[SETTINGS.VIDEO_SEEK_BAR_WIDTH] ?? "default");
+  const scrubPreviewMode = useAppSettingsStore((state) => state.values[SETTINGS.SCRUB_PREVIEW_MODE] ?? "frame");
+  const stripPreviewRef = useRef<HTMLDivElement>(null);
   const frameStepEnabled = useAppSettingsStore((s) => s.values[SETTINGS.FRAME_STEP_BUTTONS_ENABLED] === "true");
+  const [videoLoop, setVideoLoop] = useBoolPref(SETTINGS.VIDEO_LOOP_ENABLED);
+  const [, setAutoplay] = useBoolPref(SETTINGS.AUTOPLAY_ENABLED);
+  // Android's loop and autoplay exclude each other: looping a video never auto-advances.
+  const toggleVideoLoop = () => {
+    const next = !videoLoop;
+    if (next) setAutoplay(false);
+    setVideoLoop(next);
+  };
   const idleStripEnabled = useAppSettingsStore((s) => s.values[SETTINGS.IDLE_PROGRESS_STRIP_ENABLED] !== "false");
   const [showRemaining, setShowRemaining] = useState(false);
   const showRemainingRef = useRef(showRemaining);
@@ -265,9 +290,10 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
     cx("grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10", panelOpen(panel) && "bg-chrome-white/15 text-primary/90");
 
   const { sponsorBlockColors, sponsorBlockActions, sponsorBlockEnabled, sbSubmitEnabled } = useSettingsStore();
+  const sponsorBlockOffForVideo = useSponsorBlockOffForVideo();
   const barSegments = React.useMemo(
-    () => (sponsorBlockEnabled ? seekBarSegments(sponsorBlockSegments, sponsorBlockActions) : []),
-    [sponsorBlockActions, sponsorBlockEnabled, sponsorBlockSegments],
+    () => (sponsorBlockEnabled && !sponsorBlockOffForVideo ? seekBarSegments(sponsorBlockSegments, sponsorBlockActions) : []),
+    [sponsorBlockActions, sponsorBlockEnabled, sponsorBlockOffForVideo, sponsorBlockSegments],
   );
   const selectPlaybackRate = onSelectPlaybackRate ?? setPlaybackRate;
 
@@ -292,6 +318,12 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   const proxyBase = useImageProxyStore((state) => state.base);
   const previewLevel = pickStoryboardLevel(storyboard);
   const previewHeight = previewLevel ? storyboardTileHeight(previewLevel) : 0;
+  const seekBarHeights =
+    seekBarWidth === "thin"
+      ? { base: "h-[3px]", hover: "group-hover/seg:h-[6px]" }
+      : seekBarWidth === "thick"
+        ? { base: "h-[8px]", hover: "group-hover/seg:h-[14px]" }
+        : { base: "h-[5px]", hover: "group-hover/seg:h-[10px]" };
 
   const segments = React.useMemo(() => {
     if (isLive || !chapters || chapters.length === 0) {
@@ -455,7 +487,11 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
     const time = (x / rect.width) * duration;
     const preview = hoverPreviewRef.current;
     if (preview && previewLevel) {
-      paintStoryboardTile(preview, previewLevel, time, (url) => proxiedImage(url, proxyBase));
+      if (scrubPreviewMode === "strip" && stripPreviewRef.current) {
+        paintStoryboardStrip(stripPreviewRef.current, previewLevel, time, (url) => proxiedImage(url, proxyBase));
+      } else {
+        paintStoryboardTile(preview, previewLevel, time, (url) => proxiedImage(url, proxyBase));
+      }
     }
     if (hoverTextRef.current) {
       const chapter = segments?.find((c) => time >= c.startSeconds && time <= c.endSeconds);
@@ -562,7 +598,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
         )}
       >
         <div
-          className="glass pointer-events-auto rounded-youglide border px-3 py-2"
+          className={`glass ${controlsLocked ? "pointer-events-none opacity-60" : "pointer-events-auto"} rounded-youglide border px-3 py-2`}
           onClick={(event) => event.stopPropagation()}
         >
           {title && (isFullscreen ? showFullscreenTitle : isPopOut) && (
@@ -600,7 +636,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                       flexGrow: Math.max(0.1, segmentDuration),
                     }}
                   >
-                    <div className="relative h-[5px] w-full overflow-hidden rounded-full bg-chrome-white/25 transition-[height] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover/seg:h-[10px]">
+                    <div className={`relative ${seekBarHeights.base} w-full overflow-hidden rounded-full bg-chrome-white/25 transition-[height] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${seekBarHeights.hover}`}>
                       {/* Buffered Fill for this Segment */}
                       <div
                         className="chapter-buffered-fill absolute inset-y-0 left-0 rounded-full bg-chrome-white/40 pointer-events-none transition-[width] duration-150"
@@ -677,13 +713,18 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                 className="absolute bottom-8 -translate-x-1/2 flex flex-col items-center pointer-events-none z-50 opacity-0 transition-opacity duration-75"
                 style={{ left: 0 }}
               >
-                {previewLevel && (
+                {previewLevel && scrubPreviewMode === "strip" ? (
+                  <div
+                    ref={stripPreviewRef}
+                    className="mb-1.5 flex gap-1 overflow-hidden rounded-lg border border-chrome-white/10 bg-chrome-black p-1"
+                  />
+                ) : previewLevel ? (
                   <div
                     ref={hoverPreviewRef}
                     className="mb-1.5 overflow-hidden rounded-lg border border-chrome-white/10 bg-chrome-black bg-no-repeat"
                     style={{ width: PREVIEW_WIDTH, height: previewHeight }}
                   />
-                )}
+                ) : null}
                 <div className="bg-chrome-black/80 border border-chrome-white/10 px-2 py-1 rounded-2xl text-chrome-white min-w-max text-center flex flex-col items-center gap-0.5 leading-tight">
                   <span ref={hoverTextRef} className="text-[12px] font-medium font-sans" />
                   <span
@@ -890,6 +931,22 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                 </button>
               )}
               {showAutoplay && <AutoplaySwitch />}
+              {showAutoplay && (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={videoLoop}
+                  aria-label={getString("player_menu_loop")}
+                  title={getString(videoLoop ? "player_menu_loop_on" : "player_menu_loop")}
+                  onClick={toggleVideoLoop}
+                  className={cx(
+                    "grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10",
+                    videoLoop && "bg-chrome-white/15 text-primary/90",
+                  )}
+                >
+                  <Repeat size={19} />
+                </button>
+              )}
               {showQuality && (
               <button
                 type="button"
@@ -930,6 +987,59 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                 )}
               >
                 <Captions size={19} />
+              </button>
+              )}
+              {showSpeedIndicator && (
+              <button
+                type="button"
+                title={getString("settings_button_speed_indicator")}
+                aria-label={getString("settings_button_speed_indicator")}
+                onClick={() => {
+                  if (settingsOpen && settingsPane === "speed") {
+                    setSettingsOpen(false);
+                    setSettingsPane("root");
+                  } else {
+                    setSettingsOpen(true);
+                    setSettingsPane("speed");
+                  }
+                }}
+                className="hidden h-7 items-center rounded-full px-2 text-xs font-bold text-chrome-white hover:bg-chrome-white/10 sm:flex"
+              >
+                {`${playbackRate}×`}
+              </button>
+              )}
+              {showSleepTimer && (
+              <button
+                type="button"
+                title={getString("sleep_timer")}
+                aria-label={getString("sleep_timer")}
+                onClick={() => {
+                  if (settingsOpen && settingsPane === "sleep") {
+                    setSettingsOpen(false);
+                    setSettingsPane("root");
+                  } else {
+                    setSettingsOpen(true);
+                    setSettingsPane("sleep");
+                  }
+                }}
+                className="grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10"
+              >
+                <Timer size={19} />
+              </button>
+              )}
+              {showLock && (
+              <button
+                type="button"
+                title={getString(controlsLocked ? "settings_button_lock_unlock" : "settings_button_lock")}
+                aria-label={getString("settings_button_lock")}
+                aria-pressed={controlsLocked}
+                onClick={() => setControlsLocked((value) => !value)}
+                className={cx(
+                  "grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10",
+                  controlsLocked && "bg-chrome-white/15 text-primary/90",
+                )}
+              >
+                {controlsLocked ? <Lock size={19} /> : <LockOpen size={19} />}
               </button>
               )}
               <button
@@ -994,6 +1104,18 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
         </div>
       </div>
 
+      {controlsLocked && (
+        <button
+          type="button"
+          title={getString("settings_button_lock_unlock")}
+          aria-label={getString("settings_button_lock_unlock")}
+          onClick={() => setControlsLocked(false)}
+          className="pointer-events-auto absolute bottom-4 end-4 z-30 grid h-10 w-10 place-items-center rounded-full bg-chrome-black/70 text-chrome-white hover:bg-chrome-white/10"
+        >
+          <Lock size={19} />
+        </button>
+      )}
+
       <PlayerSettingsMenu
         open={settingsOpen}
         pane={settingsPane}
@@ -1012,6 +1134,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
         setSelectedAudioTrackId={setSelectedAudioTrackId}
         speedOptions={speedOptions}
         speedSliderEnabled={speedSliderEnabled}
+        speedSliderPresets={speedSliderPresets}
         playbackRate={playbackRate}
         onSelectPlaybackRate={selectPlaybackRate}
         spherical={spherical}

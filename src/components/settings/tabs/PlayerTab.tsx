@@ -40,6 +40,8 @@ export function PlayerTab() {
   const [queueAutoplay, setQueueAutoplay] = useBoolPref(SETTINGS.QUEUE_AUTOPLAY_ENABLED, true);
   const [autoplayDelay, setAutoplayDelay] = useNumberPref(SETTINGS.AUTOPLAY_COUNTDOWN_SECONDS, 0);
   const [loop, setLoop] = useBoolPref(SETTINGS.VIDEO_LOOP_ENABLED, false);
+  const [backgroundPlay, setBackgroundPlay] = useBoolPref(SETTINGS.BACKGROUND_PLAY, true);
+  const [startPaused, setStartPaused] = useBoolPref(SETTINGS.START_PAUSED, false);
   const [stableVolume, setStableVolume] = useBoolPref(SETTINGS.STABLE_VOLUME_ENABLED, false);
   const [videoLoudness, setVideoLoudness] = useBoolPref(SETTINGS.VIDEO_LOUDNESS_NORMALIZATION, false);
   const [volumeBoost, setVolumeBoost] = useBoolPref(SETTINGS.ALLOW_VOLUME_BOOST, false);
@@ -55,6 +57,9 @@ export function PlayerTab() {
 
   const [doubleTapSeek, setDoubleTapSeek] = useNumberPref(SETTINGS.DOUBLE_TAP_SEEK_SECONDS, 10);
   const [doubleClickSeek, setDoubleClickSeek] = useBoolPref(SETTINGS.DOUBLE_CLICK_SEEK_ENABLED, true);
+  const [seekZoneWidth, setSeekZoneWidth] = usePreference(SETTINGS.SEEK_ZONE_WIDTH, 'normal');
+  const [seekBarWidth, setSeekBarWidth] = usePreference(SETTINGS.VIDEO_SEEK_BAR_WIDTH, 'default');
+  const [scrubPreviewMode, setScrubPreviewMode] = usePreference(SETTINGS.SCRUB_PREVIEW_MODE, 'frame');
 
   const [subtitles, setSubtitles] = useBoolPref(SETTINGS.SUBTITLES_ENABLED, false);
   const [subtitleLang, setSubtitleLang] = usePreference(SETTINGS.PREFERRED_SUBTITLE_LANGUAGE, 'en');
@@ -90,6 +95,10 @@ export function PlayerTab() {
   const [pipAlwaysOnTop, setPipAlwaysOnTop] = useBoolPref(SETTINGS.PIP_ALWAYS_ON_TOP, true);
   const canPinWindows = useCanPinWindows();
   const [pipOnMinimize, setPipOnMinimize] = useBoolPref(SETTINGS.PIP_ON_MINIMIZE, true);
+  const [shortsPlayerPrompt, setShortsPlayerPrompt] = useBoolPref(SETTINGS.SHORTS_PLAYER_PROMPT, true);
+  const [shortsBackgroundPlay, setShortsBackgroundPlay] = useBoolPref(SETTINGS.SHORTS_BACKGROUND_PLAY, false);
+  const [shortsPip, setShortsPip] = useBoolPref(SETTINGS.SHORTS_PIP, false);
+  const [shortsContinueIntoFeed, setShortsContinueIntoFeed] = useBoolPref(SETTINGS.SHORTS_CONTINUE_INTO_FEED, true);
 
   return (
     <div className="space-y-6 pb-8">
@@ -107,6 +116,12 @@ export function PlayerTab() {
         </SettingItem>
         <SettingItem title={getString('settings_loop_video')} description={getString('settings_loop_video_desc')}>
           <ToggleSwitch checked={loop} onChange={setLoop} />
+        </SettingItem>
+        <SettingItem title={getString('settings_background_play')} description={getString('settings_background_play_desc')}>
+          <ToggleSwitch checked={backgroundPlay} onChange={setBackgroundPlay} />
+        </SettingItem>
+        <SettingItem title={getString('settings_start_paused')} description={getString('settings_start_paused_desc')}>
+          <ToggleSwitch checked={startPaused} onChange={setStartPaused} />
         </SettingItem>
         <SettingItem title={getString('settings_stable_volume')} description={getString('settings_stable_volume_desc')}>
           <ToggleSwitch checked={stableVolume} onChange={setStableVolume} />
@@ -172,6 +187,13 @@ export function PlayerTab() {
         <SettingItem title={getString('settings_double_click_seek')} description={getString('settings_double_click_seek_desc')}>
           <ToggleSwitch checked={doubleClickSeek} onChange={setDoubleClickSeek} />
         </SettingItem>
+        <SettingItem title={getString('settings_seek_zone_width')} description={getString('settings_seek_zone_width_desc')}>
+          <Select value={seekZoneWidth} onChange={setSeekZoneWidth} options={[
+            { value: 'normal', label: getString('settings_seek_zone_normal') },
+            { value: 'narrow', label: getString('settings_seek_zone_narrow') },
+            { value: 'edge_to_edge', label: getString('settings_seek_zone_edge_to_edge') },
+          ]} />
+        </SettingItem>
       </SettingsGroup>
 
       <SettingsGroup title={getString('settings_group_subtitles')}>
@@ -230,6 +252,21 @@ export function PlayerTab() {
         </SettingItem>
       </SettingsGroup>
 
+      <SettingsGroup title={getString('settings_group_shorts_player')}>
+        <SettingItem title={getString('settings_shorts_player_prompt')} description={getString('settings_shorts_player_prompt_desc')}>
+          <ToggleSwitch checked={shortsPlayerPrompt} onChange={setShortsPlayerPrompt} />
+        </SettingItem>
+        <SettingItem title={getString('settings_shorts_background_play')} description={getString('settings_shorts_background_play_desc')}>
+          <ToggleSwitch checked={shortsBackgroundPlay} onChange={setShortsBackgroundPlay} />
+        </SettingItem>
+        <SettingItem title={getString('settings_shorts_pip')} description={getString('settings_shorts_pip_desc')}>
+          <ToggleSwitch checked={shortsPip} onChange={setShortsPip} />
+        </SettingItem>
+        <SettingItem title={getString('settings_shorts_continue_into_feed')} description={getString('settings_shorts_continue_into_feed_desc')}>
+          <ToggleSwitch checked={shortsContinueIntoFeed} onChange={setShortsContinueIntoFeed} />
+        </SettingItem>
+      </SettingsGroup>
+
       <SettingsGroup title={getString('settings_group_player_buttons')}>
         {PLAYER_BUTTON_ROWS.map((row) => <PlayerButtonSwitch key={row.id} row={row} />)}
       </SettingsGroup>
@@ -272,6 +309,19 @@ export function PlayerTab() {
         </SettingItem>
         <SettingItem title={getString('settings_frame_step')} description={getString('settings_frame_step_desc')}>
           <ToggleSwitch checked={frameStep} onChange={setFrameStep} />
+        </SettingItem>
+        <SettingItem title={getString('settings_video_seek_bar_width')} description={getString('settings_video_seek_bar_width_desc')}>
+          <Select value={seekBarWidth} onChange={setSeekBarWidth} options={[
+            { value: 'thin', label: getString('settings_seek_bar_thin') },
+            { value: 'default', label: getString('settings_seek_bar_default') },
+            { value: 'thick', label: getString('settings_seek_bar_thick') },
+          ]} />
+        </SettingItem>
+        <SettingItem title={getString('settings_scrub_preview_mode')} description={getString('settings_scrub_preview_mode_desc')}>
+          <Select value={scrubPreviewMode} onChange={setScrubPreviewMode} options={[
+            { value: 'frame', label: getString('settings_scrub_preview_frame') },
+            { value: 'strip', label: getString('settings_scrub_preview_strip') },
+          ]} />
         </SettingItem>
       </SettingsGroup>
 

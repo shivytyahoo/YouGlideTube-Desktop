@@ -1,7 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Plus } from 'lucide-react';
+import { Check, Plus, Bell, BellRing } from 'lucide-react';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
+import { useNotificationStore } from '../../store/useNotificationStore';
 import { Button } from '../ui/Button';
 import { getString } from '../../lib/i18n/index';
 import { upgradeAvatarUrl } from '../../lib/thumbnails';
@@ -20,6 +21,13 @@ export interface ChannelCardProps {
   className?: string;
   /** Replaces opening the channel's page. */
   onOpen?: () => void;
+  /**
+   * Asked before the subscribe button toggles; returning false blocks it
+   * (a signed-out subscribe tap can ask for sign-in instead).
+   */
+  onSubscribeRequest?: () => Promise<boolean>;
+  /** Shows the per-channel notification bell beside the subscribe button, once subscribed. */
+  showNotificationToggle?: boolean;
 }
 
 function cx(...parts: Array<string | false | null | undefined>): string {
@@ -55,6 +63,8 @@ export function ChannelCard({
   fill,
   className,
   onOpen,
+  onSubscribeRequest,
+  showNotificationToggle,
 }: ChannelCardProps) {
   const navigate = useNavigate();
   const washSrc = useProxiedImageUrl(upgradeAvatarUrl(avatarUrl));
@@ -64,6 +74,8 @@ export function ChannelCard({
   const subscribe = useSubscriptionStore((s) => s.subscribe);
   const unsubscribe = useSubscriptionStore((s) => s.unsubscribe);
   const subscribed = isSubscribed(cleanId);
+  const channelNotificationsEnabled = useNotificationStore((s) => s.isChannelNotificationEnabled(cleanId));
+  const setChannelNotification = useNotificationStore((s) => s.setChannelNotification);
 
   const route = `/channel/${cleanId}`;
   const open = (event?: React.MouseEvent) => {
@@ -75,9 +87,12 @@ export function ChannelCard({
     navigate(route);
   };
 
-  const toggleSubscribe = (e: React.MouseEvent) => {
+  const toggleSubscribe = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!cleanId) return;
+    // The gate only guards subscribing; unsubscribing a local subscription
+    // must always work, signed in or not.
+    if (!subscribed && onSubscribeRequest && !(await onSubscribeRequest())) return;
     if (subscribed) {
       void unsubscribe(cleanId, { learn: true });
     } else {
@@ -117,23 +132,41 @@ export function ChannelCard({
         <span className="line-clamp-1 text-sm text-chrome-neutral-400">{subtitle || getString('search_role_channel')}</span>
       </div>
 
-      <Button
-        variant={subscribed ? 'secondary' : 'primary'}
-        size="sm"
-        onClick={toggleSubscribe}
-        className="mt-1"
-        aria-pressed={subscribed}
-      >
-        {subscribed ? (
-          <>
-            <Check className="h-4 w-4" /> {getString('search_subscribed')}
-          </>
-        ) : (
-          <>
-            <Plus className="h-4 w-4" /> {getString('search_subscribe')}
-          </>
+      <div className="mt-1 flex items-center gap-2">
+        <Button
+          variant={subscribed ? 'secondary' : 'primary'}
+          size="sm"
+          onClick={(e) => void toggleSubscribe(e)}
+          aria-pressed={subscribed}
+        >
+          {subscribed ? (
+            <>
+              <Check className="h-4 w-4" /> {getString('search_subscribed')}
+            </>
+          ) : (
+            <>
+              <Plus className="h-4 w-4" /> {getString('search_subscribe')}
+            </>
+          )}
+        </Button>
+        {showNotificationToggle && subscribed && (
+          <button
+            type="button"
+            aria-label={getString('onboarding_channels_notif')}
+            aria-pressed={channelNotificationsEnabled}
+            title={getString('onboarding_channels_notif')}
+            onClick={(e) => {
+              e.stopPropagation();
+              void setChannelNotification(cleanId, !channelNotificationsEnabled);
+            }}
+            className={`rounded-full p-2 transition-colors hover:bg-chrome-neutral-800 ${
+              channelNotificationsEnabled ? 'text-primary' : 'text-chrome-neutral-400'
+            }`}
+          >
+            {channelNotificationsEnabled ? <BellRing className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+          </button>
         )}
-      </Button>
+      </div>
     </div>
   );
 }

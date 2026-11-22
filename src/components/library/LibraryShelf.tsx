@@ -16,6 +16,8 @@ interface LibraryShelfProps {
   isEmpty?: boolean;
   /** Optional override for the empty-state caption. */
   emptyLabel?: string;
+  /** False hides the row of items under the section, as Android's Library previews switch does. */
+  showPreview?: boolean;
   /** Card cells — each must carry its own `w-[px] shrink-0` sizing. */
   children: React.ReactNode;
 }
@@ -33,6 +35,7 @@ export const LibraryShelf: React.FC<LibraryShelfProps> = ({
   viewAllTo,
   isEmpty = false,
   emptyLabel,
+  showPreview = true,
   children,
 }) => {
   const navigate = useNavigate();
@@ -53,7 +56,7 @@ export const LibraryShelf: React.FC<LibraryShelfProps> = ({
       </div>
 
       {/* Shelf body — swiper of cards, or the MD3 empty state */}
-      {isEmpty ? (
+      {!showPreview ? null : isEmpty ? (
         <div className="flex h-32 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-chrome-neutral-800">
           <Icon className="h-6 w-6 text-chrome-neutral-600" />
           <p className="text-sm text-chrome-neutral-500">

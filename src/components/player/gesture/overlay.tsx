@@ -20,7 +20,9 @@ import { LONG_PRESS_MS, shouldStartDrag } from "../../../lib/pointerGesture";
 import { startWindowDrag } from "../../../lib/api/pip";
 import { StatsForNerds } from "../StatsForNerds";
 import type { LookAround } from "../SphericalView";
-import { seekSideAt, type SeekDirection, type SeekFeedback as SeekFeedbackState } from "../../../lib/seekFeedback";
+import { seekSideAt, seekZoneFraction, type SeekDirection, type SeekFeedback as SeekFeedbackState } from "../../../lib/seekFeedback";
+import { useAppSettingsStore } from "../../../store/useAppSettingsStore";
+import { SETTINGS } from "../../../lib/settings/schema";
 import { SeekFeedback } from "./SeekFeedback";
 import { PlayerContextMenu, type PlayerContextMenuItem } from "./PlayerContextMenu";
 import { isPopOutWindow } from "../../../lib/api/pip";
@@ -315,7 +317,7 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
     // a third click in the burst, or a single click on the side whose total is still showing.
     if (doubleClickSeek) {
       const rect = event.currentTarget.getBoundingClientRect();
-      const side = seekSideAt(event.clientX - rect.left, rect.width);
+      const side = seekSideAt(event.clientX - rect.left, rect.width, seekZoneFraction(useAppSettingsStore.getState().values[SETTINGS.SEEK_ZONE_WIDTH]));
       const sideShowing = seekFeedback?.visible === true && seekFeedback.direction === side;
       if (side && (event.detail > 2 || (event.detail === 1 && sideShowing))) {
         clearClickTimer();
@@ -355,7 +357,7 @@ export const PlayerGestureOverlay: React.FC<PlayerGestureOverlayProps> = ({
     // Some engines repeat dblclick on every even click; the click handler already counted those.
     if (event.detail > 2) return;
     const rect = event.currentTarget.getBoundingClientRect();
-    const side = doubleClickSeek ? seekSideAt(event.clientX - rect.left, rect.width) : null;
+    const side = doubleClickSeek ? seekSideAt(event.clientX - rect.left, rect.width, seekZoneFraction(useAppSettingsStore.getState().values[SETTINGS.SEEK_ZONE_WIDTH])) : null;
     if (side) seekSide(side);
     else toggleFullscreen();
   };

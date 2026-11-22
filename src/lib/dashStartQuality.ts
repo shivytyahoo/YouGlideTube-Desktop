@@ -64,14 +64,15 @@ export function pickDashStart(input: {
   selected: StreamVariant | null;
   tracks: DashVideoTrack[];
   preferredCodec: string;
+  fallbackCodec?: string;
   speedKbps: number | null;
 }): DashStart {
-  const { selected, tracks, preferredCodec, speedKbps } = input;
+  const { selected, tracks, preferredCodec, fallbackCodec = "Auto", speedKbps } = input;
 
   if (!selected) {
     return {
       bitrateKbps: speedKbps === null ? null : Math.floor(speedKbps / START_SPEED_MARGIN),
-      setId: pickAutoVideoTrack(tracks, preferredCodec)?.id ?? null,
+      setId: pickAutoVideoTrack(tracks, preferredCodec, fallbackCodec)?.id ?? null,
     };
   }
 

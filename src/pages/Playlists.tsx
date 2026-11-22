@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { closestCenter, DndContext, type DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, rectSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
-import { ListVideo, Loader2, Plus } from "lucide-react";
+import { LayoutGrid, List, ListVideo, Loader2, Plus } from "lucide-react";
 import type { PlaylistSummary, VideoSummary } from "../types/video";
 import { Button } from "../components/ui/Button";
 import { SearchInput } from "../components/ui/SearchInput";
@@ -19,10 +19,12 @@ import { resolveDragMove, sortableRowStyle, useListDragSensors } from "../lib/so
 import {
   loadPlaylistCustomOrder,
   loadPlaylistListOrder,
+  loadPlaylistsCompact,
   PLAYLIST_LIST_ORDERS,
   playlistListOrderLabel,
   savePlaylistCustomOrder,
   savePlaylistListOrder,
+  savePlaylistsCompact,
   sortStoredPlaylists,
   type PlaylistListOrder,
 } from "../lib/playlistListOrder";
@@ -72,6 +74,7 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay: _onPlay }) => {
   const [filter, setFilter] = useState<PlaylistFilter>("All");
   const [order, setOrder] = useState<PlaylistListOrder>(loadPlaylistListOrder);
   const [customOrder, setCustomOrder] = useState<string[]>(loadPlaylistCustomOrder);
+  const [compact, setCompact] = useState<boolean>(loadPlaylistsCompact);
   const dragSensors = useListDragSensors();
   // The account's playlists lead, in the server's order: the list is the
   // account's playlists while signed in, as Android's PlaylistsViewModel
@@ -149,6 +152,13 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay: _onPlay }) => {
     savePlaylistListOrder(next);
   };
 
+  const handleCompactChange = () => {
+    setCompact((current) => {
+      savePlaylistsCompact(!current);
+      return !current;
+    });
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const ids = visiblePlaylists.map((playlist) => playlist.id);
     const move = resolveDragMove(event, ids);
@@ -220,6 +230,17 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay: _onPlay }) => {
               className="w-full md:w-52"
             />
 
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleCompactChange}
+              aria-label={getString(compact ? "playlists_show_grid" : "playlists_show_list")}
+              title={getString(compact ? "playlists_show_grid" : "playlists_show_list")}
+            >
+              {compact ? <LayoutGrid size={16} /> : <List size={16} />}
+              {getString(compact ? "playlists_show_grid" : "playlists_show_list")}
+            </Button>
+
             <CategoryChips
               categories={FILTERS}
               activeCategory={filter}
@@ -261,7 +282,7 @@ export const Playlists: React.FC<PlaylistsProps> = ({ onPlay: _onPlay }) => {
           ) : (
             <DndContext sensors={dragSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={visiblePlaylists.map((playlist) => playlist.id)} strategy={rectSortingStrategy}>
-                <div className="video-grid gap-y-6" style={gridStyle}>
+                <div className={compact ? "flex flex-col gap-3" : "video-grid gap-y-6"} style={compact ? undefined : gridStyle}>
                   {visibleServerPlaylists.map((playlist) => (
                     <PlaylistCard
                       key={playlist.id}

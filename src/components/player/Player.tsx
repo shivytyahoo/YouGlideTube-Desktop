@@ -43,6 +43,7 @@ import {
   withoutRuledOutCodecs,
   type VideoCodecFamily,
 } from "../../lib/codecHealth";
+import { effectiveFallbackCodec } from "../../lib/codecPreference";
 import { useCodecHealthStore } from "../../store/useCodecHealthStore";
 import { sponsorBlockCategoryLabel } from "../../lib/sponsorBlockCategories";
 import { usePersistedPlayerVolume } from "../../lib/usePersistedPlayerVolume";
@@ -50,6 +51,7 @@ import { recordPlayerEvent } from "../../lib/playerDiagnostics";
 import { shouldPublishPlaybackTime } from "../../lib/playerProgress";
 import { seekLeavesLoop, shouldLoopBack } from "../../lib/chapterLoop";
 import { SponsorBlockTracker } from "../../lib/sponsorBlockPolicy";
+import { useSponsorBlockOffForVideo } from "../../lib/useSponsorBlockSegments";
 import { useManualSponsorSegment } from "../../lib/useManualSponsorSegment";
 import { useVolumeFeedback } from "../../lib/useVolumeFeedback";
 import { useSeekFeedback } from "../../lib/useSeekFeedback";
@@ -92,6 +94,7 @@ import {
   formatPlaybackRate,
   normalizePlaybackRate,
   parseCustomSpeedPresets,
+  playbackSpeedSliderPresets,
   selectPreferredAudioTrackId,
   selectPreferredCaptionId,
 } from "../../lib/settings/playerRuntime";
@@ -134,6 +137,8 @@ type PlayerProps = {
   isLoading?: boolean;
   error?: string | null;
   errorInfo?: PlayerErrorInfo | null;
+  /** Opens sign-in, for failures a signed-in account can clear (login-required, age-restricted). */
+  onSignIn?: () => void;
   qualities?: StreamVariant[];
   captions?: CaptionTrack[];
   audioTracks?: AudioTrack[];
@@ -314,6 +319,7 @@ export const Player: React.FC<PlayerProps> = ({
   isLoading = false,
   error,
   errorInfo,
+  onSignIn,
   qualities = [],
   captions = [],
   audioTracks = [],
@@ -409,6 +415,8 @@ export const Player: React.FC<PlayerProps> = ({
 
 
   const autoplayEnabled = useAppSettingsStore((state) => state.values[SETTINGS.AUTOPLAY_ENABLED] !== "false");
+  const backgroundPlayEnabled = useAppSettingsStore((state) => state.values[SETTINGS.BACKGROUND_PLAY] !== "false");
+  const startPausedEnabled = useAppSettingsStore((state) => state.values[SETTINGS.START_PAUSED] === "true");
   const videoLoopEnabled = useAppSettingsStore((state) => state.values[SETTINGS.VIDEO_LOOP_ENABLED] === "true");
   const rememberPlaybackSpeed = useAppSettingsStore((state) => state.values[SETTINGS.REMEMBER_PLAYBACK_SPEED] === "true");
   const normalizeLoudness = useAppSettingsStore((state) => state.values[SETTINGS.VIDEO_LOUDNESS_NORMALIZATION] === "true");
@@ -446,6 +454,10 @@ export const Player: React.FC<PlayerProps> = ({
   const [isPopOut] = useState(isPopOutWindow);
   const configuredSpeedOptions = useMemo(
     () => parseCustomSpeedPresets(customSpeedPresets, customSpeedsEnabled),
+    [customSpeedPresets, customSpeedsEnabled],
+  );
+  const configuredSpeedSliderPresets = useMemo(
+    () => playbackSpeedSliderPresets(customSpeedPresets, customSpeedsEnabled),
     [customSpeedPresets, customSpeedsEnabled],
   );
   const seekIntervalSeconds = useMemo(() => {
@@ -493,6 +505,7 @@ export const Player: React.FC<PlayerProps> = ({
     incrementStats,
     loadSettings
   } = useSettingsStore();
+  const sponsorBlockOffForVideo = useSponsorBlockOffForVideo();
   const [sbMuted, setSbMuted] = useState(false);
   const [notifyToast, setNotifyToast] = useState<{ segment: any; categoryName: string; visible: boolean } | null>(null);
   const notifyTimeoutRef = useRef<number | null>(null);
@@ -692,6 +705,10 @@ export const Player: React.FC<PlayerProps> = ({
       const autoTrack = pickAutoVideoTrack(
         videoTracks,
         useAppSettingsStore.getState().values[SETTINGS.DEFAULT_VIDEO_CODEC] ?? "H.264",
+        effectiveFallbackCodec(
+          useAppSettingsStore.getState().values[SETTINGS.DEFAULT_VIDEO_CODEC] ?? "H.264",
+          useAppSettingsStore.getState().values[SETTINGS.FALLBACK_VIDEO_CODEC] ?? "Auto",
+        ),
       );
       const autoStart = autoRepresentationToSwitchTo(autoTrack, currentRep);
       if (autoStart) {
@@ -1208,12 +1225,12 @@ export const Player: React.FC<PlayerProps> = ({
 
   // A seek let go of inside a segment that skips automatically lands at its end, as on Android.
   const sponsorSkipTarget = useCallback((time: number): number | null => {
-    if (!sponsorBlockEnabled || isLive || isScrubbing) return null;
+    if (!sponsorBlockEnabled || sponsorBlockOffForVideo || isLive || isScrubbing) return null;
     const segment = sbTrackerRef.current.skipForSeek(time, sponsorBlockSegments, sponsorBlockActions);
     if (!segment) return null;
     recordSponsorSkip(segment);
     return segment.segment[1];
-  }, [sponsorBlockEnabled, isLive, isScrubbing, sponsorBlockSegments, sponsorBlockActions, recordSponsorSkip]);
+  }, [sponsorBlockEnabled, sponsorBlockOffForVideo, isLive, isScrubbing, sponsorBlockSegments, sponsorBlockActions, recordSponsorSkip]);
 
   const seekTo = useCallback((time: number) => {
     const video = videoRef.current;
@@ -1304,9 +1321,28 @@ export const Player: React.FC<PlayerProps> = ({
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
+    userPressedPlayRef.current = true;
     setPlaybackDesired(video ? video.paused : !isPlaying);
     revealControls();
   }, [isPlaying, revealControls, setPlaybackDesired]);
+
+  // Start paused: a new video stays paused until the viewer presses play.
+  // The flag resets per source, so the next video opens paused too.
+  const userPressedPlayRef = useRef(false);
+  useEffect(() => {
+    userPressedPlayRef.current = false;
+  }, [mediaIdentity]);
+
+  // Background play off: hiding or minimising the window pauses playback,
+  // unless picture-in-picture is showing the video.
+  useEffect(() => {
+    if (backgroundPlayEnabled || isPipMode) return;
+    const onVisibility = () => {
+      if (document.hidden) setPlaybackDesired(false);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [backgroundPlayEnabled, isPipMode, setPlaybackDesired]);
 
   const toggleCaptions = useCallback(() => {
     setSelectedCaptionId((current) =>
@@ -1632,6 +1668,10 @@ export const Player: React.FC<PlayerProps> = ({
           usePlayerStore.getState().currentVideo?.id,
         ),
         preferredCodec: useAppSettingsStore.getState().values[SETTINGS.DEFAULT_VIDEO_CODEC] ?? "H.264",
+        fallbackCodec: effectiveFallbackCodec(
+          useAppSettingsStore.getState().values[SETTINGS.DEFAULT_VIDEO_CODEC] ?? "H.264",
+          useAppSettingsStore.getState().values[SETTINGS.FALLBACK_VIDEO_CODEC] ?? "Auto",
+        ),
         speedKbps,
       });
       if (start.bitrateKbps) {
@@ -2133,6 +2173,16 @@ export const Player: React.FC<PlayerProps> = ({
 
     if (isSourceSwitching || sourceSwitchingRef.current) return;
 
+    // Start paused: keep the video paused until the viewer presses play,
+    // however often the stream resolver asks for playback.
+    if (startPausedEnabled && !userPressedPlayRef.current) {
+      desiredPlayingRef.current = false;
+      video.pause();
+      audio?.pause();
+      if (isPlaying) setIsPlaying(false);
+      return;
+    }
+
     desiredPlayingRef.current = isPlaying;
     if (isPlaying && (isDashPlayback || isHlsPlayback || src) && !error) {
       void video.play().catch((cause) => {
@@ -2147,7 +2197,7 @@ export const Player: React.FC<PlayerProps> = ({
       video.pause();
       audio?.pause();
     }
-  }, [error, isDashPlayback, isHlsPlayback, isPlaying, isSourceSwitching, setIsPlaying, src, usesExternalAudio]);
+  }, [error, isDashPlayback, isHlsPlayback, isPlaying, isSourceSwitching, setIsPlaying, src, startPausedEnabled, usesExternalAudio]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -2497,7 +2547,7 @@ export const Player: React.FC<PlayerProps> = ({
     let muteSegmentCategoryName = "";
     let manualSegment: SponsorBlockSegment | null = null;
 
-    if (sponsorBlockEnabled) {
+    if (sponsorBlockEnabled && !sponsorBlockOffForVideo) {
       const sb = sbTrackerRef.current.tick(nextTime, sponsorBlockSegments, sponsorBlockActions, !!video?.ended);
       if (sb.skip) {
         seekTo(sb.skip.segment[1]);
@@ -2634,6 +2684,7 @@ export const Player: React.FC<PlayerProps> = ({
           }
           if (videoLoopEnabled && !isLive) {
             seekTo(0);
+            userPressedPlayRef.current = true;
             setPlaybackDesired(true);
             return;
           }
@@ -2759,6 +2810,7 @@ export const Player: React.FC<PlayerProps> = ({
               onRetry={onRetry}
               onCopyLogs={onCopyLogs}
               onOpenInBrowser={onOpenInBrowser}
+              onSignIn={onSignIn}
               upcomingAction={
                 errorInfo.startsAtMs != null ? <CurrentVideoReminderButton startsAtMs={errorInfo.startsAtMs} /> : undefined
               }
@@ -2872,6 +2924,7 @@ export const Player: React.FC<PlayerProps> = ({
         stepFrame={isLive ? undefined : stepFrame}
         speedOptions={configuredSpeedOptions}
         speedSliderEnabled={speedSliderEnabled}
+        speedSliderPresets={configuredSpeedSliderPresets}
         onSelectPlaybackRate={selectPlaybackRate}
         spherical={sphericalMenu}
         settingsOpen={settingsOpen}

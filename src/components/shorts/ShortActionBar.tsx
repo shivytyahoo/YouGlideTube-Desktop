@@ -17,14 +17,20 @@ import {
 import { useVideoReactions } from "../../lib/useVideoReactions";
 import { useExitGhost } from "../../lib/useExitGhost";
 import { useUiStore } from "../../store/useUiStore";
-import { showSaveFailedToast, showSaveToast } from "../../lib/saveToast";
+import { showSaveFailedToast, showSaveToast, type SaveDestination } from "../../lib/saveToast";
 import { useDownloadStore } from "../../store/useDownloadStore";
 import { useFeedActionsStore } from "../../store/useFeedActionsStore";
+import { useWatchLaterStore } from "../../store/useWatchLaterStore";
+import { getAccountSignedIn } from "../../lib/api/account";
+import { GOOGLE_ACCOUNT_SWITCHED_EVENT, GOOGLE_SIGN_IN_COMPLETED_EVENT } from "../../lib/useGoogleAccount";
 import {
   isShortSaved,
   removeShortFromLibrary,
   saveShortToLibrary,
 } from "../../lib/savedShortsLibrary";
+import { useChannelAvatar } from "../../lib/useChannelAvatar";
+import { useProxiedImageUrl } from "../../lib/useProxiedImageUrl";
+import { upgradeAvatarUrl } from "../../lib/thumbnails";
 import { dontRecommendLabel } from "../../lib/dontRecommendLabel";
 import { getString } from "../../lib/i18n/index";
 import { formatCount, parseCountText } from "../../lib/utils";
@@ -45,6 +51,12 @@ interface ShortActionBarProps {
   onMoreLikeThis: () => void;
   /** Filled with what a double click on the video does: like it, never take a like back. */
   likeFromSurfaceRef: MutableRefObject<() => void>;
+  /** Simple mode hides the labels under the rail buttons. */
+  showRailLabels?: boolean;
+  /** Simple mode confirms a save with a toast, because the rail has no label to change. */
+  toastOnSave?: boolean;
+  /** Whether the reel is playing: the sound disc spins while it is. */
+  isPlaying?: boolean;
 }
 
 export function ShortActionBar({
@@ -56,12 +68,47 @@ export function ShortActionBar({
   onRequestAdvance,
   onMoreLikeThis,
   likeFromSurfaceRef,
+  showRailLabels = true,
+  toastOnSave = true,
+  isPlaying = false,
 }: ShortActionBarProps) {
   const showToast = useUiStore((s) => s.showToast);
   const notInterestedAction = useFeedActionsStore((s) => s.notInterested);
+  const undoNotInterested = useFeedActionsStore((s) => s.undoNotInterested);
   const blockChannelAction = useFeedActionsStore((s) => s.blockChannel);
   const [menuOpen, setMenuOpen] = useState(false);
   const [savedToLibrary, setSavedToLibrary] = useState(false);
+  // Signed in, the save goes to the account's server Watch Later, as on
+  // Android; signed out it stays in the local saved-shorts library.
+  const [signedIn, setSignedIn] = useState(false);
+  const watchLaterIds = useWatchLaterStore((s) => s.ids);
+  useEffect(() => {
+    let live = true;
+    const refresh = () => {
+      void getAccountSignedIn()
+        .then((value) => {
+          if (live) setSignedIn(value);
+        })
+        .catch(() => {});
+    };
+    refresh();
+    window.addEventListener(GOOGLE_SIGN_IN_COMPLETED_EVENT, refresh);
+    window.addEventListener(GOOGLE_ACCOUNT_SWITCHED_EVENT, refresh);
+    return () => {
+      live = false;
+      window.removeEventListener(GOOGLE_SIGN_IN_COMPLETED_EVENT, refresh);
+      window.removeEventListener(GOOGLE_ACCOUNT_SWITCHED_EVENT, refresh);
+    };
+  }, []);
+  useEffect(() => {
+    if (signedIn) void useWatchLaterStore.getState().load();
+  }, [signedIn]);
+  const savedToWatchLater = watchLaterIds.has(short.id);
+  const saved = signedIn ? savedToWatchLater : savedToLibrary;
+  const fetchedAvatar = useChannelAvatar(short.channelId ?? null);
+  const discAvatar = useProxiedImageUrl(
+    upgradeAvatarUrl(short.channelAvatarUrl ?? fetchedAvatar),
+  );
   const dislikeCountText = rydData ? formatCount(rydData.dislikes) : "Dislike";
   const resolvedCommentCountText = formatCount(commentCountText ?? short.commentCountText) || getString('settings_comments');
   const originalTitle = useOriginalTitle(short.id);
@@ -180,7 +227,11 @@ export function ShortActionBar({
   const notInterested = () => {
     setMenuOpen(false);
     void notInterestedAction(video).catch(() => showToast({ variant: "error", message: getString("feed_action_failed") }));
-    showToast({ variant: "success", message: getString("shorts_not_interested") });
+    showToast({
+      variant: "success",
+      message: getString("shorts_not_interested"),
+      actions: [{ label: getString("undo"), onSelect: () => undoNotInterested(video) }],
+    });
     onRequestAdvance?.();
   };
 
@@ -194,37 +245,63 @@ export function ShortActionBar({
 
   const toggleSavedShort = async () => {
     setMenuOpen(false);
-    const removing = savedToLibrary;
+    const removing = saved;
     const item = { title: savedShort.title, image: savedShort.thumbnailUrl, shape: "portrait" as const };
+    const destination: SaveDestination = signedIn ? { kind: "watchLater" } : { kind: "savedShorts" };
     try {
+      if (signedIn) {
+        const store = useWatchLaterStore.getState();
+        if (removing) {
+          await store.remove(short.id);
+        } else {
+          await store.add(video);
+        }
+        if (toastOnSave) {
+          showSaveToast({
+            destination,
+            item,
+            removed: removing,
+            undo: async () => {
+              if (removing) await useWatchLaterStore.getState().add(video);
+              else await useWatchLaterStore.getState().remove(short.id);
+            },
+          });
+        }
+        return;
+      }
+
       if (removing) {
         await removeShortFromLibrary(short.id);
         setSavedToLibrary(false);
-        showSaveToast({
-          destination: { kind: "savedShorts" },
-          item,
-          removed: true,
-          undo: async () => {
-            await saveShortToLibrary(savedShort);
-            setSavedToLibrary(true);
-          },
-        });
+        if (toastOnSave) {
+          showSaveToast({
+            destination,
+            item,
+            removed: true,
+            undo: async () => {
+              await saveShortToLibrary(savedShort);
+              setSavedToLibrary(true);
+            },
+          });
+        }
         return;
       }
 
       await saveShortToLibrary(savedShort);
       setSavedToLibrary(true);
-      showSaveToast({
-        destination: { kind: "savedShorts" },
-        item,
-        undo: async () => {
-          await removeShortFromLibrary(short.id);
-          setSavedToLibrary(false);
-        },
-      });
+      if (toastOnSave) {
+        showSaveToast({
+          destination,
+          item,
+          undo: async () => {
+            await removeShortFromLibrary(short.id);
+            setSavedToLibrary(false);
+          },
+        });
+      }
     } catch (error) {
       console.error("Failed to update saved Shorts", error);
-      showSaveFailedToast({ destination: { kind: "savedShorts" }, item, removed: removing, retry: toggleSavedShort });
+      showSaveFailedToast({ destination, item, removed: removing, retry: toggleSavedShort });
     }
   };
 
@@ -233,31 +310,33 @@ export function ShortActionBar({
     useDownloadStore.getState().openVideo(video);
   };
 
+  const label = (text?: string) => (showRailLabels ? text : undefined);
+
   return (
     <motion.div layout className="mb-4 flex w-[260px] flex-col items-start gap-5 lg:w-[280px]">
       <ActionButton
         ariaLabel={getString('like')}
         active={state === "liked"}
-        countText={likeCountText}
+        countText={label(likeCountText)}
         onClick={like}
         icon={<ThumbsUp className="h-6 w-6" fill={state === "liked" ? "currentColor" : "none"} />}
       />
       <ActionButton
         ariaLabel={getString('watch_dislike')}
         active={state === "disliked"}
-        countText={dislikeCountText}
+        countText={label(dislikeCountText)}
         onClick={dislike}
         icon={<ThumbsDown className="h-6 w-6" fill={state === "disliked" ? "currentColor" : "none"} />}
       />
       <ActionButton
         ariaLabel={getString('settings_comments')}
-        countText={resolvedCommentCountText}
+        countText={label(resolvedCommentCountText)}
         onClick={() => onRequestPanel("comments")}
         icon={<MessageCircle className="h-6 w-6" />}
       />
       <ActionButton
         ariaLabel={getString('share')}
-        countText="Share"
+        countText={label("Share")}
         onClick={shareShort}
         icon={<Share2 className="h-6 w-6" />}
       />
@@ -266,7 +345,7 @@ export function ShortActionBar({
         <ActionButton
           ariaLabel={getString('more_options')}
           active={menuOpen}
-          countText="More"
+          countText={label("More")}
           onClick={() => setMenuOpen((open) => !open)}
           icon={<MoreVertical className="h-6 w-6" />}
         />
@@ -274,8 +353,16 @@ export function ShortActionBar({
           <>
             <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
             <MoreMenu>
-              <MenuItem icon={savedToLibrary ? BookmarkCheck : Bookmark} onClick={() => void toggleSavedShort()}>
-                {getString(savedToLibrary ? "shorts_menu_remove_from_library" : "shorts_menu_save_to_library")}
+              <MenuItem icon={saved ? BookmarkCheck : Bookmark} onClick={() => void toggleSavedShort()}>
+                {getString(
+                  signedIn
+                    ? saved
+                      ? "video_remove_from_watch_later"
+                      : "video_save_to_watch_later"
+                    : saved
+                      ? "shorts_menu_remove_from_library"
+                      : "shorts_menu_save_to_library",
+                )}
               </MenuItem>
               <MenuItem icon={Download} onClick={downloadShort}>{getString("shorts_menu_download")}</MenuItem>
               <MenuItem icon={ThumbsUp} onClick={moreLikeThis}>{getString("shorts_menu_more_like_this")}</MenuItem>
@@ -290,6 +377,21 @@ export function ShortActionBar({
           </>
         )}
       </div>
+
+      {/* The sound disc: the channel avatar spinning once every 4s while the reel plays. */}
+      {discAvatar ? (
+        <img
+          src={discAvatar}
+          alt=""
+          aria-hidden="true"
+          className="h-9 w-9 rounded-full object-cover ring-2 ring-chrome-white/25"
+          style={{ animation: "spin 4s linear infinite", animationPlayState: isPlaying ? "running" : "paused" }}
+        />
+      ) : (
+        <div className="grid h-9 w-9 place-items-center rounded-full bg-surface-container-high text-sm font-bold text-chrome-neutral-300 ring-2 ring-chrome-white/25">
+          {(short.channelName || "?").charAt(0).toUpperCase()}
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -319,9 +421,11 @@ function ActionButton({
       >
         {icon}
       </button>
-      <span className="mt-1 mb-2 h-4 text-xs font-semibold text-chrome-neutral-300">
-        {countText ?? ""}
-      </span>
+      {countText !== undefined && (
+        <span className="mt-1 mb-2 h-4 text-xs font-semibold text-chrome-neutral-300">
+          {countText}
+        </span>
+      )}
     </div>
   );
 }

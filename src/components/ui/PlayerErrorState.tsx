@@ -9,6 +9,8 @@ export interface PlayerErrorStateProps {
   onRetry?: () => void;
   onCopyLogs?: () => Promise<boolean> | boolean | void;
   onOpenInBrowser?: () => void;
+  /** Opens sign-in, for failures a signed-in account can clear (login-required, age-restricted). */
+  onSignIn?: () => void;
   variant?: "overlay" | "compact";
   className?: string;
   /** Shown under the countdown of a video that has not started. */
@@ -25,6 +27,7 @@ export function PlayerErrorState({
   onRetry,
   onCopyLogs,
   onOpenInBrowser,
+  onSignIn,
   variant = "overlay",
   className = "",
   upcomingAction,
@@ -34,6 +37,9 @@ export function PlayerErrorState({
   const showRetry = error.retryable && Boolean(onRetry);
   const showOpen = error.canOpenInBrowser && Boolean(onOpenInBrowser);
   const showCopy = Boolean(onCopyLogs);
+  // A signed-in account is the fix for these two, so sign-in leads the actions.
+  const showSignIn =
+    (error.kind === "loginRequired" || error.kind === "ageRestricted") && Boolean(onSignIn);
 
   const handleCopy = async () => {
     if (!onCopyLogs) return;
@@ -49,6 +55,11 @@ export function PlayerErrorState({
 
   const actions = (
     <div className={`flex flex-wrap items-center gap-2 ${compact ? "" : "justify-center"}`}>
+      {showSignIn && (
+        <button type="button" onClick={onSignIn} className={`${ACTION_PRIMARY} ${btnSize}`}>
+          {getString("player_error_sign_in")}
+        </button>
+      )}
       {showRetry && (
         <button type="button" onClick={onRetry} className={`${ACTION_PRIMARY} ${btnSize}`}>
           <RotateCcw size={iconSize} />

@@ -12,6 +12,7 @@ import type {
   ChannelTabResponse,
   ChannelItem,
   PlaylistDetailsResponse,
+  Comment,
   CommentsResponse,
   LiveChatResponse,
   VideoSummary,
@@ -431,6 +432,26 @@ export async function createComment(
   });
 }
 
+/** Posts a reply to a comment, with the reply dialog's own token and path the
+ * comment carried — never the top-level box's token. Returns the reply the
+ * answer itself carried, when it carried one. */
+export async function createCommentReply(
+  replyParams: string,
+  replyPath: string | null,
+  commentText: string,
+): Promise<Comment | null> {
+  return invokeBackend<Comment | null>("create_comment_reply", {
+    replyParams,
+    replyPath,
+    commentText,
+  });
+}
+
+/** Deletes one of the viewer's own comments, with the delete action its menu carried. */
+export async function deleteComment(deleteAction: string): Promise<boolean> {
+  return invokeBackend<boolean>("delete_comment", { deleteAction });
+}
+
 /** Likes or unlikes a community post, with the toggle endpoint the posts page carried. */
 export async function likePost(endpointJson: string): Promise<void> {
   return invokeBackend<void>("like_post", { endpointJson });
@@ -480,6 +501,28 @@ export async function getLiveChat(
     videoId,
     continuation,
     replayOffsetMs: replayOffsetMs == null ? null : Math.max(0, Math.round(replayOffsetMs)),
+  });
+}
+
+/** Posts one message to a live chat; the channel is the video's uploader. */
+export async function sendLiveChatMessage(
+  videoId: string,
+  channelId: string,
+  text: string,
+): Promise<void> {
+  if (!(await isTauriEnv())) return;
+  await invokeBackend<void>("send_live_chat_message", { videoId, channelId, text });
+}
+
+/** Deletes one of the viewer's own live chat messages, via its menu token. */
+export async function deleteLiveChatMessage(
+  menuParams: string,
+  menuApiUrl?: string | null,
+): Promise<void> {
+  if (!(await isTauriEnv())) return;
+  await invokeBackend<void>("delete_live_chat_message", {
+    menuParams,
+    menuApiUrl: menuApiUrl ?? null,
   });
 }
 

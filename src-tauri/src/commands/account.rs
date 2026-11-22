@@ -170,9 +170,9 @@ pub async fn get_server_history(
     })
 }
 
-/// Merges server history entries with this device's session plays:
-/// server entries first in server order, local-only plays appended
-/// newest-first, deduped by video id. A server row keeps the local
+/// Merges server history entries with this device's session plays,
+/// interleaved by best-known watch time: a just-watched video sits at the
+/// top, as Android's `mergeHistoryOrder` does. A server row keeps the local
 /// resume position when this device has one.
 #[tauri::command]
 pub async fn merge_watch_history(

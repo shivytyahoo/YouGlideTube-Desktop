@@ -70,6 +70,7 @@ fn feature_field(feature: &str) -> Option<u64> {
         "creative_commons" => 6,
         "3d" => 7,
         "live" => 8,
+        "purchased" => 9,
         "4k" => 14,
         "360" => 15,
         "location" => 23,
@@ -822,6 +823,7 @@ mod tests {
             ("3d", "EgI4AQ%3D%3D"),
             ("hdr", "EgPIAQE%3D"),
             ("location", "EgO4AQE%3D"),
+            ("purchased", "EgJIAQ%3D%3D"),
         ] {
             assert_eq!(
                 with(|r| r.features = vec![feature.into()]).as_deref(),

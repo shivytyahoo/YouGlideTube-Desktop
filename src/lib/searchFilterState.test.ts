@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SEARCH_FILTER_STATE,
+  VIDEO_FILTER_CATEGORIES,
   availableWith,
   isDefaultFilterState,
   sanitizeFilterState,
@@ -48,5 +49,17 @@ describe("search filter state", () => {
     expect(availableWith(artists, true, false)).toBe(artists);
     const songs = { ...DEFAULT_SEARCH_FILTER_STATE, category: "songs" as const };
     expect(availableWith(songs, true, true)).toBe(songs);
+  });
+
+  it("offers the video filters only on video tabs, never Channels or Playlists", () => {
+    // Android's SearchFilterDialog gates duration, upload date, watched and
+    // features to content types other than Channels and Playlists; the panel
+    // and the request both key off this set.
+    for (const category of ["videos", "shorts", "live", "movies"] as const) {
+      expect(VIDEO_FILTER_CATEGORIES.has(category)).toBe(true);
+    }
+    for (const category of ["all", "artists", "playlists", "songs", "albums", "podcasts", "episodes"] as const) {
+      expect(VIDEO_FILTER_CATEGORIES.has(category)).toBe(false);
+    }
   });
 });

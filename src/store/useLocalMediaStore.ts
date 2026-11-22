@@ -18,6 +18,9 @@ import {
 } from "../lib/api/localMedia";
 import { normalizeBackendError } from "../lib/api/errors";
 import { DEFAULT_LOCAL_FILTERS, type LocalFilters } from "../lib/localMedia/filters";
+import { hiddenFoldersDiff } from "../lib/localMedia/hiddenFolders";
+import { SETTINGS } from "../lib/settings/schema";
+import { getSettingValue, setSettingValue } from "./useAppSettingsStore";
 import { useUiStore } from "./useUiStore";
 
 export type LocalView = "all" | "folders";
@@ -47,6 +50,8 @@ interface LocalMediaState {
   addFolder: (title: string, exclude: boolean) => Promise<void>;
   removeFolder: (path: string) => Promise<void>;
   excludeFolder: (path: string) => Promise<void>;
+  /** Bring the backend exclusion list in line with the Settings hidden-folders list. */
+  syncHiddenFolders: (paths: string[]) => Promise<void>;
   /** Gone from the list at once; back in it if the system refuses. */
   trashFile: (id: string) => Promise<void>;
   notePlayback: (id: string, positionSeconds: number, durationSeconds: number) => void;
@@ -102,6 +107,13 @@ export const useLocalMediaStore = create<LocalMediaState>((set, get) => {
           plays: new Map(library.plays.map((play) => [play.fileId, play])),
           scan: library.scan,
         });
+        // The Settings hidden-folders list mirrors the backend exclusion list,
+        // so the two never drift apart when folders change from the picker.
+        const excludePaths = library.folders.filter((folder) => folder.role === "exclude").map((folder) => folder.path);
+        const stored = JSON.stringify(excludePaths);
+        if (getSettingValue(SETTINGS.LOCAL_MEDIA_HIDDEN_FOLDERS) !== stored) {
+          void setSettingValue(SETTINGS.LOCAL_MEDIA_HIDDEN_FOLDERS, stored);
+        }
       } catch (error) {
         console.warn("Failed to read the local media library", error);
         set({ loaded: true, loadError: true });
@@ -157,6 +169,19 @@ export const useLocalMediaStore = create<LocalMediaState>((set, get) => {
       } catch (error) {
         set({ files: previous });
         throw error;
+      }
+    },
+
+    syncHiddenFolders: async (paths) => {
+      const current = get().folders.filter((folder) => folder.role === "exclude").map((folder) => folder.path);
+      const { toExclude, toRemove } = hiddenFoldersDiff(current, paths);
+      try {
+        for (const path of toExclude) await excludeLocalMediaFolder(path);
+        for (const path of toRemove) await removeLocalMediaFolder(path);
+        await get().load();
+      } catch (error) {
+        useUiStore.getState().showToast({ variant: "error", message: normalizeBackendError(error).message });
+        await get().load();
       }
     },
 

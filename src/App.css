@@ -215,6 +215,17 @@ html.battery-saver .glass {
   background-color: var(--color-surface);
 }
 
+@keyframes mini-cover-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The mini player cover's slow spin while music plays, when its motion is on. */
+.mini-cover-motion {
+  animation: mini-cover-spin 12s linear infinite;
+}
+
 @keyframes pane-fade-in {
   from {
     opacity: 0;

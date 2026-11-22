@@ -14,8 +14,10 @@ vi.mock("./storage/profileStorage", () => ({
 import {
   loadPlaylistCustomOrder,
   loadPlaylistListOrder,
+  loadPlaylistsCompact,
   savePlaylistCustomOrder,
   savePlaylistListOrder,
+  savePlaylistsCompact,
   sortStoredPlaylists,
 } from "./playlistListOrder";
 import type { StoredPlaylist } from "./playlistLibrary";
@@ -54,5 +56,17 @@ describe("saved order", () => {
     expect(loadPlaylistCustomOrder()).toEqual(["x", "y"]);
     stored.set("youglidetube_playlist_custom_order", "not json");
     expect(loadPlaylistCustomOrder()).toEqual([]);
+  });
+});
+
+describe("playlists compact layout", () => {
+  beforeEach(() => stored.clear());
+
+  it("defaults to the grid and remembers the list", () => {
+    expect(loadPlaylistsCompact()).toBe(false);
+    savePlaylistsCompact(true);
+    expect(loadPlaylistsCompact()).toBe(true);
+    savePlaylistsCompact(false);
+    expect(loadPlaylistsCompact()).toBe(false);
   });
 });

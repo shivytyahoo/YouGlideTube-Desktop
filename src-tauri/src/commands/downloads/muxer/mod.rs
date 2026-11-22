@@ -53,6 +53,36 @@ pub struct TrackInput<'a> {
     pub path: &'a Path,
     pub container: DownloadContainer,
     pub mime_type: &'a str,
+    /// BCP 47 language code of an audio track, for the output's track
+    /// language; `None` writes "und". Video tracks leave this unset.
+    pub language_code: Option<&'a str>,
+}
+
+/// A BCP 47 language code as the ISO 639-2/T three letters the MP4 `mdhd`
+/// packs: the primary subtag, so `es-US` and `es` both become `spa`.
+/// Unknown codes fall back to `und`, as the writer did for every track.
+fn iso639_2(code: &str) -> [u8; 3] {
+    let primary = code.split(['-', '_']).next().unwrap_or("").to_ascii_lowercase();
+    if primary.len() == 3 && primary.bytes().all(|byte| byte.is_ascii_lowercase()) {
+        return [primary.as_bytes()[0], primary.as_bytes()[1], primary.as_bytes()[2]];
+    }
+    let three = match primary.as_str() {
+        "ar" => "ara", "as" => "asm", "az" => "aze", "bg" => "bul", "bn" => "ben",
+        "ca" => "cat", "cs" => "ces", "cy" => "cym", "da" => "dan", "de" => "deu",
+        "el" => "ell", "en" => "eng", "es" => "spa", "eu" => "eus", "fa" => "fas",
+        "fi" => "fin", "fr" => "fra", "gl" => "glg", "gu" => "guj", "he" => "heb",
+        "hi" => "hin", "hr" => "hrv", "hu" => "hun", "hy" => "hye", "id" => "ind",
+        "it" => "ita", "ja" => "jpn", "ka" => "kat", "kk" => "kaz", "km" => "khm",
+        "kn" => "kan", "ko" => "kor", "lo" => "lao", "ml" => "mal", "mn" => "mon",
+        "mr" => "mar", "ms" => "msa", "my" => "mya", "nb" => "nob", "ne" => "nep",
+        "nl" => "nld", "no" => "nor", "or" => "ori", "pa" => "pan", "pl" => "pol",
+        "pt" => "por", "ro" => "ron", "ru" => "rus", "si" => "sin", "sk" => "slk",
+        "sr" => "srp", "sv" => "swe", "sw" => "swa", "ta" => "tam", "te" => "tel",
+        "th" => "tha", "tl" => "tgl", "tr" => "tur", "uk" => "ukr", "ur" => "urd",
+        "uz" => "uzb", "vi" => "vie", "zh" => "zho", "am" => "amh",
+        _ => "und",
+    };
+    [three.as_bytes()[0], three.as_bytes()[1], three.as_bytes()[2]]
 }
 
 /// Muxes a downloaded video and audio track into a single output file.
@@ -60,41 +90,47 @@ pub struct TrackInput<'a> {
 /// `output` selects the destination container; each input's `container` is the one
 /// its bytes really arrived in, which can differ from `output`: AV1 ships as
 /// fragmented MP4 and VP9 as `WebM`, and both end up in MP4 next to AAC.
-/// `clip` keeps only `[clip.start_ms, clip.end_ms)` of each track; `None` is
-/// today's full download, byte for byte.
+/// `audios` holds every ticked language, primary first — each becomes its own
+/// audio track in the one file. `clip` keeps only `[clip.start_ms, clip.end_ms)`
+/// of each track; `None` is today's full download, byte for byte.
 pub fn mux_adaptive_tracks(
     output: DownloadContainer,
     video: TrackInput<'_>,
-    audio: TrackInput<'_>,
+    audios: &[TrackInput<'_>],
     output_path: &Path,
     metadata: Option<&EmbeddedMetadata>,
     cancelled: &AtomicBool,
     clip: Option<ClipRange>,
 ) -> Result<(), String> {
+    if audios.is_empty() {
+        return Err("A video download needs at least one audio track".into());
+    }
     match output {
-        DownloadContainer::Mp4 => mux_mp4(video, audio, output_path, metadata, cancelled, clip),
+        DownloadContainer::Mp4 => mux_mp4(video, audios, output_path, metadata, cancelled, clip),
         DownloadContainer::Mkv => {
             let (video_entry, video_packets) =
                 open_track_source(video.container, video.path, 1, TrackKind::Video, clip)?;
-            let (audio_entry, audio_packets) =
-                open_track_source(audio.container, audio.path, 2, TrackKind::Audio, clip)?;
-            matroska::write_matroska(
-                output_path,
-                vec![
-                    matroska::MatroskaInput {
-                        entry: video_entry,
-                        packets: video_packets,
-                        is_video: true,
-                    },
-                    matroska::MatroskaInput {
-                        entry: audio_entry,
-                        packets: audio_packets,
-                        is_video: false,
-                    },
-                ],
-                metadata,
-                cancelled,
-            )
+            let mut inputs = vec![matroska::MatroskaInput {
+                entry: video_entry,
+                packets: video_packets,
+                is_video: true,
+            }];
+            for (index, audio) in audios.iter().enumerate() {
+                let output_track = u64::try_from(index + 2).unwrap_or(u64::MAX);
+                let (audio_entry, audio_packets) = open_track_source(
+                    audio.container,
+                    audio.path,
+                    output_track,
+                    TrackKind::Audio,
+                    clip,
+                )?;
+                inputs.push(matroska::MatroskaInput {
+                    entry: audio_entry,
+                    packets: audio_packets,
+                    is_video: false,
+                });
+            }
+            matroska::write_matroska(output_path, inputs, metadata, cancelled)
         }
     }
 }
@@ -103,7 +139,7 @@ pub fn mux_adaptive_tracks(
 /// fragmented-MP4 AAC track, with the tags and cover in `moov/udta`.
 fn mux_mp4(
     video: TrackInput<'_>,
-    audio: TrackInput<'_>,
+    audios: &[TrackInput<'_>],
     output_path: &Path,
     metadata: Option<&EmbeddedMetadata>,
     cancelled: &AtomicBool,
@@ -123,14 +159,19 @@ fn mux_mp4(
             Codec::Vp9,
         ),
     };
-    if audio.container != DownloadContainer::Mp4 {
-        return Err("MP4 downloads need an AAC audio track".to_string());
+    let mut tracks = vec![video_track];
+    for audio in audios {
+        if audio.container != DownloadContainer::Mp4 {
+            return Err("MP4 downloads need an AAC audio track".to_string());
+        }
+        let audio_track = mp4_demux::open_progressive(audio.path, TrackKind::Audio)?;
+        if !matches!(audio_track.codec, Codec::Aac) {
+            return Err("MP4 downloads need an AAC audio track".to_string());
+        }
+        let mut audio_track = fragmented_writer_track(audio_track, TrackKind::Audio, clip)?;
+        audio_track.language = audio.language_code.map(iso639_2);
+        tracks.push(audio_track);
     }
-    let audio_track = mp4_demux::open_progressive(audio.path, TrackKind::Audio)?;
-    if !matches!(audio_track.codec, Codec::Aac) {
-        return Err("MP4 downloads need an AAC audio track".to_string());
-    }
-    let audio_track = fragmented_writer_track(audio_track, TrackKind::Audio, clip)?;
 
     let mut compatible_brands = vec![*b"isom", *b"iso2", *b"mp41"];
     match video_codec {
@@ -144,12 +185,7 @@ fn mux_mp4(
         udta: metadata.map(ilst::udta_box),
         padding: RETAG_PADDING,
     };
-    mp4_writer::write_mp4(
-        output_path,
-        vec![video_track, audio_track],
-        &options,
-        cancelled,
-    )
+    mp4_writer::write_mp4(output_path, tracks, &options, cancelled)
 }
 
 /// Rewrites a downloaded fragmented AAC track as a progressive, tagged M4A.
@@ -251,6 +287,7 @@ fn fragmented_writer_track(
         sample_entry: track.sample_entry.clone(),
         samples,
         media_time,
+        language: None,
         source: Box::new(track),
     })
 }
@@ -383,6 +420,7 @@ fn webm_vp9_writer_track(
         sample_entry: vp9::vp09_sample_entry(width, height, config),
         samples,
         media_time,
+        language: None,
         source: Box::new(WebmFrameSource {
             track: source_track,
             next: 0,
@@ -786,6 +824,53 @@ mod tests {
         .expect("trims");
         assert_eq!(writer_track.samples.len(), 30);
         assert_eq!(writer_track.media_time, Some(45_000));
+    }
+
+    #[test]
+    fn language_codes_become_three_letter_mdhd_tags() {
+        assert_eq!(super::iso639_2("en"), *b"eng");
+        assert_eq!(super::iso639_2("hi"), *b"hin");
+        assert_eq!(super::iso639_2("es-US"), *b"spa");
+        assert_eq!(super::iso639_2("zh-Hans"), *b"zho");
+        assert_eq!(super::iso639_2("pt-BR"), *b"por");
+        assert_eq!(super::iso639_2("und"), *b"und");
+        assert_eq!(super::iso639_2("xx"), *b"und");
+        assert_eq!(super::iso639_2(""), *b"und");
+    }
+
+    #[test]
+    fn two_audio_tracks_mux_into_one_file_primary_first() {
+        // 2 s of 30 fps video, English then Hindi audio, each tagged.
+        let mut english = audio_track(samples(87, 20, 1024, 1));
+        english.language = Some(*b"eng");
+        let mut hindi = audio_track(samples(87, 20, 1024, 1));
+        hindi.language = Some(*b"hin");
+        let path = super::scratch_file("multi-audio", "mp4");
+        mp4_writer::write_mp4(
+            &path,
+            vec![video_track(samples(60, 100, 3000, 30)), english, hindi],
+            &options(),
+            &AtomicBool::new(false),
+        )
+        .expect("writes");
+        let bytes = std::fs::read(&path).expect("reads");
+        let parsed = inspect_mp4_bytes(&bytes).expect("parses");
+        assert_eq!(parsed.tracks.len(), 3);
+        assert_eq!(parsed.tracks[0].handler, *b"vide");
+        assert_eq!(parsed.tracks[1].handler, *b"soun");
+        assert_eq!(parsed.tracks[2].handler, *b"soun");
+        assert_eq!(parsed.tracks[1].sample_count, 87);
+        assert_eq!(parsed.tracks[2].sample_count, 87);
+        // "eng" and "hin", packed as three 5-bit letters.
+        assert_eq!(parsed.tracks[1].language, 0x15C7);
+        assert_eq!(parsed.tracks[2].language, 0x212E);
+        assert_eq!(parsed.mdat_payload, 60 * 100 + 2 * 87 * 20);
+        let expectation = super::validate::OutputExpectation {
+            video: true,
+            audio: true,
+            duration_seconds: Some(2.0),
+        };
+        super::validate::validate_mp4(&path, expectation).expect("valid");
     }
 
     #[test]

@@ -32,6 +32,8 @@ interface VideoGridProps {
   scrollAnchors?: boolean;
   /** Shows only this many full rows, however many columns the window fits. */
   rows?: number;
+  /** "list" renders full-width rows instead of the grid (Home layout setting). */
+  layout?: "grid" | "list";
 }
 
 /**
@@ -76,6 +78,7 @@ function VideoGridComponent({
   onLastVisibleIndex,
   scrollAnchors = false,
   rows,
+  layout = "grid",
 }: VideoGridProps) {
   const gridRef = useRef<HTMLDivElement>(null);
   useFeedImpressions(gridRef, videos, trackImpressions && !loading);
@@ -84,14 +87,14 @@ function VideoGridComponent({
   const { columns, trackWidth } = useResolvedGridColumns(gridRef, gridStyle);
   // Few columns or a wide window can stretch a card past `hqdefault` even on a 1× screen.
   const highResThumbnails = trackWidth > 0 ? thumbnailNeedsHighRes(trackWidth) : undefined;
-  const gridClass = "video-grid gap-y-8 pb-8";
+  const gridClass = layout === "list" ? "flex flex-col gap-4 pb-8" : "video-grid gap-y-8 pb-8";
 
   const shown = rows && columns > 0 ? videos.slice(0, rows * columns) : videos;
   const insertAfterIndex = insertAfterCard(Boolean(insertNode), columns, shown.length);
 
   if (loading) {
     return (
-      <div ref={gridRef} className={gridClass} style={gridStyle}>
+      <div ref={gridRef} className={gridClass} style={layout === "list" ? undefined : gridStyle}>
         {Array.from({ length: skeletonCount }).map((_, i) => (
           <VideoCardSkeleton key={`skeleton-${i}`} />
         ))}
@@ -103,7 +106,7 @@ function VideoGridComponent({
     <div
       ref={gridRef}
       className={gridClass}
-      style={gridStyle}
+      style={layout === "list" ? undefined : gridStyle}
     >
       {shown.map((video, index) => {
         const key = getVideoKey ? getVideoKey(video, index) : `${video.id}-${index}`;
@@ -127,7 +130,7 @@ function VideoGridComponent({
               onPlay={onPlay}
               onAddToQueue={onAddToQueue}
               onRemoveFromHistory={onRemoveFromHistory}
-              variant={variant}
+              variant={layout === "list" ? "list" : variant}
               hideChannelAvatar={hideChannelAvatar}
               reason={getReason?.(video)}
               reasonLine={getReasonLine?.(video)}

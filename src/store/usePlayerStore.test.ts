@@ -590,3 +590,27 @@ describe("chapter loop", () => {
     expect(usePlayerStore.getState().loopChapter).toBeNull();
   });
 });
+
+describe("sponsorBlockOffForVideo", () => {
+  it("marks only the video playing as SponsorBlock-off", () => {
+    usePlayerStore.getState().setQueue([video("v1"), video("v2")], 0);
+    usePlayerStore.getState().setSponsorBlockOffForVideo(true);
+    expect(usePlayerStore.getState().sponsorBlockOffVideoId).toBe("v1");
+
+    usePlayerStore.getState().setSponsorBlockOffForVideo(false);
+    expect(usePlayerStore.getState().sponsorBlockOffVideoId).toBeNull();
+  });
+
+  it("clears the flag when another video starts", () => {
+    usePlayerStore.getState().setQueue([video("v1"), video("v2")], 0);
+    usePlayerStore.getState().setSponsorBlockOffForVideo(true);
+
+    usePlayerStore.getState().playQueueItem(1);
+    expect(usePlayerStore.getState().sponsorBlockOffVideoId).toBeNull();
+
+    usePlayerStore.getState().setCurrentVideo(video("v1"));
+    usePlayerStore.getState().setSponsorBlockOffForVideo(true);
+    usePlayerStore.getState().setCurrentVideo(video("v2"));
+    expect(usePlayerStore.getState().sponsorBlockOffVideoId).toBeNull();
+  });
+});

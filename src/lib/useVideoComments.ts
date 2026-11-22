@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { createComment, getComments, getPostComments } from "./api/youtube";
+import { createComment, createCommentReply, deleteComment as deleteCommentApi, getComments, getPostComments } from "./api/youtube";
 import { normalizeBackendError } from "./api/errors";
 import type { Comment, CommentSort } from "../types/video";
 
@@ -132,6 +132,104 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
     [fetchComments, sourceId, repliesLoading],
   );
 
+  /** The top-level comment a reply belongs to: itself, or the thread that holds it. */
+  const ancestorIdOf = useCallback(
+    (commentId: string): string | null => {
+      if (comments.some((comment) => comment.id === commentId)) return commentId;
+      for (const [ancestorId, thread] of Object.entries(replies)) {
+        if (thread.some((reply) => reply.id === commentId)) return ancestorId;
+      }
+      return null;
+    },
+    [comments, replies],
+  );
+
+  /** Posts a reply to any comment in the list, with that comment's own token —
+   * never the top-level box's, which would post a top-level comment instead.
+   * The reply joins its thread; when the answer carried no server row, the
+   * thread reloads so the reply shows up once it propagates. False on failure. */
+  const postReply = useCallback(
+    async (parent: Comment, text: string) => {
+      const params = parent.replyParams?.trim();
+      const body = text.trim();
+      if (!params || !body || posting) return false;
+      setPosting(true);
+      try {
+        const serverReply = await createCommentReply(params, parent.replyPath ?? null, body);
+        const ancestorId = ancestorIdOf(parent.id) ?? parent.id;
+        setExpanded((prev) => ({ ...prev, [ancestorId]: true }));
+        setComments((prev) =>
+          prev.map((comment) =>
+            comment.id === ancestorId
+              ? { ...comment, replyCount: (comment.replyCount ?? 0) + 1 }
+              : comment,
+          ),
+        );
+        if (serverReply) {
+          setReplies((prev) => ({
+            ...prev,
+            [ancestorId]: [...(prev[ancestorId] || []), serverReply],
+          }));
+        } else {
+          const ancestor = comments.find((comment) => comment.id === ancestorId);
+          if (ancestor?.continuationToken) {
+            setReplies((prev) => ({ ...prev, [ancestorId]: [] }));
+            setRepliesNextToken((prev) => ({ ...prev, [ancestorId]: null }));
+            await loadReplies(ancestorId, ancestor.continuationToken);
+          }
+        }
+        return true;
+      } catch (err) {
+        console.warn("Failed to post the reply", err);
+        return false;
+      } finally {
+        setPosting(false);
+      }
+    },
+    [ancestorIdOf, comments, loadReplies, posting],
+  );
+
+  /** Deletes one of the viewer's own comments, wherever it sits in the list.
+   * False on failure; the caller shows why it stayed. */
+  const deleteComment = useCallback(
+    async (commentId: string) => {
+      const target =
+        comments.find((comment) => comment.id === commentId) ??
+        Object.values(replies)
+          .flat()
+          .find((reply) => reply.id === commentId);
+      const action = target?.deleteAction?.trim();
+      if (!action) return false;
+      try {
+        const ok = await deleteCommentApi(action);
+        if (!ok) throw new Error("server declined the delete");
+        if (comments.some((comment) => comment.id === commentId)) {
+          setComments((prev) => prev.filter((comment) => comment.id !== commentId));
+        } else {
+          const ancestorId = ancestorIdOf(commentId);
+          if (ancestorId) {
+            setReplies((prev) => ({
+              ...prev,
+              [ancestorId]: (prev[ancestorId] || []).filter((reply) => reply.id !== commentId),
+            }));
+            setComments((prev) =>
+              prev.map((comment) =>
+                comment.id === ancestorId
+                  ? { ...comment, replyCount: Math.max(0, (comment.replyCount ?? 1) - 1) }
+                  : comment,
+              ),
+            );
+          }
+        }
+        return true;
+      } catch (err) {
+        console.warn("Failed to delete the comment", err);
+        return false;
+      }
+    },
+    [ancestorIdOf, comments, replies],
+  );
+
   /** Posts a comment, then reloads the list from the server. False on failure. */
   const postComment = useCallback(async (text: string) => {
     const params = createCommentParams;
@@ -182,6 +280,8 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
     loadMore,
     toggleReplies,
     loadReplies,
+    postReply,
+    deleteComment,
     createCommentParams,
     posting,
     postError,

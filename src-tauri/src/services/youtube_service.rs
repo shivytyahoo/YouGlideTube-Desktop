@@ -160,6 +160,23 @@ impl YoutubeService {
             .await
     }
 
+    /// Posts a reply to a comment, with the reply dialog's own token.
+    pub async fn create_comment_reply(
+        &self,
+        reply_params: &str,
+        reply_path: Option<&str>,
+        comment_text: &str,
+    ) -> AppResult<Option<crate::models::comment::Comment>> {
+        self.extractor
+            .create_comment_reply(reply_params, reply_path, comment_text)
+            .await
+    }
+
+    /// Deletes one of the viewer's own comments.
+    pub async fn delete_comment(&self, delete_action: &str) -> AppResult<()> {
+        self.extractor.delete_comment(delete_action).await
+    }
+
     pub async fn like_post(&self, endpoint_json: &str) -> AppResult<()> {
         self.extractor.like_post(endpoint_json).await
     }
@@ -172,6 +189,29 @@ impl YoutubeService {
     ) -> AppResult<LiveChatResponse> {
         self.extractor
             .get_live_chat(video_id, continuation, replay_offset_ms)
+            .await
+    }
+
+    /// Posts one message to a live chat.
+    pub async fn send_live_chat_message(
+        &self,
+        video_id: &str,
+        channel_id: &str,
+        text: &str,
+    ) -> AppResult<()> {
+        self.extractor
+            .send_live_chat_message(video_id, channel_id, text)
+            .await
+    }
+
+    /// Deletes one of the viewer's own live chat messages, via its context-menu token.
+    pub async fn delete_live_chat_message(
+        &self,
+        menu_params: &str,
+        menu_api_url: Option<&str>,
+    ) -> AppResult<()> {
+        self.extractor
+            .delete_live_chat_message(menu_params, menu_api_url)
             .await
     }
 

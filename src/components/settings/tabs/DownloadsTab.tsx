@@ -28,6 +28,8 @@ function languageName(code: string): string {
 
 export function DownloadsTab() {
   const [downloadQuality, setDownloadQuality] = usePreference(SETTINGS.DEFAULT_DOWNLOAD_QUALITY, '1080p');
+  const [quickDownloadQuality, setQuickDownloadQuality] = usePreference(SETTINGS.QUICK_DOWNLOAD_QUALITY, '1080p');
+  const [downloadMenuStyle, setDownloadMenuStyle] = usePreference(SETTINGS.DOWNLOAD_MENU_STYLE, 'classic');
   const [videoCodec, setVideoCodec] = usePreference(SETTINGS.DOWNLOAD_VIDEO_CODEC, 'Auto');
   const [musicQuality, setMusicQuality] = usePreference(SETTINGS.DOWNLOAD_MUSIC_QUALITY, 'High');
   const [subtitleLanguage, setSubtitleLanguage] = usePreference(SETTINGS.DOWNLOAD_SUBTITLE_LANGUAGE, '');
@@ -64,6 +66,19 @@ export function DownloadsTab() {
             { value: 'Auto', label: getString('quality_auto') }, { value: '2160p', label: '2160p (4K)' },
             { value: '1440p', label: '1440p' }, { value: '1080p', label: '1080p' },
             { value: '720p', label: '720p' }, { value: '480p', label: '480p' }, { value: '360p', label: '360p' },
+          ]} />
+        </SettingItem>
+        <SettingItem title={getString('settings_quick_download_quality')} description={getString('settings_quick_download_quality_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.QUICK_DOWNLOAD_QUALITY)}>
+          <Select value={quickDownloadQuality} onChange={setQuickDownloadQuality} disabled={isSettingDisabledUntilWired(SETTINGS.QUICK_DOWNLOAD_QUALITY)} options={[
+            { value: 'Auto', label: getString('quality_auto') }, { value: '2160p', label: '2160p (4K)' },
+            { value: '1440p', label: '1440p' }, { value: '1080p', label: '1080p' },
+            { value: '720p', label: '720p' }, { value: '480p', label: '480p' }, { value: '360p', label: '360p' },
+          ]} />
+        </SettingItem>
+        <SettingItem title={getString('settings_download_menu_style')} description={getString('settings_download_menu_style_desc')} disabled={isSettingDisabledUntilWired(SETTINGS.DOWNLOAD_MENU_STYLE)}>
+          <Select value={downloadMenuStyle} onChange={setDownloadMenuStyle} disabled={isSettingDisabledUntilWired(SETTINGS.DOWNLOAD_MENU_STYLE)} options={[
+            { value: 'classic', label: getString('settings_download_menu_classic') },
+            { value: 'compact', label: getString('settings_download_menu_compact') },
           ]} />
         </SettingItem>
         <SettingItem title={getString('settings_download_codec')} description={getString('settings_download_codec_desc')}>

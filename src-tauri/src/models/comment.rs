@@ -37,6 +37,23 @@ pub struct Comment {
     pub is_creator: bool,
     #[serde(default)]
     pub is_artist: bool,
+    /// The reply dialog's own token (`createCommentReplyEndpoint.createReplyParams`),
+    /// from the comment's toolbar surface. Null when replies can't be posted
+    /// (signed out, or a legacy renderer) — never the create box's token.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reply_params: Option<String>,
+    /// The path the reply posts to; `comment/create_comment_reply` when the
+    /// command names none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reply_path: Option<String>,
+    /// The comment is the viewer's own.
+    #[serde(default)]
+    pub is_own: bool,
+    /// The own comment's delete perform-action endpoint, as raw JSON to replay
+    /// verbatim. Null unless the comment is the viewer's own and its menu
+    /// carried a delete.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delete_action: Option<String>,
 }
 
 /// One way to order the comments, and the token that loads them that way.

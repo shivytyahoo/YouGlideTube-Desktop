@@ -16,6 +16,7 @@ export function NetworkTab() {
   const [maxBuffer, setMaxBuffer] = useNumberPref(SETTINGS.MAX_BUFFER_MS, 50000);
   const [playbackBuffer, setPlaybackBuffer] = useNumberPref(SETTINGS.BUFFER_FOR_PLAYBACK_MS, 2500);
   const [rebufferBuffer, setRebufferBuffer] = useNumberPref(SETTINGS.BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS, 5000);
+  const [diskReadAhead, setDiskReadAhead] = useBoolPref(SETTINGS.DISK_READ_AHEAD, true);
   const [remoteSignatures, setRemoteSignatures] = useBoolPref(SETTINGS.REMOTE_SIGNATURE_FALLBACK, true);
   const [preferIpv4, setPreferIpv4] = useBoolPref(SETTINGS.PREFER_IPV4, false);
   const [proxyEnabled, setProxyEnabled] = useBoolPref(SETTINGS.PROXY_ENABLED, false);
@@ -35,6 +36,9 @@ export function NetworkTab() {
             { value: 'AGGRESSIVE', label: getString('settings_buffer_fast_start') }, { value: 'STABLE', label: getString('settings_buffer_balanced') },
             { value: 'DATASAVER', label: getString('settings_buffer_data_saver') }, { value: 'CUSTOM', label: getString('settings_option_custom') },
           ]} />
+        </SettingItem>
+        <SettingItem title={getString('settings_disk_read_ahead')} description={getString('settings_disk_read_ahead_desc')}>
+          <ToggleSwitch checked={diskReadAhead} onChange={setDiskReadAhead} />
         </SettingItem>
       </SettingsGroup>
 

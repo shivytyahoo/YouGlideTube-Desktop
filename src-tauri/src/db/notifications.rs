@@ -27,6 +27,10 @@ pub struct NewNotification {
     pub created_at: i64,
 }
 
+/// The inbox never grows past this: Android's `MAX_INBOX_ENTRIES`, trimmed
+/// on insert so the oldest rows leave as new ones arrive.
+pub const MAX_INBOX_ENTRIES: i64 = 100;
+
 pub async fn insert_notification(
     pool: &SqlitePool,
     notification: &NewNotification,
@@ -44,6 +48,21 @@ pub async fn insert_notification(
     .bind(&notification.published_text)
     .bind(notification.kind)
     .bind(notification.created_at)
+    .execute(pool)
+    .await
+    .map_err(AppError::from)?;
+
+    // Trimming after the insert keeps the newest entries even when several
+    // arrive in one burst with the same timestamp.
+    sqlx::query(
+        "DELETE FROM notifications
+         WHERE id NOT IN (
+            SELECT id FROM notifications
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+         )",
+    )
+    .bind(MAX_INBOX_ENTRIES)
     .execute(pool)
     .await
     .map_err(AppError::from)?;
@@ -176,4 +195,44 @@ pub async fn set_watermark(
     .await
     .map_err(AppError::from)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn pool() -> SqlitePool {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        pool
+    }
+
+    fn notification(video_id: &str, created_at: i64) -> NewNotification {
+        NewNotification {
+            video_id: video_id.to_string(),
+            title: video_id.to_string(),
+            channel_id: None,
+            channel_name: "Channel".to_string(),
+            thumbnail_url: None,
+            published_text: None,
+            kind: "NEW_VIDEO",
+            created_at,
+        }
+    }
+
+    #[tokio::test]
+    async fn insert_trims_the_inbox_to_one_hundred_entries() {
+        let pool = pool().await;
+        for index in 0..MAX_INBOX_ENTRIES + 5 {
+            insert_notification(&pool, &notification(&format!("v{index}"), index)).await.unwrap();
+        }
+        let kept = list_notifications(&pool, MAX_INBOX_ENTRIES + 10).await.unwrap();
+        assert_eq!(kept.len() as i64, MAX_INBOX_ENTRIES);
+        assert_eq!(kept.first().map(|record| record.video_id.as_str()), Some("v104"));
+        assert!(!kept.iter().any(|record| record.video_id == "v0"));
+    }
 }

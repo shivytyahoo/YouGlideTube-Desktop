@@ -5,6 +5,7 @@ import { useAppSettingsStore } from "../../store/useAppSettingsStore";
 import { SETTINGS } from "../../lib/settings/schema";
 import { useShortsEnabled } from "../../lib/useShortsContent";
 import { ShortCard } from "../shorts/ShortCard";
+import type { ShortsQueueSource } from "../../lib/shortsQueueSource";
 
 interface ShortsShelfProps {
   title: string;
@@ -12,12 +13,15 @@ interface ShortsShelfProps {
   action?: React.ReactNode;
   shorts: ShortVideoSummary[];
   onPlay: (video: VideoSummary) => void;
+  /** The queue this shelf belongs to (the subscriptions list); the tapped short anchors it. */
+  queueSource?: ShortsQueueSource;
 }
 
 export const ShortsShelf: React.FC<ShortsShelfProps> = ({
   title,
   action,
   shorts,
+  queueSource,
 }) => {
   const shortsShelfEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SHORTS_SHELF_ENABLED] !== "false");
   const shortsEnabled = useShortsEnabled();
@@ -43,6 +47,7 @@ export const ShortsShelf: React.FC<ShortsShelfProps> = ({
             short={short}
             queue={shorts}
             variant="shelf"
+            queueSource={queueSource}
           />
         ))}
       </ShelfScroller>

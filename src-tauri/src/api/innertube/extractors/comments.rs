@@ -442,6 +442,183 @@ fn comment_reply_token(replies_renderer: Option<&Value>) -> Option<String> {
         })
 }
 
+/// The first object stored under `key` anywhere inside this value, depth-first.
+/// A surface command is not always the endpoint itself: it can be an executor
+/// whose command list carries the endpoint, which is how YouTube.js resolves
+/// it too — the same walk Android's `findKeyObject` does.
+fn find_key_object<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
+    match value {
+        Value::Object(map) => {
+            if let Some(obj) = map.get(key).filter(|value| value.is_object()) {
+                return Some(obj);
+            }
+            map.values().find_map(|child| find_key_object(child, key))
+        }
+        Value::Array(items) => items.iter().find_map(|item| find_key_object(item, key)),
+        _ => None,
+    }
+}
+
+/// Every object stored under `key` anywhere inside this value, depth-first.
+fn find_all_key_objects<'a>(value: &'a Value, key: &str, out: &mut Vec<&'a Value>) {
+    match value {
+        Value::Object(map) => {
+            if let Some(obj) = map.get(key).filter(|value| value.is_object()) {
+                out.push(obj);
+            }
+            for child in map.values() {
+                find_all_key_objects(child, key, out);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                find_all_key_objects(item, key, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// A command's own node: the first of its wrapper keys, or the node itself.
+fn unwrap_command(value: &Value) -> Option<&Value> {
+    let obj = value.as_object()?;
+    for wrapper in ["innertubeCommand", "command", "performOnceCommand"] {
+        if let Some(inner) = obj.get(wrapper).filter(|value| value.is_object()) {
+            return Some(inner);
+        }
+    }
+    Some(value)
+}
+
+/// A buttonRenderer's command: the first of `serviceEndpoint`,
+/// `navigationEndpoint`, `command`.
+fn button_command(value: &Value) -> Option<&Value> {
+    let obj = value.as_object()?;
+    for key in ["serviceEndpoint", "navigationEndpoint", "command"] {
+        if let Some(command) = obj.get(key) {
+            return Some(command);
+        }
+    }
+    None
+}
+
+/// The path a command names for itself, kept only when it is a plain
+/// `comment/…` path under `/youtubei/v1/` — a payload can never send a
+/// write somewhere else.
+fn plain_comment_path(api_url: Option<&str>) -> Option<String> {
+    let path = api_url?.strip_prefix("/youtubei/v1/")?;
+    let valid = path.starts_with("comment/")
+        && path.len() > "comment/".len()
+        && !path.contains("//")
+        && !path.ends_with('/')
+        && path
+            .chars()
+            .all(|c| c.is_lowercase() || c.is_ascii_digit() || c == '_' || c == '/');
+    valid.then(|| path.to_string())
+}
+
+fn named_comment_path(value: &Value) -> Option<String> {
+    plain_comment_path(
+        value["commandMetadata"]["webCommandMetadata"]["apiUrl"].as_str(),
+    )
+}
+
+/// One server-issued write: the params token and the path it posts to.
+struct WriteOffer {
+    params: String,
+    path: String,
+}
+
+/// The write a button's service endpoint carries, when it holds a non-empty
+/// params string.
+fn replay_write(
+    service: &Value,
+    endpoint_key: &str,
+    params_field: &str,
+    fallback_path: &str,
+) -> Option<WriteOffer> {
+    let data = unwrap_command(service)?;
+    let params = data[endpoint_key][params_field]
+        .as_str()
+        .filter(|params| !params.is_empty())?;
+    let path = named_comment_path(data)
+        .or_else(|| named_comment_path(service))
+        .unwrap_or_else(|| fallback_path.to_string());
+    Some(WriteOffer {
+        params: params.to_string(),
+        path,
+    })
+}
+
+/// The reply write a comment's toolbar surface offers. The dialog's reply
+/// button carries a `createCommentReplyEndpoint` with its OWN
+/// `createReplyParams` — not the create box's `createCommentParams`.
+/// Path: the one the command names, else `comment/create_comment_reply`.
+fn reply_write(surface: &Value) -> Option<WriteOffer> {
+    let mut dialogs = Vec::new();
+    find_all_key_objects(
+        &surface["replyCommand"],
+        "commentReplyDialogRenderer",
+        &mut dialogs,
+    );
+    let dialog = dialogs.into_iter().next()?;
+    let button = &dialog["replyButton"]["buttonRenderer"];
+    replay_write(
+        button_command(button)?,
+        "createCommentReplyEndpoint",
+        "createReplyParams",
+        "comment/create_comment_reply",
+    )
+}
+
+/// Delete: the confirm dialog's button holds a perform-action endpoint,
+/// replayed like a vote. The endpoint JSON is returned whole.
+fn delete_action_of(nav: &Value) -> Option<String> {
+    let service = button_command(
+        &unwrap_command(nav)?["confirmDialogEndpoint"]["content"]["confirmDialogRenderer"]
+            ["confirmButton"]["buttonRenderer"],
+    )?;
+    let endpoint = unwrap_command(service)?["performCommentActionEndpoint"]
+        .as_object()?;
+    let has_token = endpoint
+        .get("action")
+        .and_then(|action| action.as_str())
+        .is_some_and(|action| !action.is_empty())
+        || endpoint
+            .get("actions")
+            .and_then(|actions| actions.as_array())
+            .is_some_and(|actions| !actions.is_empty());
+    has_token.then(|| serde_json::to_string(&Value::Object(endpoint.clone())).ok())?
+}
+
+/// The viewer's own comment's delete action, matched by structure — never by
+/// (localized) label or icon, so any language shows the same offer. Only
+/// called for `isCurrentUser` comments.
+fn menu_delete_action(surface: &Value) -> Option<String> {
+    let menu = surface.get("menuCommand")?;
+    let mut renderers = Vec::new();
+    find_all_key_objects(menu, "menuRenderer", &mut renderers);
+    for renderer in renderers {
+        let items = renderer["items"].as_array()?;
+        for item in items {
+            let Some(renderer) = item.as_object() else {
+                continue;
+            };
+            let nav = renderer.values().find_map(|value| {
+                value
+                    .as_object()
+                    .filter(|object| object.contains_key("navigationEndpoint"))
+                    .and_then(|_| value.get("navigationEndpoint"))
+            });
+            let Some(nav) = nav else { continue };
+            if let Some(delete) = delete_action_of(nav) {
+                return Some(delete);
+            }
+        }
+    }
+    None
+}
+
 fn build_comment_from_view_model(
     view_model: &Value,
     replies_renderer: Option<&Value>,
@@ -463,6 +640,23 @@ fn build_comment_from_view_model(
     let properties = &entity_payload["properties"];
     let author = &entity_payload["author"];
     let toolbar = &entity_payload["toolbar"];
+
+    // The toolbar surface carries this comment's own reply command and, for
+    // the viewer's own comments, the menu's delete action. The view model
+    // names its key; some sections repeat it in the entity properties.
+    let toolbar_surface = view_model["toolbarSurfaceKey"]
+        .as_str()
+        .or_else(|| properties["toolbarSurfaceKey"].as_str())
+        .and_then(|key| mutation_payloads.get(key))
+        .and_then(|payload| payload.get("engagementToolbarSurfaceEntityPayload"));
+
+    let is_own = author["isCurrentUser"].as_bool().unwrap_or(false);
+    let reply = toolbar_surface.and_then(reply_write);
+    let delete_action = if is_own {
+        toolbar_surface.and_then(menu_delete_action)
+    } else {
+        None
+    };
 
     let id = properties["commentId"]
         .as_str()
@@ -528,6 +722,10 @@ fn build_comment_from_view_model(
         is_verified: flag("isVerified"),
         is_creator: flag("isCreator"),
         is_artist: flag("isArtist"),
+        reply_params: reply.as_ref().map(|offer| offer.params.clone()),
+        reply_path: reply.as_ref().map(|offer| offer.path.clone()),
+        is_own,
+        delete_action,
     })
 }
 
@@ -734,6 +932,108 @@ impl InnertubeClient {
         Ok(())
     }
 
+    /// Posts a reply to a comment: the reply dialog's own token
+    /// (`createReplyParams`) on its own path (`comment/create_comment_reply`),
+    /// as Android's `YouTubeRepository.postCommentReply` does. The token is
+    /// never the top-level box's — that would silently post a top-level
+    /// comment. Returns the reply the answer itself carries, when it carries
+    /// one, so the thread shows the real row without waiting on a list fetch.
+    pub async fn create_comment_reply(
+        &self,
+        reply_params: &str,
+        reply_path: Option<&str>,
+        comment_text: &str,
+    ) -> AppResult<Option<Comment>> {
+        self.require_signed_in()?;
+        let params = reply_params.trim();
+        if params.is_empty() {
+            return Err(AppError::Validation(
+                "This comment has no reply to post with — open the comments again."
+                    .to_string(),
+            ));
+        }
+        let text = comment_text.trim();
+        if text.is_empty() {
+            return Err(AppError::Validation(
+                "Write something before posting the reply.".to_string(),
+            ));
+        }
+        if text.chars().count() > 10_000 {
+            return Err(AppError::Validation(
+                "A reply can be at most 10,000 characters.".to_string(),
+            ));
+        }
+        let path = reply_path
+            .filter(|path| {
+                path.starts_with("comment/")
+                    && path.len() > "comment/".len()
+                    && !path.contains("//")
+                    && !path.ends_with('/')
+                    && path
+                        .chars()
+                        .all(|c| c.is_lowercase() || c.is_ascii_digit() || c == '_' || c == '/')
+            })
+            .unwrap_or("comment/create_comment_reply");
+        let response = match self.post_comment_reply(path, params, text, false).await {
+            Ok(response) => response,
+            Err(TransportError::Status { code: 404, .. }) => {
+                tracing::info!(
+                    "comment reply answered 404; retrying with X-Goog-AuthUser"
+                );
+                self.post_comment_reply(path, params, text, true)
+                    .await
+                    .map_err(|error| to_app_error(path, &error))?
+            }
+            Err(error) => return Err(to_app_error(path, &error)),
+        };
+        Ok(parse_posted_reply(&response, text))
+    }
+
+    /// One `comment/create_comment_reply` attempt, with the account-slot
+    /// header only when `auth_user` asks for it.
+    async fn post_comment_reply(
+        &self,
+        path: &str,
+        params: &str,
+        text: &str,
+        auth_user: bool,
+    ) -> Result<Value, TransportError> {
+        let mut payload = serde_json::json!({
+            "createReplyParams": params,
+            "commentText": text,
+        });
+        let extra: &[(&'static str, &'static str)] = if auth_user {
+            &[("X-Goog-AuthUser", "0")]
+        } else {
+            &[]
+        };
+        self.post_innertube_extra(path, &clients::WEB, &mut payload, extra)
+            .await
+    }
+
+    /// Deletes one of the viewer's own comments: its menu's perform-action,
+    /// replayed like a vote, as Android's `YouTubeRepository.deleteComment`
+    /// does.
+    pub async fn delete_comment(&self, delete_action: &str) -> AppResult<()> {
+        self.require_signed_in()?;
+        let actions = comment_action_list(delete_action).ok_or_else(|| {
+            AppError::Validation(
+                "This comment has no delete action — open the comments again.".to_string(),
+            )
+        })?;
+        match self.post_comment_action(&actions, false).await {
+            Ok(()) => Ok(()),
+            Err(TransportError::Status { code: 404, .. }) => {
+                tracing::info!("comment delete answered 404; retrying with X-Goog-AuthUser");
+                self.post_comment_action(&actions, true)
+                    .await
+                    .map_err(|error| to_app_error("comment/perform_comment_action", &error))?;
+                Ok(())
+            }
+            Err(error) => Err(to_app_error("comment/perform_comment_action", &error)),
+        }
+    }
+
     /// Likes or unlikes a community post: `comment/perform_comment_action`
     /// with the toggle endpoint's actions, as Android's `YouTube.likePost`
     /// does. A delegated (brand) channel's token is bound to the
@@ -741,7 +1041,7 @@ impl InnertubeClient {
     /// 404 is retried once carrying it.
     pub async fn like_post(&self, endpoint_json: &str) -> AppResult<()> {
         self.require_signed_in()?;
-        let actions = post_like_actions(endpoint_json).ok_or_else(|| {
+        let actions = comment_action_list(endpoint_json).ok_or_else(|| {
             AppError::Validation(
                 "This post has no like button to use — open the channel again.".to_string(),
             )
@@ -783,10 +1083,11 @@ impl InnertubeClient {
     }
 }
 
-/// The actions a post-like endpoint carries: `performCommentActionEndpoint`
+/// The actions a comment-action endpoint carries: `performCommentActionEndpoint`
 /// holds an array of them, or a single `action`, which is wrapped the way
-/// Android's `performCommentAction` wraps it.
-fn post_like_actions(endpoint_json: &str) -> Option<Value> {
+/// Android's `performCommentAction` wraps it. Shared by the post like and the
+/// comment delete, which replay different endpoints through the same call.
+fn comment_action_list(endpoint_json: &str) -> Option<Value> {
     let outer: Value = serde_json::from_str(endpoint_json).ok()?;
     let inner = outer.get("performCommentActionEndpoint")?;
     if let Some(actions) = inner.get("actions") {
@@ -797,9 +1098,42 @@ fn post_like_actions(endpoint_json: &str) -> Option<Value> {
         .map(|action| Value::Array(vec![action.clone()]))
 }
 
+/// The reply a `comment/create_comment_reply` answer itself carries, built
+/// from its mutation batch — no list fetch, no propagation wait. The batch
+/// holds the new reply's entity plus its toolbar surface, which is where the
+/// vote/menu/reply tokens live. Returns null when the batch does not carry a
+/// usable own reply, so the caller falls back to reloading the thread.
+fn parse_posted_reply(response: &Value, posted_text: &str) -> Option<Comment> {
+    let mutations = build_comment_mutation_map(response);
+    let wanted = posted_text.trim();
+    let (key, entity) = mutations.iter().find_map(|(key, payload)| {
+        let entity = payload.get("commentEntityPayload")?;
+        let author = entity.get("author")?;
+        if author.get("isCurrentUser").and_then(|own| own.as_bool()) != Some(true) {
+            return None;
+        }
+        let properties = entity.get("properties")?;
+        let text = text_of(&properties["content"])?;
+        if text.trim() != wanted {
+            return None;
+        }
+        Some((key.clone(), entity.clone()))
+    })?;
+    let properties = &entity["properties"];
+    let view_model = serde_json::json!({
+        "commentKey": key,
+        "toolbarStateKey": properties["toolbarStateKey"].as_str().unwrap_or(""),
+        "toolbarSurfaceKey": properties["toolbarSurfaceKey"].as_str().unwrap_or(""),
+    });
+    build_comment_from_view_model(&view_model, None, &mutations, None, false)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{build_comment_from_view_model, parse_comments_json, post_like_actions};
+    use super::{
+        build_comment_from_view_model, parse_comments_json, parse_posted_reply,
+        plain_comment_path, comment_action_list,
+    };
     use std::collections::HashMap;
 
     fn view_model() -> serde_json::Value {
@@ -985,19 +1319,146 @@ mod tests {
     }
 
     #[test]
-    fn post_like_actions_come_from_the_toggle_endpoint() {
-        let actions = post_like_actions(
+    fn comment_action_list_come_from_the_toggle_endpoint() {
+        let actions = comment_action_list(
             r#"{"performCommentActionEndpoint":{"actions":[{"type":"like"}]}}"#,
         )
         .expect("actions");
         assert_eq!(actions, serde_json::json!([{"type":"like"}]));
         // A lone action is wrapped the way Android wraps it.
-        let single = post_like_actions(
+        let single = comment_action_list(
             r#"{"performCommentActionEndpoint":{"action":{"type":"like"}}}"#,
         )
         .expect("single action");
         assert_eq!(single, serde_json::json!([{"type":"like"}]));
-        assert!(post_like_actions(r#"{"somethingElse":{}}"#).is_none());
-        assert!(post_like_actions("not json").is_none());
+        assert!(comment_action_list(r#"{"somethingElse":{}}"#).is_none());
+        assert!(comment_action_list("not json").is_none());
+    }
+
+    /// A toolbar surface with a reply dialog and a delete menu: the reply
+    /// carries its own token and path, and the own comment's menu carries a
+    /// delete action to replay.
+    fn surface_mutations() -> HashMap<String, serde_json::Value> {
+        let mut mutations = payloads(serde_json::json!({
+            "properties": {
+                "commentId": "c9",
+                "content": { "content": "hello" },
+                "toolbarSurfaceKey": "surface-1",
+            },
+            "author": { "displayName": "Me", "isCurrentUser": true },
+            "toolbar": { "likeCountNotliked": "3" },
+        }));
+        mutations.insert(
+            "surface-1".to_string(),
+            serde_json::json!({ "engagementToolbarSurfaceEntityPayload": {
+                "replyCommand": { "commentReplyDialogRenderer": { "replyButton": { "buttonRenderer": {
+                    "serviceEndpoint": {
+                        "createCommentReplyEndpoint": { "createReplyParams": "REPLY_TOKEN" },
+                        "commandMetadata": { "webCommandMetadata": { "apiUrl": "/youtubei/v1/comment/create_comment_reply" } },
+                    },
+                } } } },
+                "menuCommand": { "menuRenderer": { "items": [
+                    { "menuNavigationItemRenderer": { "navigationEndpoint": {
+                        "confirmDialogEndpoint": { "content": { "confirmDialogRenderer": { "confirmButton": { "buttonRenderer": {
+                            "serviceEndpoint": { "performCommentActionEndpoint": { "actions": [{ "type": "delete" }] } },
+                        } } } } },
+                    } } },
+                ] } },
+            } }),
+        );
+        mutations
+    }
+
+    #[test]
+    fn an_own_comment_carries_its_reply_token_and_delete_action() {
+        let mut view_model = view_model();
+        view_model["toolbarSurfaceKey"] = serde_json::json!("surface-1");
+        let comment = build_comment_from_view_model(
+            &view_model,
+            None,
+            &surface_mutations(),
+            None,
+            false,
+        )
+        .expect("comment");
+        assert!(comment.is_own);
+        assert_eq!(comment.reply_params.as_deref(), Some("REPLY_TOKEN"));
+        assert_eq!(
+            comment.reply_path.as_deref(),
+            Some("comment/create_comment_reply")
+        );
+        assert_eq!(
+            comment.delete_action.as_deref(),
+            Some(r#"{"actions":[{"type":"delete"}]}"#)
+        );
+    }
+
+    #[test]
+    fn a_comment_that_is_not_ours_offers_a_reply_but_no_delete() {
+        let mut mutations = surface_mutations();
+        mutations.insert(
+            "key-1".to_string(),
+            serde_json::json!({ "commentEntityPayload": {
+                "properties": {
+                    "commentId": "c9",
+                    "content": { "content": "hello" },
+                    "toolbarSurfaceKey": "surface-1",
+                },
+                "author": { "displayName": "Someone else" },
+                "toolbar": { "likeCountNotliked": "3" },
+            } }),
+        );
+        let mut view_model = view_model();
+        view_model["toolbarSurfaceKey"] = serde_json::json!("surface-1");
+        let comment =
+            build_comment_from_view_model(&view_model, None, &mutations, None, false)
+                .expect("comment");
+        assert!(!comment.is_own);
+        assert_eq!(comment.reply_params.as_deref(), Some("REPLY_TOKEN"));
+        assert_eq!(comment.delete_action, None);
+    }
+
+    #[test]
+    fn only_plain_comment_paths_are_kept() {
+        assert_eq!(
+            plain_comment_path(Some("/youtubei/v1/comment/create_comment_reply")),
+            Some("comment/create_comment_reply".to_string())
+        );
+        assert_eq!(plain_comment_path(Some("/youtubei/v1/browse")), None);
+        assert_eq!(
+            plain_comment_path(Some("/youtubei/v1/comment/../browse")),
+            None
+        );
+        assert_eq!(plain_comment_path(Some("comment/create_comment_reply")), None);
+        assert_eq!(plain_comment_path(None), None);
+    }
+
+    #[test]
+    fn the_posted_reply_comes_back_from_its_own_answer() {
+        let response = serde_json::json!({ "frameworkUpdates": { "entityBatchUpdate": { "mutations": [
+            { "entityKey": "reply-1", "payload": { "commentEntityPayload": {
+                "properties": {
+                    "commentId": "UgxReply1",
+                    "content": { "content": "thanks!" },
+                    "toolbarSurfaceKey": "surface-1",
+                },
+                "author": { "displayName": "Me", "isCurrentUser": true },
+                "toolbar": { "likeCountNotliked": "0" },
+            } } },
+            { "entityKey": "surface-1", "payload": { "engagementToolbarSurfaceEntityPayload": {
+                "replyCommand": { "commentReplyDialogRenderer": { "replyButton": { "buttonRenderer": {
+                    "serviceEndpoint": {
+                        "createCommentReplyEndpoint": { "createReplyParams": "REPLY_TOKEN_2" },
+                        "commandMetadata": { "webCommandMetadata": { "apiUrl": "/youtubei/v1/comment/create_comment_reply" } },
+                    },
+                } } } },
+            } } },
+        ] } } });
+        let reply = parse_posted_reply(&response, "thanks!").expect("reply");
+        assert_eq!(reply.id, "UgxReply1");
+        assert!(reply.is_own);
+        assert_eq!(reply.reply_params.as_deref(), Some("REPLY_TOKEN_2"));
+        // Another user's text, or a different text, is not our reply.
+        assert!(parse_posted_reply(&response, "something else").is_none());
     }
 }

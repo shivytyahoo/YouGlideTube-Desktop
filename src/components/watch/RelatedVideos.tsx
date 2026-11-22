@@ -16,6 +16,7 @@ export function RelatedVideos({
   onLoadMore,
   onSelect,
   onAddToQueue,
+  variant = "compact",
 }: RelatedVideosProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const entries = useMemo(
@@ -43,7 +44,7 @@ export function RelatedVideos({
         >
           <VideoCard
             video={video}
-            variant="compact"
+            variant={variant === "full_width" ? "list" : "compact"}
             onPlay={() => onSelect(item)}
             onAddToQueue={onAddToQueue}
           />

@@ -21,7 +21,13 @@ import { composeMusicFeed, type MusicFeedSection } from '../../lib/musicFeedComp
 import { musicSeeAllRoute } from '../../lib/musicRoutes';
 import { shuffled } from '../../lib/musicRecall';
 import { usePreference } from '../../lib/usePreference';
+import { useScrollContainer } from '../../lib/useScrollContainer';
+import { homeReselectAction } from '../../lib/homeReselect';
+import { MUSIC_RESELECTED_EVENT } from '../../lib/musicReselect';
+import { usePullToRefresh } from '../../lib/usePullToRefresh';
+import { PullToRefreshIndicator } from '../../components/common/PullToRefreshIndicator';
 import { SETTINGS } from '../../lib/settings/schema';
+import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import { useMusicPlayerStore } from '../../store/useMusicPlayerStore';
 import { useMusicArtistHidden, useMusicHiddenFilter } from '../../store/useMusicActionsStore';
 import { getString } from '../../lib/i18n/index';
@@ -86,6 +92,30 @@ export default function MusicHome() {
     }
   }, [activeMood, chips]);
   const chipFilter = useMusicChipFilter(activeChip);
+
+  // A tap on the music tab while already here scrolls up, or refreshes at the top — Home's rule.
+  const scrollContainer = useScrollContainer();
+  const refreshOnReselect = useAppSettingsStore(
+    (state) => state.values[SETTINGS.REFRESH_HOME_ON_RESELECT] !== "false",
+  );
+  useEffect(() => {
+    const handleReselected = () => {
+      const scroller = scrollContainer?.current;
+      const action = homeReselectAction(scroller?.scrollTop ?? 0, refreshOnReselect);
+      if (action === "scroll") scroller?.scrollTo({ top: 0 });
+      else if (action === "refresh") {
+        if (activeChip) chipFilter.reload();
+        else void reload();
+      }
+    };
+    window.addEventListener(MUSIC_RESELECTED_EVENT, handleReselected);
+    return () => window.removeEventListener(MUSIC_RESELECTED_EVENT, handleReselected);
+  }, [scrollContainer, refreshOnReselect, activeChip, chipFilter, reload]);
+
+  const pullToRefresh = usePullToRefresh(scrollContainer, {
+    onRefresh: () => void reload(),
+    refreshing: loading,
+  });
 
   const isFiltering = !!activeChip;
   const pageHasMore = isFiltering ? chipFilter.hasMore : hasMore;
@@ -332,6 +362,7 @@ export default function MusicHome() {
 
   return (
     <div className="px-6 py-6 lg:px-8">
+      <PullToRefreshIndicator pullPx={pullToRefresh.pullPx} refreshing={pullToRefresh.refreshing} />
       <CategoryChips
         categories={categories}
         activeCategory={activeMood}

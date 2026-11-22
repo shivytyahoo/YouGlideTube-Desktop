@@ -3,14 +3,15 @@ import { ChevronsLeft, ChevronsRight } from "lucide-react";
 
 import { getString } from "../../../lib/i18n/index";
 import {
-  SEEK_ZONE_FRACTION,
   seekRippleClipPath,
+  seekZoneFraction,
   type SeekDirection,
   type SeekFeedback as SeekFeedbackState,
 } from "../../../lib/seekFeedback";
+import { useAppSettingsStore } from "../../../store/useAppSettingsStore";
+import { SETTINGS } from "../../../lib/settings/schema";
 
 const SIDES: readonly SeekDirection[] = ["backward", "forward"];
-const ZONE_WIDTH = `${SEEK_ZONE_FRACTION * 100}%`;
 
 /** The player's size, read once and then only when it changes, so steps cost no layout reads. */
 function useLayerSize(ref: React.RefObject<HTMLDivElement | null>) {
@@ -39,7 +40,10 @@ function useLayerSize(ref: React.RefObject<HTMLDivElement | null>) {
 export function SeekFeedback({ feedback, compact }: { feedback: SeekFeedbackState; compact: boolean }) {
   const layerRef = useRef<HTMLDivElement>(null);
   const { width, height } = useLayerSize(layerRef);
-  const zoneWidth = width * SEEK_ZONE_FRACTION;
+  const seekZoneWidth = useAppSettingsStore((state) => state.values[SETTINGS.SEEK_ZONE_WIDTH] ?? "normal");
+  const zoneFraction = seekZoneFraction(seekZoneWidth);
+  const zoneWidth = width * zoneFraction;
+  const zoneWidthStyle = `${zoneFraction * 100}%`;
   const forward = feedback.direction === "forward";
   const Chevrons = forward ? ChevronsRight : ChevronsLeft;
   const label = getString(forward ? "player_seek_seconds_forward" : "player_seek_seconds_back", feedback.seconds);
@@ -54,7 +58,7 @@ export function SeekFeedback({ feedback, compact }: { feedback: SeekFeedbackStat
             className={`absolute inset-y-0 transition-opacity duration-200 ease-out ${side === "forward" ? "right-0" : "left-0"} ${
               active ? "opacity-100" : "opacity-0"
             }`}
-            style={{ width: ZONE_WIDTH }}
+            style={{ width: zoneWidthStyle }}
           >
             <div
               key={active ? feedback.id : "idle"}

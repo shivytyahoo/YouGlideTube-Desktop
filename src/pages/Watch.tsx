@@ -52,7 +52,9 @@ export function Watch() {
 
   const { loadSubscriptions } = useSubscriptionStore();
   const commentsEnabled = useAppSettingsStore((state) => state.values[SETTINGS.COMMENTS_ENABLED] !== "false");
+  const commentsPreviewEnabled = useAppSettingsStore((state) => state.values[SETTINGS.COMMENTS_PREVIEW] !== "false");
   const relatedVideosEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SHOW_RELATED_VIDEOS] !== "false");
+  const relatedCardStyle = useAppSettingsStore((state) => state.values[SETTINGS.RELATED_CARD_STYLE]) === "full_width" ? "full_width" : "compact";
   const liveChatEnabled = useAppSettingsStore((state) => state.values[SETTINGS.LIVE_CHAT_ENABLED] !== "false");
   const hideSeenVideos = useAppSettingsStore((state) => state.values[SETTINGS.HIDE_SEEN_VIDEOS] === "true");
 
@@ -169,17 +171,19 @@ export function Watch() {
       relatedLane.items.filter((item) => {
         if (item.itemType && item.itemType !== "video") return true; // keep playlists / mixes
         const id = item.videoId || item.id;
+        // The video playing never appears in its own Up Next, as on Android.
+        if (id === videoId) return false;
         return (
           unseen.isShown(id) &&
           !isHidden({ id, channelId: item.channelId, channelHandle: item.channelHandle, collaborators: item.collaborators } as VideoSummary)
         );
       }),
-    [relatedLane.items, isHidden, unseen],
+    [relatedLane.items, isHidden, unseen, videoId],
   );
   const autoplayVideoId = offlineRecord ? null : videoDetails?.autoplayVideoId;
   useEffect(() => {
-    setAutoplayCandidates(autoplayCandidates(visibleRelated, autoplayVideoId));
-  }, [visibleRelated, autoplayVideoId, setAutoplayCandidates]);
+    setAutoplayCandidates(autoplayCandidates(visibleRelated, autoplayVideoId, videoId));
+  }, [visibleRelated, autoplayVideoId, videoId, setAutoplayCandidates]);
 
   const handleRelatedClick = useCallback(
     async (item: RelatedContentItem) => {
@@ -271,7 +275,7 @@ export function Watch() {
           </>
         )
       }
-      comments={commentsEnabled && !offlineRecord && !isLocalFile && playbackSettled ? (
+      comments={commentsEnabled && commentsPreviewEnabled && !offlineRecord && !isLocalFile && playbackSettled ? (
         <Suspense fallback={<div className="h-32" />}>
           <CommentsSection videoId={videoId} />
         </Suspense>
@@ -300,6 +304,7 @@ export function Watch() {
               onLoadMore={relatedLane.loadMore}
               onSelect={handleRelatedClick}
               onAddToQueue={addToQueue}
+              variant={relatedCardStyle}
             />
           )}
         </>

@@ -133,6 +133,27 @@ pub fn pair_downloadable_formats(stream_info: &StreamInfo) -> Vec<DownloadableFo
     pair_downloadable_formats_with(stream_info, None)
 }
 
+/// The best AAC track for one multi-audio key: the dialog only offers AAC
+/// extras, and MP4 holds no other audio codec. The highest-bitrate copy wins.
+#[must_use]
+pub fn aac_audio_track_for_key<'a>(
+    stream_info: &'a StreamInfo,
+    key: &str,
+) -> Option<&'a AudioTrack> {
+    stream_info
+        .download_audio_tracks
+        .iter()
+        .filter(|track| {
+            track_key(track) == key
+                && !track.local_url.is_empty()
+                && track
+                    .mime_type
+                    .as_deref()
+                    .is_some_and(|mime| audio_codec(mime) == AudioCodec::Aac)
+        })
+        .max_by_key(|track| track.bitrate.unwrap_or(0))
+}
+
 /// The formats a video can be saved in, each paired with `audio_key`'s track when it
 /// is offered, otherwise with the default track.
 #[must_use]
@@ -402,6 +423,40 @@ mod tests {
             approx_duration_ms: None,
             user_agent: None,
         }
+    }
+
+    #[test]
+    fn aac_lookup_finds_a_key_in_its_best_aac_copy() {
+        use super::{aac_audio_track_for_key, track_key};
+        use crate::models::video::StreamInfo;
+        let info = StreamInfo {
+            stream_id: "v".into(),
+            local_url: String::new(),
+            expires_at: String::new(),
+            variants: Vec::new(),
+            captions: Vec::new(),
+            audio_tracks: Vec::new(),
+            download_audio_tracks: vec![
+                track("hi.4-139", r#"audio/mp4; codecs="mp4a.40.5""#, 48_000),
+                track("hi.4-140", r#"audio/mp4; codecs="mp4a.40.2""#, 130_000),
+                track("hi.4-251", r#"audio/webm; codecs="opus""#, 160_000),
+                track("en.4-140", r#"audio/mp4; codecs="mp4a.40.2""#, 128_000),
+            ],
+            hls_manifest_url: None,
+            dash_manifest_url: None,
+            is_live: false,
+            sabr: None,
+            loudness_db: None,
+            storyboard: Vec::new(),
+            projection: None,
+            sabr_descriptor: None,
+        };
+        // Both Hindi AAC copies share the key "hi.4"; the Opus twin does not count.
+        assert_eq!(track_key(&info.download_audio_tracks[0]), "hi.4");
+        let hindi = aac_audio_track_for_key(&info, "hi.4").expect("hindi");
+        assert_eq!(hindi.id, "hi.4-140");
+        assert_eq!(hindi.bitrate, Some(130_000));
+        assert!(aac_audio_track_for_key(&info, "fr.4").is_none());
     }
 
     #[test]

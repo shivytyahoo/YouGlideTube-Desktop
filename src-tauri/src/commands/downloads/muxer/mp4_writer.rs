@@ -46,6 +46,8 @@ pub(super) struct WriterTrack<'a> {
     pub samples: Vec<WriterSample>,
     /// Where presentation starts in track ticks; written as an edit list when positive.
     pub media_time: Option<i64>,
+    /// ISO 639-2/T language code for the track's `mdhd`; `None` writes "und".
+    pub language: Option<[u8; 3]>,
     pub source: Box<dyn SampleSource + 'a>,
 }
 
@@ -394,8 +396,12 @@ fn mdia_box(
             .u32(track.timescale)
             .u32(narrow(duration));
     }
-    // ISO-639-2 "und", packed as three 5-bit letters.
-    mdhd.u16(0x55C4).u16(0);
+    // ISO-639-2/T language, packed as three 5-bit letters; "und" when unknown.
+    let language = track.language.unwrap_or(*b"und");
+    let packed = language.iter().fold(0_u16, |packed, letter| {
+        (packed << 5) | u16::from(letter.wrapping_sub(0x60) & 0x1F)
+    });
+    mdhd.u16(packed).u16(0);
 
     let (handler, name, media_header): (&[u8; 4], &[u8], Vec<u8>) = match track.role {
         TrackRole::Video { .. } => (b"vide", b"VideoHandler\0", full_box(b"vmhd", 0, 1, &[0; 8])),
@@ -582,6 +588,7 @@ pub(super) mod tests {
             sample_entry: super::super::boxes::mp4_box(b"avc1", &[0; 78]),
             samples,
             media_time: None,
+            language: None,
             source: Box::new(PatternSource),
         }
     }
@@ -595,6 +602,7 @@ pub(super) mod tests {
             sample_entry: super::super::boxes::mp4_box(b"mp4a", &[0; 28]),
             samples,
             media_time: Some(1024),
+            language: None,
             source: Box::new(PatternSource),
         }
     }

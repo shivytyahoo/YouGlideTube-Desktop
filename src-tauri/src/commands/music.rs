@@ -38,7 +38,7 @@ type CmdResult<T> = Result<T, ErrorResponse>;
 /// Home responses vary only with the request's `hl`/`gl`, so the cache is keyed on
 /// the values the music client actually sends rather than the UI language.
 fn music_home_cache_stamp() -> String {
-    let context = WEB_REMIX.context(None, None);
+    let context = WEB_REMIX.context_music(None);
     let client = &context["client"];
     format!(
         "{}-{}",

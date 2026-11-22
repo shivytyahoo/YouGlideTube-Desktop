@@ -2,10 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSubscriptionStore } from "../store/useSubscriptionStore";
 import { cleanChannelId, useFeedActionsStore } from "../store/useFeedActionsStore";
 import { getShortsFeed, loadMoreShorts, resetShortsFeed } from "./api/shorts";
+import { getChannelTab } from "./api/youtube";
+import { itemsOfLayout } from "./channelPage";
+import { shortSummaryToItem } from "./shortsQueue";
+import type { ShortsQueueSource } from "./shortsQueueSource";
 import { SETTINGS } from "./settings/schema";
 import { loadFinishedShortIds } from "./useWatchedFilter";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import type { ShortItem, ShortsFeed } from "../types/shorts";
+import type { ShortVideoSummary } from "../types/video";
 
 
 async function currentSubIds(): Promise<string[]> {
@@ -97,16 +102,20 @@ export function useShortsFeed(
   initialSeedItem?: ShortItem | null,
   initialQueue?: ShortItem[] | null,
   queueEnd?: ShortsQueueEnd,
+  queueSource?: ShortsQueueSource | null,
 ) {
   const [items, setItems] = useState<ShortItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   const continuationRef = useRef<string | null>(null);
   const inFlightRef = useRef(false);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const waitingToHandOverRef = useRef(false);
+  /** The channel tab still to page through before the queue hands over to the feed. */
+  const channelRef = useRef<{ channelId: string; pageToken: string | null } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +127,10 @@ export function useShortsFeed(
     queuedItems.forEach((item) => seenIdsRef.current.add(item.id));
     setItems(queuedItems);
     waitingToHandOverRef.current = false;
+    channelRef.current =
+      queueSource?.kind === "channel" && queueSource.pageToken
+        ? { channelId: queueSource.channelId, pageToken: queueSource.pageToken }
+        : null;
     if (queueEnd && queuedItems.length > 0) {
       continuationRef.current = null;
       waitingToHandOverRef.current = queueEnd === "feed";
@@ -148,7 +161,7 @@ export function useShortsFeed(
     return () => {
       cancelled = true;
     };
-  }, [seedId, initialSeedItem, initialQueue, queueEnd]);
+  }, [seedId, initialSeedItem, initialQueue, queueEnd, queueSource, refreshNonce]);
 
   const loadMore = useCallback(async () => {
     if (queueEnd === "stop") return;
@@ -156,6 +169,28 @@ export function useShortsFeed(
     inFlightRef.current = true;
     setLoadingMore(true);
     try {
+      // A channel queue pages its own tab first; only once the tab is dry
+      // does the swipe hand over to the algorithmic feed.
+      const channel = channelRef.current;
+      if (channel?.pageToken) {
+        const [page, finished] = await Promise.all([
+          getChannelTab(channel.channelId, null, channel.pageToken),
+          loadFinishedShortIds(),
+        ]);
+        channelRef.current = page.nextPageToken
+          ? { channelId: channel.channelId, pageToken: page.nextPageToken }
+          : null;
+        if (!channelRef.current) waitingToHandOverRef.current = true;
+        const fresh = visibleFetchedShorts(
+          itemsOfLayout<ShortVideoSummary>(page.items, "shorts").map(shortSummaryToItem),
+          finished,
+        ).filter((s) => !seenIdsRef.current.has(s.id));
+        if (fresh.length) {
+          fresh.forEach((s) => seenIdsRef.current.add(s.id));
+          setItems((prev) => [...prev, ...fresh]);
+        }
+        return;
+      }
       const [feed, finished] = await Promise.all([
         waitingToHandOverRef.current
           ? fetchFeedShorts(seedId)
@@ -201,5 +236,10 @@ export function useShortsFeed(
     void resetShortsFeed();
   }, []);
 
-  return { items, loading, loadingMore, error, loadMore, moreLikeThis, reset };
+  /** Reloads the queue from the top, as a tab reselect or an error retry does. */
+  const retry = useCallback(() => {
+    setRefreshNonce((value) => value + 1);
+  }, []);
+
+  return { items, loading, loadingMore, error, loadMore, moreLikeThis, reset, retry };
 }

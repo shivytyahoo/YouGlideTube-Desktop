@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { FolderOpen, FolderPlus, X } from 'lucide-react';
 
 import type { LocalMediaFolder } from '../../lib/api/localMedia';
 import { getPlural, getString } from '../../lib/i18n/index';
+import { hiddenFoldersText, parseHiddenFolders, parseStoredHiddenFolders } from '../../lib/localMedia/hiddenFolders';
 import { SETTINGS } from '../../lib/settings/schema';
-import { useBoolPref, useNumberPref } from '../../lib/usePreference';
+import { useBoolPref, useNumberPref, usePreference } from '../../lib/usePreference';
 import { useLocalMediaStore } from '../../store/useLocalMediaStore';
 import { useUiStore } from '../../store/useUiStore';
 import { Select } from '../ui/Select';
@@ -47,12 +48,20 @@ export function LocalMediaSettings() {
   const folders = useLocalMediaStore((s) => s.folders);
   const load = useLocalMediaStore((s) => s.load);
   const addFolder = useLocalMediaStore((s) => s.addFolder);
+  const syncHiddenFolders = useLocalMediaStore((s) => s.syncHiddenFolders);
   const [hideRecordings, setHideRecordings] = useBoolPref(SETTINGS.LOCAL_MEDIA_HIDE_RECORDINGS);
   const [minAudio, setMinAudio] = useNumberPref(SETTINGS.LOCAL_MEDIA_MIN_AUDIO_SECONDS);
+  const [hiddenFoldersValue] = usePreference(SETTINGS.LOCAL_MEDIA_HIDDEN_FOLDERS, '[]');
+  // Typed paths, one per line; applied on demand so a half-typed path never hides anything.
+  const [hiddenFoldersDraft, setHiddenFoldersDraft] = useState(() => hiddenFoldersText(parseStoredHiddenFolders(hiddenFoldersValue)));
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setHiddenFoldersDraft(hiddenFoldersText(parseStoredHiddenFolders(hiddenFoldersValue)));
+  }, [hiddenFoldersValue]);
 
   return (
     <SettingsGroup title={getString('settings_group_local_media')}>
@@ -70,6 +79,25 @@ export function LocalMediaSettings() {
         </button>
       </SettingItem>
       <FolderRows folders={folders.filter((folder) => folder.role === 'exclude')} />
+      <SettingItem title={getString('settings_local_media_hidden_folders')} description={getString('settings_local_media_hidden_folders_desc')}>
+        <div className="flex w-full flex-col gap-2">
+          <textarea
+            value={hiddenFoldersDraft}
+            onChange={(event) => setHiddenFoldersDraft(event.target.value)}
+            aria-label={getString('settings_local_media_hidden_folders')}
+            rows={3}
+            spellCheck={false}
+            className="w-full resize-y rounded-lg border border-chrome-neutral-800 bg-surface-container-low px-3 py-2 font-mono text-xs text-chrome-neutral-100 outline-none transition-colors duration-200 ease-out placeholder:text-chrome-neutral-500 focus:border-chrome-neutral-600"
+          />
+          <button
+            type="button"
+            className={ADD_BUTTON}
+            onClick={() => void syncHiddenFolders(parseHiddenFolders(hiddenFoldersDraft))}
+          >
+            {getString('settings_local_media_hidden_folders_apply')}
+          </button>
+        </div>
+      </SettingItem>
       <SettingItem title={getString('settings_local_media_hide_recordings')} description={getString('settings_local_media_hide_recordings_desc')}>
         <ToggleSwitch checked={hideRecordings} onChange={setHideRecordings} />
       </SettingItem>

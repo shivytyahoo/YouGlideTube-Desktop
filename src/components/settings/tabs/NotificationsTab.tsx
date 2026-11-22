@@ -6,16 +6,22 @@ import { useBoolPref, usePreference } from '../../../lib/usePreference';
 import { getString } from '../../../lib/i18n/index';
 import { SETTINGS } from '../../../lib/settings/schema';
 import { isSettingDisabledUntilWired } from '../../../lib/settings/values';
+import { useUpdaterStore } from '../../../store/useUpdaterStore';
 
 // Android's Notification Preferences page (NotificationSettingsScreen.kt): the
 // background feed check, which kinds of alert the app may post. The system
-// notification settings row is Android-only, and the updates row only exists
-// when the updater is enabled, which it is not on desktop — both are omitted.
+// notification settings row is Android-only and omitted. There is no General
+// row: the desktop inbox only ever holds new videos, Shorts and reminders,
+// so a general toggle would have nothing to gate.
 export function NotificationsTab() {
   const [shortsContent] = useBoolPref(SETTINGS.SHORTS_CONTENT_ENABLED, true);
   const [notificationsEnabled, setNotificationsEnabled] = useBoolPref(SETTINGS.NOTIFICATIONS_ENABLED, true);
   const [notifNewVideos, setNotifNewVideos] = useBoolPref(SETTINGS.NOTIF_NEW_VIDEOS_ENABLED, true);
   const [notifShorts, setNotifShorts] = useBoolPref(SETTINGS.NOTIF_SHORTS_ENABLED, true);
+  const [notifDownloads, setNotifDownloads] = useBoolPref(SETTINGS.DOWNLOAD_NOTIFICATIONS, true);
+  const [notifReminders, setNotifReminders] = useBoolPref(SETTINGS.NOTIF_REMINDERS_ENABLED, true);
+  const autoCheckUpdates = useUpdaterStore((state) => state.autoCheck);
+  const setAutoCheckUpdates = useUpdaterStore((state) => state.setAutoCheck);
   const [notificationInterval, setNotificationInterval] = usePreference(SETTINGS.NOTIFICATION_CHECK_INTERVAL, '360');
 
   return (
@@ -48,6 +54,15 @@ export function NotificationsTab() {
           <ToggleSwitch checked={notifNewVideos} onChange={setNotifNewVideos} disabled={!notificationsEnabled} />
         </SettingItem>
         <SettingItem title={getString('settings_notif_shorts')} description={getString('settings_notif_shorts_desc')} disabled={!notificationsEnabled || !notifNewVideos || !shortsContent}><ToggleSwitch checked={notifShorts} onChange={setNotifShorts} disabled={!notificationsEnabled || !notifNewVideos || !shortsContent} /></SettingItem>
+        <SettingItem title={getString('settings_notif_downloads')} description={getString('settings_notif_downloads_desc')} disabled={!notificationsEnabled}>
+          <ToggleSwitch checked={notifDownloads} onChange={setNotifDownloads} disabled={!notificationsEnabled} />
+        </SettingItem>
+        <SettingItem title={getString('settings_notif_reminders')} description={getString('settings_notif_reminders_desc')} disabled={!notificationsEnabled}>
+          <ToggleSwitch checked={notifReminders} onChange={setNotifReminders} disabled={!notificationsEnabled} />
+        </SettingItem>
+        <SettingItem title={getString('settings_notif_updates')} description={getString('settings_notif_updates_desc')} disabled={!notificationsEnabled}>
+          <ToggleSwitch checked={autoCheckUpdates} onChange={(value) => void setAutoCheckUpdates(value)} disabled={!notificationsEnabled} />
+        </SettingItem>
       </SettingsGroup>
     </div>
   );

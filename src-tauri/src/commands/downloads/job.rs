@@ -21,7 +21,7 @@ use super::{
     ClipRange, DownloadControl, DownloadManager, DownloadMediaKind, StartDownloadRequest, muxer,
     sidecars, subtitles,
 };
-use crate::api::innertube::download::DownloadContainer;
+use crate::api::innertube::download::{DownloadContainer, container_from_mime};
 use crate::db::downloads::DownloadRecord;
 use crate::models::video::{CaptionTrack, VideoChapter};
 
@@ -58,11 +58,22 @@ impl DownloadJob {
     /// Every partial file this job can leave behind.
     pub fn partial_files(&self) -> Vec<PathBuf> {
         let mut files = Vec::new();
-        for base in [
+        let mut bases = vec![
             self.staged(""),
             self.staged(".video"),
             self.staged(".audio"),
-        ] {
+        ];
+        // One part file per ticked extra language, as the job fetches them.
+        let extra_audios = self
+            .request
+            .video
+            .as_ref()
+            .map(|video| video.audio_keys().len().saturating_sub(1))
+            .unwrap_or(0);
+        for index in 1..=extra_audios {
+            bases.push(self.staged(&format!(".audio{index}")));
+        }
+        for base in bases {
             for worker in 0..u64::from(self.request.threads.clamp(1, 8)) {
                 files.push(transfer::part_path(&base, worker));
             }
@@ -183,7 +194,7 @@ async fn run_single(
     let fetch = track_fetch(job, source, Role::Single, &path, emitter, "media stream");
     emitter.emit(DownloadStatus::Downloading, None);
     let segment_only = match job.request.clip_range() {
-        Some(clip) => try_clip_segments(source, None, &fetch, clip, emitter).await?,
+        Some(clip) => try_clip_segments(source, None, std::slice::from_ref(&fetch), clip, emitter).await?,
         None => false,
     };
     if !segment_only {
@@ -228,9 +239,22 @@ async fn run_pair(
     else {
         return Err("Expected a video and audio pair".into());
     };
-    let (video_container, audio_container) = resolved.track_containers();
+    let (video_container, _) = resolved.track_containers();
+    let audio_sources = resolved.audio_sources();
     let video_path = job.staged(".video");
-    let audio_path = job.staged(".audio");
+    // One part file per audio track, primary first: `.audio`, `.audio1`, …
+    let audio_paths: Vec<PathBuf> = audio_sources
+        .iter()
+        .enumerate()
+        .map(|(index, _)| {
+            let suffix = if index == 0 {
+                ".audio".to_string()
+            } else {
+                format!(".audio{index}")
+            };
+            job.staged(&suffix)
+        })
+        .collect();
     let video = track_fetch(
         job,
         source,
@@ -239,38 +263,66 @@ async fn run_pair(
         emitter,
         "video track",
     );
-    let audio = track_fetch(
-        job,
-        source,
-        Role::Audio,
-        &audio_path,
-        emitter,
-        "audio track",
-    );
+    let audio_fetches: Vec<TrackFetch> = audio_paths
+        .iter()
+        .enumerate()
+        .map(|(index, path)| {
+            track_fetch(
+                job,
+                source,
+                if index == 0 {
+                    Role::Audio
+                } else {
+                    Role::ExtraAudio(index - 1)
+                },
+                path,
+                emitter,
+                if index == 0 {
+                    "audio track"
+                } else {
+                    "extra audio track"
+                },
+            )
+        })
+        .collect();
     emitter.emit(DownloadStatus::Downloading, None);
     let segment_only = match job.request.clip_range() {
-        Some(clip) => try_clip_segments(source, Some(&video), &audio, clip, emitter).await?,
+        Some(clip) => {
+            try_clip_segments(source, Some(&video), &audio_fetches, clip, emitter).await?
+        }
         None => false,
     };
     if segment_only {
         // The parts already hold only the clip's segments; the muxer trims
         // the exact end from them.
         transfer::ensure_valid_track(&video, video_container, None).await?;
-        transfer::ensure_valid_track(&audio, audio_container, None).await?;
+        for (index, fetch) in audio_fetches.iter().enumerate() {
+            let container = container_from_mime(&audio_sources[index].mime_type);
+            transfer::ensure_valid_track(fetch, container, None).await?;
+        }
     } else {
-        let (video_total, audio_total) = tokio::join!(
-            transfer::probe_length(&video),
-            transfer::probe_length(&audio)
-        );
-        emitter.set_total(video_total.zip(audio_total).map(|(v, a)| v + a));
-        let (video_result, audio_result) = tokio::join!(
-            transfer::fetch_track(&video, video_total),
-            transfer::fetch_track(&audio, audio_total)
-        );
-        video_result?;
-        audio_result?;
-        transfer::ensure_valid_track(&video, video_container, video_total).await?;
-        transfer::ensure_valid_track(&audio, audio_container, audio_total).await?;
+        let probe = std::iter::once(transfer::probe_length(&video))
+            .chain(audio_fetches.iter().map(transfer::probe_length));
+        let totals: Vec<Option<u64>> = futures_util::future::join_all(probe).await;
+        let total = totals
+            .iter()
+            .fold(Some(0_u64), |sum, next| sum.and_then(|sum| next.map(|bytes| sum + bytes)));
+        emitter.set_total(total);
+        let fetch = std::iter::once(transfer::fetch_track(&video, totals[0]))
+            .chain(
+                audio_fetches
+                    .iter()
+                    .enumerate()
+                    .map(|(index, fetch)| transfer::fetch_track(fetch, totals[index + 1])),
+            );
+        for result in futures_util::future::join_all(fetch).await {
+            result?;
+        }
+        transfer::ensure_valid_track(&video, video_container, totals[0]).await?;
+        for (index, fetch) in audio_fetches.iter().enumerate() {
+            let container = container_from_mime(&audio_sources[index].mime_type);
+            transfer::ensure_valid_track(fetch, container, totals[index + 1]).await?;
+        }
     }
 
     emitter.emit(DownloadStatus::Muxing, None);
@@ -278,11 +330,22 @@ async fn run_pair(
     let tracks = MuxTracks {
         output,
         video: (video_path.clone(), video_container),
-        audio: (audio_path.clone(), audio_container),
+        audios: audio_paths
+            .iter()
+            .zip(audio_sources.iter())
+            .map(|(path, source)| {
+                (
+                    path.clone(),
+                    container_from_mime(&source.mime_type),
+                )
+            })
+            .collect(),
     };
     mux_pair(job, source, &tracks, &prepared, emitter).await?;
     let _ = tokio::fs::remove_file(&video_path).await;
-    let _ = tokio::fs::remove_file(&audio_path).await;
+    for path in &audio_paths {
+        let _ = tokio::fs::remove_file(path).await;
+    }
     let extension = match output {
         DownloadContainer::Mp4 => "mp4",
         DownloadContainer::Mkv => "mkv",
@@ -302,7 +365,9 @@ async fn run_pair(
 struct MuxTracks {
     output: DownloadContainer,
     video: (PathBuf, DownloadContainer),
-    audio: (PathBuf, DownloadContainer),
+    /// Every audio track, primary first: its part file and the container its
+    /// bytes arrived in.
+    audios: Vec<(PathBuf, DownloadContainer)>,
 }
 
 /// Writes the two downloaded tracks into the tagged output file and checks it.
@@ -330,27 +395,43 @@ async fn mux_pair(
         duration_seconds: expected_seconds(job),
     };
     let video_mime = source.current(Role::Video).await.mime_type;
-    let audio_mime = source.current(Role::Audio).await.mime_type;
+    let resolved = source.resolved().await;
+    let audio_sources = resolved.audio_sources();
+    let audio_languages = resolved.audio_languages();
     let output = tracks.output;
     let (video_path, video_container) = tracks.video.clone();
-    let (audio_path, audio_container) = tracks.audio.clone();
+    let audios = tracks.audios.clone();
     let output_path = job.staged("");
     let control = job.control.clone();
     let clip = job.request.clip_range();
     emitter.log("Tracks downloaded; writing the file");
     tokio::task::spawn_blocking(move || {
+        // Built here, from values the closure owns, so the inputs borrow
+        // nothing outside it.
+        let audio_inputs: Vec<muxer::TrackInput> = audios
+            .iter()
+            .enumerate()
+            .map(|(index, (path, container))| muxer::TrackInput {
+                path,
+                container: *container,
+                mime_type: audio_sources
+                    .get(index)
+                    .map(|audio| audio.mime_type.as_str())
+                    .unwrap_or(""),
+                language_code: audio_languages
+                    .get(index)
+                    .and_then(|language| language.as_deref()),
+            })
+            .collect();
         muxer::mux_adaptive_tracks(
             output,
             muxer::TrackInput {
                 path: &video_path,
                 container: video_container,
                 mime_type: &video_mime,
+                language_code: None,
             },
-            muxer::TrackInput {
-                path: &audio_path,
-                container: audio_container,
-                mime_type: &audio_mime,
-            },
+            &audio_inputs,
             &output_path,
             Some(&embedded),
             &control.cancelled,
@@ -454,19 +535,22 @@ fn clip_track<'a>(
 async fn try_clip_segments<'a>(
     source: &'a SourceSlot,
     video: Option<&'a TrackFetch<'a>>,
-    audio: &'a TrackFetch<'a>,
+    audios: &[TrackFetch<'a>],
     clip: ClipRange,
     emitter: &'a ProgressEmitter,
 ) -> Result<bool, String> {
     let mut refreshed = false;
     loop {
         let resolved = source.resolved().await;
-        let (video_source, audio_source) = match (&resolved, video.is_some()) {
-            (Resolved::Pair { video, audio, .. }, true) => (Some(video), audio),
-            (Resolved::Single(single), false) => (None, single),
+        let (video_source, audio_sources) = match (&resolved, video.is_some()) {
+            (Resolved::Pair { video, .. }, true) => (Some(video), resolved.audio_sources()),
+            (Resolved::Single(single), false) => (None, vec![single.clone()]),
             _ => return Ok(false),
         };
-        let (video_container, audio_container) = resolved.track_containers();
+        if audio_sources.len() != audios.len() {
+            return Ok(false);
+        }
+        let (video_container, _) = resolved.track_containers();
         let video_track = match (video_source, video) {
             (Some(track_source), Some(fetch)) => clip_track(
                 track_source,
@@ -475,15 +559,19 @@ async fn try_clip_segments<'a>(
             ),
             _ => None,
         };
-        let Some(audio_track) = clip_track(
-            audio_source,
-            audio,
-            audio_container == DownloadContainer::Mkv,
-        ) else {
-            emitter.log("This clip has no segment index; downloading the full stream");
-            return Ok(false);
-        };
-        match fetch_clip_segments(video_track, audio_track, clip).await? {
+        let mut audio_tracks = Vec::with_capacity(audios.len());
+        for (audio_source, fetch) in audio_sources.iter().zip(audios.iter()) {
+            let Some(track) = clip_track(
+                audio_source,
+                fetch,
+                container_from_mime(&audio_source.mime_type) == DownloadContainer::Mkv,
+            ) else {
+                emitter.log("This clip has no segment index; downloading the full stream");
+                return Ok(false);
+            };
+            audio_tracks.push(track);
+        }
+        match fetch_clip_segments(video_track, &audio_tracks, clip).await? {
             ClipAttempt::Fetched { total_bytes } => {
                 emitter.log(format!(
                     "Clip segments only: {total_bytes} bytes cover the clip"

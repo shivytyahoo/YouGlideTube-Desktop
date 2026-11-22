@@ -20,7 +20,8 @@ import {
 import { SETTINGS } from "../../lib/settings/schema";
 import { usePlayerStore } from "../../store/usePlayerStore";
 import { getString } from "../../lib/i18n/index";
-import type { CommentSort } from "../../types/video";
+import { buildCommentReplyTree, type CommentReplyNode } from "../../lib/commentReplyTree";
+import type { Comment, CommentSort } from "../../types/video";
 import type { CommentsSectionProps } from "./types";
 
 const FILTER_LABELS = {
@@ -79,6 +80,32 @@ export function CommentsSection({
   const emptyText = isTimed ? getString("comments_no_timed") : getString("watch_no_comments");
   // The Timed list scrolls by itself, so following it never moves the page or the player.
   const listClass = fill ? "min-h-0 flex-1 overflow-y-auto pe-1" : isTimed ? "max-h-[70vh] overflow-y-auto pe-1" : "";
+
+  /** A reply posts through the thread and reports back; success toasts like a top-level post. */
+  const postReply = async (comment: Comment, text: string) => {
+    const ok = await thread.postReply(comment, text);
+    if (ok) useUiStore.getState().showToast({ variant: "success", message: getString("comment_reply_posted") });
+    return ok;
+  };
+
+  /** A thread's replies, nested the way the conversation actually branches:
+   * a reply to a reply sits one level deeper than the reply it answered. */
+  const renderReplyThread = (nodes: CommentReplyNode[]) =>
+    nodes.map((node) => (
+      <div key={node.comment.id} className="space-y-4">
+        <CommentItem
+          comment={node.comment}
+          reply
+          onPostReply={postReply}
+          onDelete={async (comment) => thread.deleteComment(comment.id)}
+        />
+        {node.children.length > 0 && (
+          <div className="ms-4 space-y-4 border-s-2 border-chrome-neutral-800 ps-4">
+            {renderReplyThread(node.children)}
+          </div>
+        )}
+      </div>
+    ));
 
   return (
     <div className={fill ? "flex h-full flex-col gap-4" : "space-y-6 pt-4"}>
@@ -193,7 +220,7 @@ export function CommentsSection({
                   c.id === anchorId ? "bg-surface-container-high" : ""
                 }`}
               >
-                <CommentItem comment={c} />
+                <CommentItem comment={c} onPostReply={postReply} onDelete={async (comment) => thread.deleteComment(comment.id)} />
                 <div className="ms-14">
                   {(c.continuationToken || (c.replyCount != null && c.replyCount > 0)) && (
                     <button
@@ -211,9 +238,7 @@ export function CommentsSection({
 
                   {thread.expanded[c.id] && (
                     <div className="mt-4 space-y-4 border-s-2 border-chrome-neutral-800 ps-4">
-                      {thread.replies[c.id]?.map((reply, rIdx) => (
-                        <CommentItem key={reply.id || `reply-${rIdx}`} comment={reply} reply />
-                      ))}
+                      {renderReplyThread(buildCommentReplyTree(thread.replies[c.id] ?? []))}
 
                       {thread.repliesLoading[c.id] && (
                         <div className="flex items-center gap-2 py-1 text-xs text-chrome-neutral-400">

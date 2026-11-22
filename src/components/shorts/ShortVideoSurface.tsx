@@ -17,6 +17,7 @@ import {
   Settings,
   SlidersHorizontal,
   ThumbsUp,
+  Timer,
 } from "lucide-react";
 import type { PlaybackRate } from "../../store/usePlayerStore";
 import { SETTINGS } from "../../lib/settings/schema";
@@ -25,6 +26,7 @@ import { copyText } from "../../lib/clipboard";
 import { getString } from "../../lib/i18n/index";
 import { setSettingValue, useAppSettingsStore } from "../../store/useAppSettingsStore";
 import {
+  DEFAULT_PLAYBACK_RATES,
   formatPlaybackRate,
   normalizePlaybackRate,
   parseCustomSpeedPresets,
@@ -36,6 +38,8 @@ import {
   AUDIO_RESYNC_MIN_INTERVAL_MS,
 } from "../../lib/externalAudioSync";
 import { useSubtitleSettingsSync } from "../../lib/useSubtitleSettingsSync";
+import { useAmbientSettings } from "../../lib/ambient/useAmbientSettings";
+import { ToggleSwitch } from "../ui/ToggleSwitch";
 import type { AudioTrack, CaptionTrack, StreamVariant } from "../../types/video";
 import { SubtitleOverlay } from "../player/SubtitleOverlay";
 import { StatsForNerds } from "../player/StatsForNerds";
@@ -66,6 +70,12 @@ interface ShortVideoSurfaceProps {
   volume: number;
   playbackMode: string;
   autoScrollSeconds: number;
+  /** Impressive mode: chrome stays hidden until a centre tap and hides again on its own. */
+  controlsOnDemand?: boolean;
+  /** Whether the chrome is currently shown, when controls are on demand. */
+  chromeVisible?: boolean;
+  onRequestChrome?: () => void;
+  onPlayingChange?: (playing: boolean) => void;
   onRequestAdvance?: () => void;
   onError?: () => void;
 }
@@ -77,7 +87,7 @@ const DOUBLE_CLICK_WAIT_MS = 220;
 const LIKE_BURST_MS = 700;
 type ContextMenuState = { x: number; y: number };
 
-const DEFAULT_SPEED_OPTIONS: PlaybackRate[] = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+const DEFAULT_SPEED_OPTIONS: PlaybackRate[] = DEFAULT_PLAYBACK_RATES;
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -93,6 +103,35 @@ function formatTime(seconds: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+/** The codec family a variant carries, for the grouped quality rows. */
+function codecShortName(mimeType?: string | null): string | null {
+  if (!mimeType) return null;
+  if (mimeType.includes("av01")) return "AV1";
+  if (mimeType.includes("vp09") || mimeType.includes("vp9")) return "VP9";
+  if (mimeType.includes("avc1")) return "H.264";
+  if (mimeType.includes("mp4a")) return "AAC";
+  if (mimeType.includes("opus")) return "Opus";
+  return null;
+}
+
+function variantDetail(variant: StreamVariant): string | undefined {
+  const parts: string[] = [];
+  if (variant.bitrate) parts.push(`${Math.round(variant.bitrate / 1000)} kbps`);
+  else if (variant.fps) parts.push(`${variant.fps}fps`);
+  return parts.length ? parts.join(" · ") : undefined;
+}
+
+/** Variants grouped by resolution, in the order they arrived. */
+function groupQualitiesByLabel(qualities: StreamVariant[]): Array<[string, StreamVariant[]]> {
+  const groups = new Map<string, StreamVariant[]>();
+  for (const quality of qualities) {
+    const list = groups.get(quality.qualityLabel) ?? [];
+    list.push(quality);
+    groups.set(quality.qualityLabel, list);
+  }
+  return [...groups.entries()];
 }
 
 export function ShortVideoSurface({
@@ -114,6 +153,10 @@ export function ShortVideoSurface({
   volume,
   playbackMode,
   autoScrollSeconds,
+  controlsOnDemand = false,
+  chromeVisible = true,
+  onRequestChrome,
+  onPlayingChange,
   onRequestAdvance,
   onError,
 }: ShortVideoSurfaceProps) {
@@ -181,6 +224,8 @@ export function ShortVideoSurface({
   const speedSliderEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SPEED_SLIDER_ENABLED] === "true");
   const subtitlesEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SUBTITLES_ENABLED] === "true");
   const preferredSubtitleLanguage = useAppSettingsStore((state) => state.values[SETTINGS.PREFERRED_SUBTITLE_LANGUAGE] ?? "en");
+  const groupedQualityEnabled = useAppSettingsStore((state) => state.values[SETTINGS.SHORTS_GROUPED_QUALITY] === "true");
+  const ambientEnabled = useAmbientSettings().enabled;
 
   useSubtitleSettingsSync();
 
@@ -214,6 +259,30 @@ export function ShortVideoSurface({
   );
   const shouldLoop = playbackMode === "loop";
 
+  // The sound disc and the Shorts UI modes need to know whether the reel is
+  // actually playing, not just mounted.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !onPlayingChange) return;
+    const onPlay = () => onPlayingChange(true);
+    const onPause = () => onPlayingChange(false);
+    video.addEventListener("play", onPlay);
+    video.addEventListener("pause", onPause);
+    return () => {
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("pause", onPause);
+    };
+  }, [onPlayingChange]);
+
+  // Seconds until the auto-scroll fires; only a Short longer than the timer
+  // counts down, mirroring the advance itself.
+  const autoScrollInterval = Math.min(20, Math.max(5, autoScrollSeconds));
+  const autoScrollRemaining =
+    playbackMode === "auto_interval" && duration > autoScrollInterval
+      ? Math.max(0, Math.ceil(autoScrollInterval - progress))
+      : 0;
+  const showAutoScrollBadge = active && chromeVisible && autoScrollRemaining > 0;
+
   useEffect(() => {
     userPausedRef.current = userPaused;
   }, [userPaused]);
@@ -224,6 +293,32 @@ export function ShortVideoSurface({
       setContextMenu(null);
       setStatsVisible(false);
     }
+  }, [active]);
+
+  // Shorts background play: when the window hides, a Short keeps playing only
+  // when the viewer allowed it; with Shorts PiP on it pops out instead, and
+  // otherwise it pauses like the video player does with background play off.
+  useEffect(() => {
+    if (!active) return;
+    const onVisibility = () => {
+      if (!document.hidden) return;
+      const values = useAppSettingsStore.getState().values;
+      if (values[SETTINGS.SHORTS_BACKGROUND_PLAY] === "true") return;
+      const video = videoRef.current;
+      if (!video) return;
+      if (
+        values[SETTINGS.SHORTS_PIP] === "true" &&
+        document.pictureInPictureEnabled &&
+        !document.pictureInPictureElement
+      ) {
+        void video.requestPictureInPicture().catch(() => video.pause());
+        return;
+      }
+      video.pause();
+      audioRef.current?.pause();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [active]);
 
   useEffect(() => {
@@ -591,13 +686,19 @@ export function ShortVideoSurface({
         setContextMenu(null);
         return;
       }
+      // With the chrome on demand, a centre tap shows or hides it instead of
+      // pausing; the pause button that arrives with the chrome still pauses.
+      if (controlsOnDemand) {
+        onRequestChrome?.();
+        return;
+      }
       if (singleClickTimerRef.current) clearTimeout(singleClickTimerRef.current);
       singleClickTimerRef.current = setTimeout(() => {
         singleClickTimerRef.current = null;
         togglePlayback();
       }, DOUBLE_CLICK_WAIT_MS);
     },
-    [contextMenu, togglePlayback],
+    [contextMenu, controlsOnDemand, onRequestChrome, togglePlayback],
   );
 
   const handleSurfaceDoubleClick = useCallback(() => {
@@ -733,7 +834,7 @@ export function ShortVideoSurface({
         onDoubleClick={handleSurfaceDoubleClick}
         onContextMenu={handleContextMenu}
       />
-      {active && (
+      {active && (!controlsOnDemand || chromeVisible) && (
         <div className="absolute start-4 top-4 z-30 flex gap-2">
           <button
             type="button"
@@ -767,6 +868,12 @@ export function ShortVideoSurface({
               <Captions className="h-5 w-5" />
             </button>
           )}
+        </div>
+      )}
+      {showAutoScrollBadge && (
+        <div className="pointer-events-none absolute left-1/2 top-4 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-chrome-black/55 px-3 py-1.5 text-xs font-semibold text-chrome-white">
+          <Timer className="h-4 w-4" />
+          {getString("shorts_auto_scroll_active", autoScrollRemaining)}
         </div>
       )}
       {settingsOpen && (
@@ -831,6 +938,13 @@ export function ShortVideoSurface({
                   }}
                 />
               )}
+              <SettingsToggleRow
+                label={getString("settings_ambient_mode")}
+                checked={ambientEnabled}
+                onChange={(checked) =>
+                  void setSettingValue(SETTINGS.AMBIENT_MODE_ENABLED, checked ? "true" : "false")
+                }
+              />
             </div>
           )}
 
@@ -896,22 +1010,46 @@ export function ShortVideoSurface({
                   setSettingsOpen(false);
                 }}
               />
-              {qualities.map((quality) => (
-                <MenuChoice
-                  key={quality.id}
-                  checked={
-                    selectedQualityId === quality.id ||
-                    selectedQualityId === quality.qualityLabel
-                  }
-                  label={quality.qualityLabel}
-                  detail={quality.isVideoOnly ? "video" : undefined}
-                  onClick={() => {
-                    onSelectQuality(quality);
-                    setSettingsPane("root");
-                    setSettingsOpen(false);
-                  }}
-                />
-              ))}
+              {groupedQualityEnabled
+                ? groupQualitiesByLabel(qualities).map(([label, variants]) => (
+                    <div key={label}>
+                      <div className="px-3 pb-1 pt-2 text-xs font-bold text-chrome-zinc-400">
+                        {label}
+                      </div>
+                      {variants.map((quality) => (
+                        <MenuChoice
+                          key={quality.id}
+                          checked={
+                            selectedQualityId === quality.id ||
+                            (variants.length === 1 && selectedQualityId === quality.qualityLabel)
+                          }
+                          label={codecShortName(quality.mimeType) ?? quality.qualityLabel}
+                          detail={variantDetail(quality)}
+                          onClick={() => {
+                            onSelectQuality(quality);
+                            setSettingsPane("root");
+                            setSettingsOpen(false);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  ))
+                : qualities.map((quality) => (
+                    <MenuChoice
+                      key={quality.id}
+                      checked={
+                        selectedQualityId === quality.id ||
+                        selectedQualityId === quality.qualityLabel
+                      }
+                      label={quality.qualityLabel}
+                      detail={quality.isVideoOnly ? "video" : undefined}
+                      onClick={() => {
+                        onSelectQuality(quality);
+                        setSettingsPane("root");
+                        setSettingsOpen(false);
+                      }}
+                    />
+                  ))}
             </div>
           )}
 
@@ -1088,6 +1226,23 @@ function SettingsRow({
       <span className="min-w-0 flex-1 font-medium">{label}</span>
       <span className="max-w-[44%] truncate text-end text-chrome-zinc-300">{value}</span>
     </button>
+  );
+}
+
+function SettingsToggleRow({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex h-11 w-full items-center gap-3 rounded-md px-3 text-sm text-chrome-zinc-100">
+      <span className="min-w-0 flex-1 font-medium">{label}</span>
+      <ToggleSwitch checked={checked} onChange={onChange} />
+    </div>
   );
 }
 

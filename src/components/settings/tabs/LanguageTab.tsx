@@ -16,6 +16,8 @@ export function LanguageTab() {
   const [regionPicker, setRegionPicker] = useBoolPref(SETTINGS.SHOW_REGION_PICKER_IN_EXPLORE, true);
   const [trendingRegion, setTrendingRegion] = usePreference(SETTINGS.TRENDING_REGION, 'US');
   const [contentLanguage, setContentLanguage] = usePreference(SETTINGS.CONTENT_LANGUAGE, '');
+  const [musicContentLanguage, setMusicContentLanguage] = usePreference(SETTINGS.MUSIC_CONTENT_LANGUAGE, '');
+  const [musicContentCountry, setMusicContentCountry] = usePreference(SETTINGS.MUSIC_CONTENT_COUNTRY, '');
   const [originalTitles, setOriginalTitles] = useBoolPref(SETTINGS.ORIGINAL_TITLES, false);
 
   return (
@@ -31,6 +33,20 @@ export function LanguageTab() {
             value={contentLanguage}
             onChange={setContentLanguage}
             options={[{ value: '', label: getString('settings_content_language_default') }, ...CONTENT_LANGUAGE_OPTIONS]}
+          />
+        </SettingItem>
+        <SettingItem title={getString('settings_music_content_language')} description={getString('settings_music_content_language_desc')}>
+          <Select
+            value={musicContentLanguage}
+            onChange={setMusicContentLanguage}
+            options={[{ value: '', label: getString('settings_content_language_default') }, ...CONTENT_LANGUAGE_OPTIONS]}
+          />
+        </SettingItem>
+        <SettingItem title={getString('settings_music_content_country')} description={getString('settings_music_content_country_desc')}>
+          <Select
+            value={musicContentCountry}
+            onChange={setMusicContentCountry}
+            options={[{ value: '', label: getString('settings_content_language_default') }, ...REGION_OPTIONS]}
           />
         </SettingItem>
         <SettingItem title={getString('settings_original_titles')} description={getString('settings_original_titles_desc')}><ToggleSwitch checked={originalTitles} onChange={setOriginalTitles} /></SettingItem>

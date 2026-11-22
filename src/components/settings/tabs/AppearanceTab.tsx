@@ -53,6 +53,11 @@ export function AppearanceTab() {
   const [highlightDays, setHighlightDays] = usePreference(SETTINGS.HIGHLIGHT_NEW_SETTINGS_DAYS, "7");
   const dateSettings = useDateDisplaySettings();
   const [dateMode, setDateMode] = usePreference(SETTINGS.DATE_DISPLAY_MODE, "relative");
+  const [cardLikeButtons, setCardLikeButtons] = useBoolPref(SETTINGS.CARD_LIKE_BUTTONS, false);
+  const [cardMarkWatched, setCardMarkWatched] = useBoolPref(SETTINGS.CARD_MARK_WATCHED, false);
+  const [hideNavOnScroll, setHideNavOnScroll] = useBoolPref(SETTINGS.HIDE_NAV_ON_SCROLL, false);
+  const [animatedBackgrounds, setAnimatedBackgrounds] = useBoolPref(SETTINGS.ANIMATED_BACKGROUNDS, true);
+  const [interfaceMode, setInterfaceMode] = usePreference(SETTINGS.INTERFACE_MODE, "automatic");
   const [dateFormat, setDateFormat] = usePreference(SETTINGS.DATE_FORMAT_STYLE, "system");
   const [dateLists, setDateLists] = usePreference(SETTINGS.DATE_MODE_LISTS, "default");
   const [dateWatch, setDateWatch] = usePreference(SETTINGS.DATE_MODE_WATCH, "default");
@@ -265,6 +270,34 @@ export function AppearanceTab() {
               />
             </SettingItem>
           )}
+        </SettingsGroup>
+
+        <SettingsGroup title={getString("settings_group_cards")}>
+          <SettingItem title={getString("settings_card_like_buttons")} description={getString("settings_card_like_buttons_desc")}>
+            <ToggleSwitch checked={cardLikeButtons} onChange={setCardLikeButtons} />
+          </SettingItem>
+          <SettingItem title={getString("settings_card_mark_watched")} description={getString("settings_card_mark_watched_desc")}>
+            <ToggleSwitch checked={cardMarkWatched} onChange={setCardMarkWatched} />
+          </SettingItem>
+        </SettingsGroup>
+
+        <SettingsGroup title={getString("settings_group_interface")}>
+          <SettingItem title={getString("settings_hide_nav_on_scroll")} description={getString("settings_hide_nav_on_scroll_desc")}>
+            <ToggleSwitch checked={hideNavOnScroll} onChange={setHideNavOnScroll} />
+          </SettingItem>
+          <SettingItem title={getString("settings_animated_backgrounds")} description={getString("settings_animated_backgrounds_desc")}>
+            <ToggleSwitch checked={animatedBackgrounds} onChange={setAnimatedBackgrounds} />
+          </SettingItem>
+          <SettingItem title={getString("settings_interface_mode")} description={getString("settings_interface_mode_desc")}>
+            <Select
+              value={interfaceMode}
+              onChange={setInterfaceMode}
+              options={[
+                { value: "automatic", label: getString("settings_interface_mode_automatic") },
+                { value: "mobile", label: getString("settings_interface_mode_mobile") },
+              ]}
+            />
+          </SettingItem>
         </SettingsGroup>
       </div>
 

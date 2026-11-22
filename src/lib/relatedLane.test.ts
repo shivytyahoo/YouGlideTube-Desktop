@@ -44,4 +44,9 @@ describe("autoplayCandidates", () => {
     const mix: RelatedContentItem = { ...video("m"), itemType: "mix", isMix: true, playlistId: "RDm" };
     expect(autoplayCandidates([mix, video("a")], null).map((item) => item.id)).toEqual(["a"]);
   });
+
+  it("never offers the video playing as its own autoplay", () => {
+    expect(autoplayCandidates([video("a"), video("b")], null, "a").map((item) => item.id)).toEqual(["b"]);
+    expect(autoplayCandidates([video("a")], "a", "a")).toEqual([{ id: "a", title: "", channelName: "" }]);
+  });
 });

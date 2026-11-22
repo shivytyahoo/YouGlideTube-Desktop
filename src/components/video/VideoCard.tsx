@@ -2,10 +2,11 @@ import { useNavigate } from 'react-router-dom';
 import { useSubscriptionStore } from '../../store/useSubscriptionStore';
 import { toggleSubscription } from '../../lib/accountSubscribe';
 import { useBlockedKeywordMatch, useFeedActionsStore } from '../../store/useFeedActionsStore';
+import { useLikesStore } from '../../store/useLikesStore';
 import { useBlockedRevealStore } from '../../lib/blockedContent';
 import { BlockedVideoCard } from './BlockedVideoCard';
 import { useLiveStore } from '../../store/useLiveStore';
-import { Plus, Ban, Bell, BellRing, Check, Info, ListStart, MoreVertical, Trash2, GripHorizontal, Eye, EyeOff, Clock, ListPlus, ListVideo, Download, User, Share2 } from 'lucide-react';
+import { Plus, Ban, Bell, BellRing, Check, Copy, Info, ListStart, MoreVertical, Trash2, GripHorizontal, Eye, EyeOff, Clock, ListPlus, ListVideo, Download, User, Share2, ThumbsUp } from 'lucide-react';
 import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -24,7 +25,9 @@ import { useProxiedImageUrl } from '../../lib/useProxiedImageUrl';
 import { SETTINGS } from '../../lib/settings/schema';
 import type { MenuAnchor } from '../ui/AnchoredPortalMenu';
 import { MediaMenu, type MediaMenuAction } from '../ui/MediaMenu';
-import { shareLink } from '../../lib/clipboard';
+import { copyText, shareLink } from '../../lib/clipboard';
+import { showNotInterestedToast } from '../../lib/feedFeedbackToast';
+import { VideoCardFeedback } from './VideoCardFeedback';
 import { youtubeWatchUrl } from '../../lib/youtubeUrl';
 import { getString } from '../../lib/i18n/index';
 import { useUpcomingReminderStore } from '../../store/useUpcomingReminderStore';
@@ -183,6 +186,47 @@ function VideoCardComponent({
   const isLocalFile = isLocalMediaId(video.id);
   const cleanId = isChannel ? video.id.replace("channel:", "") : video.id;
   const channelId = video.channelId || "";
+
+  const showCardLikeButtons = useAppSettingsStore((s) => s.values[SETTINGS.CARD_LIKE_BUTTONS] === 'true');
+  const showCardMarkWatched = useAppSettingsStore((s) => s.values[SETTINGS.CARD_MARK_WATCHED] === 'true');
+  const toggleCardLike = useLikesStore((s) => s.toggleVideo);
+  const isCardLiked = useLikesStore((s) => s.isLikedVideo(video.id));
+
+  const handleCardLike = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    void toggleCardLike(video);
+  }, [toggleCardLike, video]);
+  const handleCardMarkWatched = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isWatched) void markUnwatched(video.id);
+    else void markWatched(video);
+  }, [isWatched, markUnwatched, markWatched, video]);
+  // Inline like / mark-watched buttons beside the card menu, as Android's card
+  // customisation offers; a dislike has no desktop equivalent, so like only.
+  const cardQuickActions = (showCardLikeButtons || showCardMarkWatched) && !isChannel ? (
+    <span className="flex items-center gap-0.5 opacity-0 transition duration-150 ease-out group-hover:opacity-100">
+      {showCardLikeButtons && (
+        <button
+          type="button"
+          aria-label={getString('like')}
+          onClick={handleCardLike}
+          className="rounded-full p-1 text-chrome-neutral-500 hover:bg-chrome-neutral-800 hover:text-chrome-neutral-200"
+        >
+          <ThumbsUp size={16} className={isCardLiked ? 'fill-current text-primary' : undefined} />
+        </button>
+      )}
+      {showCardMarkWatched && (
+        <button
+          type="button"
+          aria-label={getString(isWatched ? 'mark_as_unwatched' : 'menu_mark_watched')}
+          onClick={handleCardMarkWatched}
+          className="rounded-full p-1 text-chrome-neutral-500 hover:bg-chrome-neutral-800 hover:text-chrome-neutral-200"
+        >
+          {isWatched ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      )}
+    </span>
+  ) : null;
 
   const markLive = useLiveStore((s) => s.markLive);
   const liveFromStore = useLiveStore((s) => s.liveIds.has(video.id));
@@ -473,6 +517,16 @@ function VideoCardComponent({
     if (result === "failed") showToast({ variant: "error", message: getString("share_link_copy_failed") });
   };
 
+  // The copy row copies straight to the clipboard; Share may open a share sheet instead.
+  const handleCopyLink = async () => {
+    const copied = await copyText(youtubeWatchUrl(video.id));
+    showToast(
+      copied
+        ? { variant: "success", message: getString("share_link_copied") }
+        : { variant: "error", message: getString("share_link_copy_failed") },
+    );
+  };
+
   const feedActionFailed = () => showToast({ variant: "error", message: getString("feed_action_failed") });
 
   const handlePlayNext = () => {
@@ -564,6 +618,13 @@ function VideoCardComponent({
         onSelect: () => void toggleReminder(video, video.upcomingStartMs ?? 0),
       }]
       : []),
+    {
+      id: "copy-link",
+      label: getString("copy_video_link"),
+      icon: <Copy size={16} />,
+      group: "library",
+      onSelect: handleCopyLink,
+    },
     ...(onRemoveFromContinueWatching
       ? [{
         id: "remove-continue",
@@ -620,7 +681,7 @@ function VideoCardComponent({
       icon: <Ban size={16} />,
       group: "feed",
       danger: true,
-      onSelect: () => notInterested(video).catch(feedActionFailed),
+      onSelect: () => void notInterested(video).then(() => showNotInterestedToast(video)).catch(feedActionFailed),
     },
     ...(video.channelId
       ? [{
@@ -769,7 +830,8 @@ function VideoCardComponent({
           <CardPills video={video} />
         </div>
 
-        <div className="relative shrink-0">
+        <div className="relative flex shrink-0 items-start">
+          {cardQuickActions}
           <button
             onClick={openMenuFromDots}
             className="rounded-full p-1 text-chrome-neutral-500 opacity-0 transition duration-150 ease-out hover:bg-chrome-neutral-800 hover:text-chrome-neutral-200 group-hover:opacity-100"
@@ -928,7 +990,8 @@ function VideoCardComponent({
           </div>
         )}
 
-        <div className="relative shrink-0">
+        <div className="relative flex shrink-0 items-start">
+          {cardQuickActions}
           <button
             type="button"
             onClick={openMenuFromDots}
@@ -1056,10 +1119,15 @@ function VideoCardComponent({
           </div>
           {reasonLine && <p className="truncate text-[13px] text-chrome-neutral-500">{reasonLine}</p>}
           <CardPills video={video} />
+          {/* A card with its own menu — a file that isn't on YouTube — carries no feedback row either. */}
+          {(variant === 'default' || variant === 'grid') && !ownMenuActions && (
+            <VideoCardFeedback video={video} isWatched={isWatched} />
+          )}
         </div>
 
         {/* Three-dot menu button */}
-        <div className="relative shrink-0">
+        <div className="relative flex shrink-0 items-start">
+          {cardQuickActions}
           <button
             onClick={openMenuFromDots}
             className="p-1 rounded-full text-chrome-zinc-500 hover:text-chrome-zinc-200 hover:bg-chrome-zinc-800 opacity-0 group-hover:opacity-100 transition duration-150 ease-out mt-0.5"

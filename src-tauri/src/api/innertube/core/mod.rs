@@ -3,6 +3,7 @@ pub mod clients;
 pub mod context;
 pub mod gate_tracker;
 pub(crate) mod hidden_webview;
+pub mod homepage_challenge;
 pub mod http;
 pub mod locale;
 pub(crate) mod playback_session;

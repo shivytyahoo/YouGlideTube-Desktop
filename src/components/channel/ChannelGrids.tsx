@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { PlaylistCard } from "../video/PlaylistCard";
 import { PostCard } from "../video/PostCard";
 import { ShortCard } from "../shorts/ShortCard";
@@ -8,15 +8,34 @@ import type {
   PostSummary 
 } from "../../types/video";
 import { useGridStyle } from "../../lib/useGridColumns";
+import type { ShortsQueueSource } from "../../lib/shortsQueueSource";
 
 // --- Shorts Grid ---
 
 interface ChannelShortsGridProps {
   shorts: ShortVideoSummary[];
+  /** The channel tab these shorts came from, so tapping one opens the channel's paginated queue. */
+  queue?: {
+    channelId: string;
+    sortIndex: number;
+    tabParams: string | null;
+    pageToken: string | null;
+  } | null;
 }
 
-export const ChannelShortsGrid: React.FC<ChannelShortsGridProps> = ({ shorts }) => {
+export const ChannelShortsGrid: React.FC<ChannelShortsGridProps> = ({ shorts, queue }) => {
   const gridStyle = useGridStyle({ density: "dense" });
+  const queueSource = useMemo<ShortsQueueSource | undefined>(() => {
+    if (!queue) return undefined;
+    return {
+      kind: "channel",
+      channelId: queue.channelId,
+      startVideoId: "",
+      sortIndex: queue.sortIndex,
+      tabParams: queue.tabParams,
+      pageToken: queue.pageToken,
+    };
+  }, [queue]);
   if (!shorts.length) return null;
 
   return (
@@ -26,6 +45,7 @@ export const ChannelShortsGrid: React.FC<ChannelShortsGridProps> = ({ shorts }) 
           key={short.id}
           short={short}
           queue={shorts}
+          queueSource={queueSource}
         />
       ))}
     </div>

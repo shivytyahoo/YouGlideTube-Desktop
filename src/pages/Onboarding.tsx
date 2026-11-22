@@ -92,7 +92,7 @@ export const Onboarding: React.FC = () => {
 
           {step === "signin" && <SignInStep />}
 
-          {step === "channels" && <ChannelsStep />}
+          {step === "channels" && <ChannelsStep onRequestSignIn={() => setCurrentStep(steps.indexOf("signin"))} />}
 
           {step === "ready" && (
             <ReadyStep

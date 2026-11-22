@@ -198,6 +198,31 @@ fn apply_reel_overlay(item: &mut ShortItem, answer: &Value) {
             &overlay["reelPlayerHeaderSupportedRenderers"]["reelPlayerHeaderRenderer"]["timestampText"],
         );
     }
+    // The sound pivot: the title the reel plays under, with its thumbnail.
+    // View-model overlays name it `soundAttributionTitle`; the legacy renderer
+    // carries the same pivot as a content description.
+    if item.sound_title.is_none() {
+        let pivot = buttons
+            .iter()
+            .find_map(|button| button.get("pivotButtonViewModel"))
+            .or_else(|| {
+                buttons
+                    .iter()
+                    .find_map(|button| button.get("pivotButtonRenderer"))
+            });
+        if let Some(pivot) = pivot {
+            item.sound_title = pivot["soundAttributionTitle"]["content"]
+                .as_str()
+                .filter(|title| !title.trim().is_empty())
+                .map(ToOwned::to_owned)
+                .or_else(|| text_of(&pivot["contentDescription"]));
+            if item.sound_thumbnail_url.is_none() {
+                item.sound_thumbnail_url = largest_url(&pivot["thumbnail"]["sources"])
+                    .or_else(|| largest_url(&pivot["thumbnail"]["image"]["sources"]))
+                    .map(|url| normalize_youtube_image_url(&url));
+            }
+        }
+    }
 }
 
 /// Walk the `entries` array into Shorts, pruning ads, then resolve the next-page token.
@@ -292,6 +317,8 @@ fn parse_reel_entry(video_id: &str, endpoint: &Value) -> ShortItem {
         sequence_params: endpoint["sequenceParams"].as_str().map(ToOwned::to_owned),
         linked_video_id: None,
         linked_video_title: None,
+        sound_title: None,
+        sound_thumbnail_url: None,
     }
 }
 
@@ -485,5 +512,37 @@ mod tests {
         assert_eq!(item.like_count_text.as_deref(), Some("58K"));
         assert_eq!(item.comment_count_text.as_deref(), Some("662"));
         assert_eq!(item.published_text.as_deref(), Some("2 days ago"));
+    }
+
+    #[test]
+    fn the_item_watch_overlay_reads_the_sound_pivot() {
+        let mut item = parse_reel_entry("vid00000006", &Value::Null);
+        let answer = json!({ "overlay": { "reelPlayerOverlayRenderer": { "playerOverlay": {
+            "reelPlayerOverlayViewModel": {
+                "metapanel": { "reelMetapanelViewModel": { "metadataItems": [] } },
+                "actionBar": { "reelActionBarViewModel": { "buttonViewModels": [
+                    { "pivotButtonViewModel": {
+                        "soundAttributionTitle": { "content": "Midnight City - M83" },
+                        "thumbnail": { "sources": [{ "url": "https://i.ytimg.com/vi/abc/hqdefault.jpg" }] }
+                    } }
+                ] } }
+            }
+        } } } });
+        apply_reel_overlay(&mut item, &answer);
+        assert_eq!(item.sound_title.as_deref(), Some("Midnight City - M83"));
+        assert!(item.sound_thumbnail_url.is_some());
+
+        // A legacy pivot carries the same sound as a content description.
+        let mut legacy = parse_reel_entry("vid00000007", &Value::Null);
+        let legacy_answer = json!({ "overlay": { "reelPlayerOverlayRenderer": { "playerOverlay": {
+            "reelPlayerOverlayViewModel": {
+                "metapanel": { "reelMetapanelViewModel": { "metadataItems": [] } },
+                "actionBar": { "reelActionBarViewModel": { "buttonViewModels": [
+                    { "pivotButtonRenderer": { "contentDescription": { "simpleText": "Original sound" } } }
+                ] } }
+            }
+        } } } });
+        apply_reel_overlay(&mut legacy, &legacy_answer);
+        assert_eq!(legacy.sound_title.as_deref(), Some("Original sound"));
     }
 }

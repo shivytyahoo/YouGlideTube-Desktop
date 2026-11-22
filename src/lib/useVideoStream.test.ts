@@ -120,6 +120,60 @@ describe("recovering a long video", () => {
   });
 });
 
+describe("a SABR session that dies mid-playback", () => {
+  it("tries the next source mode before paying for a fresh ladder walk", async () => {
+    vi.stubGlobal("MediaSource", { isTypeSupported: () => true });
+    useDownloadsLibraryStore.setState({ loaded: true, records: [] });
+    useAppSettingsStore.setState({ values: {} });
+    usePlayerStore.setState({ currentVideo: { id: "sabr-video", title: "", channelName: "" }, currentTime: 0 });
+    // SABR-only resolve: no direct URLs, no synthetic DASH manifest, but an
+    // HLS manifest is left to try — the mode order puts sabr-dash first.
+    vi.mocked(getStreamInfo).mockReset().mockResolvedValue({
+      streamId: "s", localUrl: "", expiresAt: "", captions: [],
+      variants: [], audioTracks: [],
+      hlsManifestUrl: "hls-manifest",
+      sabr: { available: true, manifestUrl: "sabr-manifest", requiresPoToken: false },
+    });
+    const state = { latest: null as unknown as ReturnType<typeof useVideoStream> };
+    function Harness() { state.latest = useVideoStream("sabr-video"); return null; }
+    const root = createRoot(document.createElement("div"));
+    try {
+      await act(async () => root.render(createElement(Harness)));
+      expect(state.latest.sourceMode).toBe("sabr-dash");
+      // The SABR session played, then died on attestation.
+      await act(async () => state.latest.notePlaybackTime(30));
+      usePlayerStore.setState({ currentTime: 0 });
+      await act(async () => state.latest.onRetrySource("dash:segment-download"));
+      // The already-resolved HLS mode is tried first — no fresh resolve.
+      expect(state.latest.sourceMode).toBe("hls");
+      expect(getStreamInfo).toHaveBeenCalledTimes(1);
+    } finally { await act(async () => root.unmount()); }
+  });
+
+  it("still re-resolves once no unused source mode remains", async () => {
+    vi.stubGlobal("MediaSource", { isTypeSupported: () => true });
+    useDownloadsLibraryStore.setState({ loaded: true, records: [] });
+    useAppSettingsStore.setState({ values: {} });
+    usePlayerStore.setState({ currentVideo: { id: "sabr-only", title: "", channelName: "" }, currentTime: 0 });
+    vi.mocked(getStreamInfo).mockReset().mockResolvedValue({
+      streamId: "s", localUrl: "", expiresAt: "", captions: [],
+      variants: [], audioTracks: [],
+      sabr: { available: true, manifestUrl: "sabr-manifest", requiresPoToken: false },
+    });
+    const state = { latest: null as unknown as ReturnType<typeof useVideoStream> };
+    function Harness() { state.latest = useVideoStream("sabr-only"); return null; }
+    const root = createRoot(document.createElement("div"));
+    try {
+      await act(async () => root.render(createElement(Harness)));
+      expect(state.latest.sourceMode).toBe("sabr-dash");
+      await act(async () => state.latest.notePlaybackTime(30));
+      usePlayerStore.setState({ currentTime: 0 });
+      await act(async () => state.latest.onRetrySource("dash:segment-download"));
+      expect(getStreamInfo).toHaveBeenCalledTimes(2);
+    } finally { await act(async () => root.unmount()); }
+  });
+});
+
 describe("a video the queue moved to", () => {
   it("starts from the top, and keeps its place when a quality change reloads it", async () => {
     vi.stubGlobal("MediaSource", { isTypeSupported: () => true });

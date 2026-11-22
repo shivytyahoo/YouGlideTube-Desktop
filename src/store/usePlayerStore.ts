@@ -149,6 +149,7 @@ export interface PlayerState {
   volumeBoost: number;
   sponsorBlockSegments: SponsorBlockSegment[];
   /** SponsorBlock is off for this one video. Kept in shared storage so a pop-out opened for it agrees. */
+  sponsorBlockOffVideoId: string | null;
   dearrowData: DeArrowOverride | null;
   rydData: RydData | null;
   captions: CaptionTrack[];
@@ -214,6 +215,8 @@ export interface PlayerState {
   setIsTheaterMode: (isTheaterMode: boolean) => void;
   setVideoFit: (videoFit: VideoFit) => void;
   setSponsorBlockSegments: (segments: SponsorBlockSegment[]) => void;
+  /** Turns SponsorBlock off for the video playing, or back on; a new video always starts with it on. */
+  setSponsorBlockOffForVideo: (off: boolean) => void;
   setDearrowData: (data: DeArrowOverride | null) => void;
   setRydData: (data: RydData | null) => void;
   setCaptions: (captions: CaptionTrack[]) => void;
@@ -287,6 +290,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   videoAspect: null,
   volumeBoost: 1,
   sponsorBlockSegments: [],
+  sponsorBlockOffVideoId: null,
   dearrowData: null,
   rydData: null,
   captions: [],
@@ -312,6 +316,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       ...(isNew ? { videoPlayerMode: "watch", videoPipIntent: null, watchPageCache: null } : {}),
       ...(isNew ? { autoplayCandidates: [] } : {}),
       ...(isNew ? { loopChapter: null } : {}),
+      ...(isNew ? { sponsorBlockOffVideoId: null } : {}),
       ...(isNew ? { currentTime: 0, duration: video?.durationSeconds ?? 0 } : {}),
       ...(isNew ? { playbackStartedVideoId: null, queueAdvanceVideoId: null } : {}),
     });
@@ -397,6 +402,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       ...(isNew ? { watchPageCache: null } : {}),
       ...(isNew ? { autoplayCandidates: [] } : {}),
       ...(isNew ? { loopChapter: null } : {}),
+      ...(isNew ? { sponsorBlockOffVideoId: null } : {}),
       currentTime: 0,
       duration: nextVideo?.durationSeconds ?? 0,
       queueAdvanceVideoId: null,
@@ -545,6 +551,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       watchPageCache: null,
       autoplayCandidates: [],
       loopChapter: null,
+      sponsorBlockOffVideoId: null,
       playbackStartedVideoId: null,
     });
     prefetchStreamInfo(item.id);
@@ -613,6 +620,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           currentTime: 0,
           duration: prevItem.durationSeconds ?? 0,
           playbackStartedVideoId: null,
+          sponsorBlockOffVideoId: null,
         });
         prefetchStreamInfo(prevItem.id);
       }
@@ -628,6 +636,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           currentTime: 0,
           duration: lastItem.durationSeconds ?? 0,
           playbackStartedVideoId: null,
+          sponsorBlockOffVideoId: null,
         });
         prefetchStreamInfo(lastItem.id);
       }
@@ -717,6 +726,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     watchPageCache: null,
     autoplayCandidates: [],
     loopChapter: null,
+    sponsorBlockOffVideoId: null,
     playbackStartedVideoId: null,
     isChaptersPanelOpen: false,
     isQueuePanelOpen: false,
@@ -817,6 +827,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     set({ isTheaterMode });
   },
   setSponsorBlockSegments: (sponsorBlockSegments) => set({ sponsorBlockSegments }),
+  setSponsorBlockOffForVideo: (off) => {
+    const currentVideo = get().currentVideo;
+    set({ sponsorBlockOffVideoId: off && currentVideo ? currentVideo.id : null });
+  },
   setDearrowData: (dearrowData) => set({ dearrowData }),
   setRydData: (rydData) => set({ rydData }),
   setCaptions: (captions) => set({ captions }),

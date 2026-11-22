@@ -21,7 +21,10 @@ export type PlayerButtonId =
   | "quality"
   | "captions"
   | "theater"
-  | "fullscreen";
+  | "fullscreen"
+  | "lock"
+  | "sleepTimer"
+  | "speedIndicator";
 
 /** Every control on the player bar someone can do without. Play and Settings always stay. */
 export const PLAYER_BUTTON_ROWS: readonly PlayerButtonRow[] = [
@@ -37,6 +40,9 @@ export const PLAYER_BUTTON_ROWS: readonly PlayerButtonRow[] = [
   { id: "captions", setting: SETTINGS.PLAYER_BUTTON_CAPTIONS, title: "settings_button_captions", summary: "settings_button_captions_desc" },
   { id: "theater", setting: SETTINGS.PLAYER_BUTTON_THEATER, title: "settings_button_theater", summary: "settings_button_theater_desc" },
   { id: "fullscreen", setting: SETTINGS.PLAYER_BUTTON_FULLSCREEN, title: "settings_button_fullscreen", summary: "settings_button_fullscreen_desc" },
+  { id: "lock", setting: SETTINGS.PLAYER_BUTTON_LOCK, title: "settings_button_lock", summary: "settings_button_lock_desc" },
+  { id: "sleepTimer", setting: SETTINGS.PLAYER_BUTTON_SLEEP_TIMER, title: "settings_button_sleep_timer", summary: "settings_button_sleep_timer_desc" },
+  { id: "speedIndicator", setting: SETTINGS.PLAYER_BUTTON_SPEED_INDICATOR, title: "settings_button_speed_indicator", summary: "settings_button_speed_indicator_desc" },
 ];
 
 /** A whole-object selector would re-render on any setting, so this returns one flag per call. */

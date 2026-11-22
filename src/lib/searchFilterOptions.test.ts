@@ -15,6 +15,13 @@ describe('activeFilters', () => {
     expect(active[0]!.without(filters).uploadDate).toBe('any');
     expect(active[3]!.without(filters).watchState).toBe('any');
   });
+
+  it('lists Purchased as a feature, and removing it leaves the rest', () => {
+    const filters = { ...DEFAULT_ADVANCED_FILTERS, features: ['purchased' as const, 'hd' as const] };
+    const active = activeFilters(filters);
+    expect(active.map((filter) => filter.label)).toEqual(['HD', 'Purchased']);
+    expect(active[1]!.without(filters)).toEqual({ ...filters, features: ['hd'] });
+  });
 });
 
 describe('filterSummary', () => {

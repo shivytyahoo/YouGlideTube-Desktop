@@ -12,9 +12,41 @@ import {
 import { normalizeBackendError } from "./api/errors";
 import { deleteShortWatchRecords, deleteWatchRecord } from "./api/db";
 import { GOOGLE_ACCOUNT_SWITCHED_EVENT, GOOGLE_SIGN_IN_COMPLETED_EVENT } from "./useGoogleAccount";
+import { SETTINGS } from "./settings/schema";
+import { profileStorage } from "./storage/profileStorage";
+import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import { useHistoryStore } from "../store/useHistoryStore";
 import type { WatchHistoryRecord } from "../types/db";
 import type { ServerAccountStatus } from "./useServerSubscriptions";
+
+/** The last server history page, so a paused history can freeze on it. */
+export const SERVER_HISTORY_SNAPSHOT_KEY = "youglidetube_server_history_snapshot";
+
+interface ServerHistorySnapshot {
+  entries: ServerHistoryEntry[];
+  clearHistoryToken: string | null;
+}
+
+/** The frozen server list, or null when no snapshot was ever taken. */
+export function loadServerHistorySnapshot(): ServerHistorySnapshot | null {
+  try {
+    const parsed: unknown = JSON.parse(profileStorage.getItem(SERVER_HISTORY_SNAPSHOT_KEY) ?? "null");
+    if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as ServerHistorySnapshot).entries)) {
+      return null;
+    }
+    return parsed as ServerHistorySnapshot;
+  } catch {
+    return null;
+  }
+}
+
+function saveServerHistorySnapshot(snapshot: ServerHistorySnapshot): void {
+  try {
+    profileStorage.setItem(SERVER_HISTORY_SNAPSHOT_KEY, JSON.stringify(snapshot));
+  } catch {
+    // A snapshot that cannot be stored is a stale freeze, not a failure.
+  }
+}
 
 /**
  * A merged history row as the local history pipeline reads it. The
@@ -56,6 +88,12 @@ export function useServerHistory() {
   const continuationRef = useRef<string | null>(null);
   const clearTokenRef = useRef<string | null>(null);
   const requestRef = useRef(0);
+  // Paused history freezes the server list at the last snapshot instead of
+  // refetching it, as Android's HistoryViewModel does — watches made while
+  // paused never surface here until the user unpauses and reopens History.
+  const paused = useAppSettingsStore((state) => state.values[SETTINGS.PAUSE_WATCH_HISTORY] === "true");
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   const records = useMemo(() => entries.map(mergedEntryToRecord), [entries]);
 
@@ -64,8 +102,33 @@ export function useServerHistory() {
     setEntries(merged);
   }, []);
 
+  /** Shows the frozen snapshot without touching the network. */
+  const loadFrozen = useCallback(async () => {
+    const request = ++requestRef.current;
+    setLoading(true);
+    setLoadMoreFailed(false);
+    try {
+      const snapshot = loadServerHistorySnapshot();
+      serverEntriesRef.current = snapshot?.entries ?? [];
+      clearTokenRef.current = snapshot?.clearHistoryToken ?? null;
+      continuationRef.current = null;
+      setHasMore(false);
+      if (request !== requestRef.current) return;
+      applyMerged(await mergeWatchHistory(serverEntriesRef.current));
+      setError(null);
+    } catch (caught) {
+      if (request === requestRef.current) setError(normalizeBackendError(caught).message);
+    } finally {
+      if (request === requestRef.current) setLoading(false);
+    }
+  }, [applyMerged]);
+
   const loadPage = useCallback(
     async (token: string | null, append: boolean) => {
+      if (pausedRef.current && !append) {
+        await loadFrozen();
+        return;
+      }
       const request = ++requestRef.current;
       if (append) setLoadingMore(true);
       else setLoading(true);
@@ -89,6 +152,12 @@ export function useServerHistory() {
         if (page.clearHistoryToken) clearTokenRef.current = page.clearHistoryToken;
         continuationRef.current = page.continuation ?? null;
         setHasMore(page.continuation != null);
+        if (!append) {
+          saveServerHistorySnapshot({
+            entries: serverEntriesRef.current,
+            clearHistoryToken: clearTokenRef.current,
+          });
+        }
         applyMerged(await mergeWatchHistory(serverEntriesRef.current));
         setError(null);
       } catch (caught) {
@@ -113,7 +182,7 @@ export function useServerHistory() {
         }
       }
     },
-    [applyMerged],
+    [applyMerged, loadFrozen],
   );
 
   const refresh = useCallback(() => loadPage(null, false), [loadPage]);
@@ -124,6 +193,7 @@ export function useServerHistory() {
   }, [applyMerged]);
 
   const loadMore = useCallback(() => {
+    if (pausedRef.current) return;
     if (continuationRef.current && !loadingMore) void loadPage(continuationRef.current, true);
   }, [loadingMore, loadPage]);
 
@@ -152,6 +222,10 @@ export function useServerHistory() {
         // The local row may not exist; the server removal already went through.
       }
       serverEntriesRef.current = serverEntriesRef.current.filter((item) => item.videoId !== videoId);
+      saveServerHistorySnapshot({
+        entries: serverEntriesRef.current,
+        clearHistoryToken: clearTokenRef.current,
+      });
       applyMerged(await mergeWatchHistory(serverEntriesRef.current));
       return true;
     },
@@ -174,6 +248,7 @@ export function useServerHistory() {
     serverEntriesRef.current = [];
     continuationRef.current = null;
     clearTokenRef.current = null;
+    saveServerHistorySnapshot({ entries: [], clearHistoryToken: null });
     setHasMore(false);
     applyMerged([]);
     // The backend already wiped the local rows; this resets the store.
@@ -209,6 +284,10 @@ export function useServerHistory() {
         .map((entry) => entry.videoId),
     );
     serverEntriesRef.current = serverEntriesRef.current.filter((entry) => !removedIds.has(entry.videoId));
+    saveServerHistorySnapshot({
+      entries: serverEntriesRef.current,
+      clearHistoryToken: clearTokenRef.current,
+    });
     applyMerged(await mergeWatchHistory(serverEntriesRef.current));
     return true;
   }, [applyMerged]);

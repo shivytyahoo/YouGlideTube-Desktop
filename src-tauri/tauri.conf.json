@@ -36,7 +36,10 @@
       }
     },
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNENDM3RjA5RTU1MTE3OEQKUldTTkYxSGxDWDlEUFlIY3dIMUFWaVIzY0NOZnl6Q1hJeUI5Q0NLeTBRNFhRZTBWVS9xZmhOdFQK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNENDM3RjA5RTU1MTE3OEQKUldTTkYxSGxDWDlEUFlIY3dIMUFWaVIzY0NOZnl6Q1hJeUI5Q0NLeTBRNFhRZTBWVS9xZmhOdFQK",
+      "endpoints": [
+        "https://github.com/shivytyahoo/YouGlideTube-Desktop/releases/latest/download/latest.json"
+      ]
     }
   },
   "bundle": {

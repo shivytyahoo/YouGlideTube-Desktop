@@ -1,5 +1,5 @@
 use crate::api::innertube::InnertubeClient;
-use crate::api::innertube::core::botguard::generate_po_token;
+use crate::api::innertube::core::botguard::{generate_po_token, gvs_binding};
 use crate::api::innertube::core::clients;
 use crate::api::innertube::core::gate_tracker::{self, is_gated};
 use crate::api::innertube::core::playback_session::{
@@ -1122,6 +1122,92 @@ fn extract_ustreamer_config(res: &Value) -> Vec<u8> {
         .unwrap_or_default()
 }
 
+// How long the resolve waits for the streaming poToken before shipping the
+// direct URLs pot-less — Android's `STREAM_POT_ATTACH_GRACE_MS`.
+const STREAM_POT_ATTACH_GRACE: std::time::Duration = std::time::Duration::from_millis(2500);
+
+/// Stamp the visitor-ID-bound streaming poToken onto a web win's direct
+/// format URLs (`pot=`), Android's `withUrlPoToken`: GVS's non-SABR stream
+/// protection rides on the direct URL, appended after the n-transform, and a
+/// URL that already carries a `pot` is left alone. The mint is cached per
+/// visitor identity, so this costs one mint per session, not one per video;
+/// a mint that is not ready in the grace window ships pot-less (Android's
+/// grace path) rather than stalling the resolve.
+async fn stamp_streaming_pot(res: &mut Value, visitor_data: Option<&str>) {
+    let Some(visitor_data) = visitor_data.filter(|v| !v.is_empty()) else {
+        return;
+    };
+    let binding = gvs_binding(visitor_data);
+    let token = match tokio::time::timeout(STREAM_POT_ATTACH_GRACE, generate_po_token(&binding))
+        .await
+    {
+        Ok(Some(token)) => token,
+        Ok(None) => {
+            warn!("Streaming poToken unavailable; direct URLs ship pot-less");
+            return;
+        }
+        Err(_) => {
+            warn!("Streaming poToken mint not ready in 2.5s; direct URLs ship pot-less");
+            return;
+        }
+    };
+    let stamped = stamp_pot_on_formats(res, &token);
+    debug!(
+        formats_stamped = stamped,
+        "Stamped streaming poToken on direct format URLs"
+    );
+}
+
+/// Append `pot=<token>` to every `url` in `streamingData.formats` /
+/// `adaptiveFormats` that lacks a `pot` param. Returns how many were stamped.
+/// Pure over the JSON so it is unit-tested without a mint.
+fn stamp_pot_on_formats(res: &mut Value, token: &str) -> usize {
+    let mut stamped = 0;
+    let Some(streaming_data) = res.get_mut("streamingData") else {
+        return 0;
+    };
+    for key in ["formats", "adaptiveFormats"] {
+        if let Some(formats) = streaming_data.get_mut(key).and_then(Value::as_array_mut) {
+            for format in formats.iter_mut() {
+                let Some(url_value) = format.get_mut("url") else {
+                    continue;
+                };
+                let Some(url) = url_value.as_str().map(ToOwned::to_owned) else {
+                    continue;
+                };
+                if has_pot_param(&url) {
+                    continue;
+                }
+                *url_value = Value::String(append_pot_param(&url, token));
+                stamped += 1;
+            }
+        }
+    }
+    stamped
+}
+
+/// Whether a media URL already carries a `pot` query param (Android's
+/// `POT_PARAM_REGEX`: `[?&]pot=`).
+fn has_pot_param(url: &str) -> bool {
+    url.contains("?pot=") || url.contains("&pot=")
+}
+
+/// Append `pot=<token>` to a media URL, percent-encoding the token the way
+/// Android's `Uri.encode` does. A plain append (not a URL re-parse) so the
+/// rest of the URL is byte-identical to what the server sent.
+fn append_pot_param(url: &str, token: &str) -> String {
+    let separator = if url.contains('?') { "&" } else { "?" };
+    let mut encoded = String::with_capacity(token.len());
+    for ch in token.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' || ch == '.' || ch == '~' {
+            encoded.push(ch);
+        } else {
+            encoded.push_str(&format!("%{:02X}", ch as u32));
+        }
+    }
+    format!("{url}{separator}pot={encoded}")
+}
+
 // Build the frontend-facing `SabrStreamInfo` and the internal session
 // descriptor from a successful player response. Returns `(None, None)` when no
 // SABR metadata is present at all.
@@ -1143,12 +1229,15 @@ fn build_sabr_metadata(
     let selectable = select_formats(&formats, None, CodecSupport::default());
 
     // Observability: one structured line capturing SABR-capability inputs.
+    // The token length is logged, never the token: presence alone cannot tell
+    // a video-bound token (refused mid-playback) from a visitor-bound one.
     info!(
         video_id = %video_id,
         client = %client.name,
         sabr_url_present = server_url.is_some(),
         ustreamer_config_present = !ustreamer_config.is_empty(),
         po_token_present = po_token.is_some(),
+        po_token_chars = po_token.as_ref().map(|token| token.len()).unwrap_or(0),
         adaptive_format_count = formats.len(),
         has_audio,
         has_video,
@@ -1239,6 +1328,18 @@ enum ClientOutcome {
     /// No answer, or an `OK` with nothing fetchable (ciphered-only formats, an
     /// unsolvable `n`, a missing PO token).
     Unusable,
+}
+
+/// Why a `player` request produced no answer. Only a failure on the wire is
+/// worth one more try: a refusal is the server's answer, and repeating the
+/// same request just pays for it twice (the user's log showed VISIONOS
+/// 400ing twice on every video before the ladder moved on).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PlayerRequestFailure {
+    /// A timeout, a broken connection, or a 5xx: a fresh attempt could work.
+    Transient,
+    /// A 4xx or an unparsable answer: retrying cannot change the outcome.
+    Refused,
 }
 
 /// Whether a direct-URL response carries a stream the proxy can fetch as is:
@@ -1675,10 +1776,14 @@ impl InnertubeClient {
             )
             .await
         {
-            Some(value) => value,
-            // The lead client gets one more try: a cold DNS/TLS handshake can eat
-            // the whole first budget.
-            None if std::ptr::eq(client, PLAYER_CLIENT_LADDER[0]) => {
+            Ok(value) => value,
+            // The lead client gets one more try, but only when the first
+            // attempt died on the wire: a cold DNS/TLS handshake can eat the
+            // whole first budget. A refusal is deterministic, so it moves
+            // straight to the next client instead of paying twice.
+            Err(PlayerRequestFailure::Transient)
+                if std::ptr::eq(client, PLAYER_CLIENT_LADDER[0]) =>
+            {
                 match self
                     .request_player(
                         video_id,
@@ -1690,11 +1795,11 @@ impl InnertubeClient {
                     )
                     .await
                 {
-                    Some(value) => value,
-                    None => return ClientOutcome::Unusable,
+                    Ok(value) => value,
+                    Err(_) => return ClientOutcome::Unusable,
                 }
             }
-            None => return ClientOutcome::Unusable,
+            Err(_) => return ClientOutcome::Unusable,
         };
 
         // A `needs reload` response clears if the request looks like it came
@@ -1712,8 +1817,8 @@ impl InnertubeClient {
                 )
                 .await
             {
-                Some(retry) => response = retry,
-                None => return ClientOutcome::Unusable,
+                Ok(retry) => response = retry,
+                Err(_) => return ClientOutcome::Unusable,
             }
         }
 
@@ -1789,6 +1894,9 @@ impl InnertubeClient {
 
     /// One `player` request as `client`, carrying whatever that client's profile
     /// asks for: signature timestamp, embed URL, PO token.
+    ///
+    /// The failure kind matters to the ladder: a timeout or a broken connection
+    /// is worth one more try, a refusal is not.
     async fn request_player(
         &self,
         video_id: &str,
@@ -1797,7 +1905,7 @@ impl InnertubeClient {
         po_token: Option<&str>,
         referer: Option<&str>,
         cpn: Option<&str>,
-    ) -> Option<Value> {
+    ) -> Result<Value, PlayerRequestFailure> {
         let mut payload = client.player_body(video_id, visitor_data, po_token);
         if client.use_signature_timestamp {
             // A remote-signed client's signatures are solved against the
@@ -1848,15 +1956,24 @@ impl InnertubeClient {
         } else {
             PER_CLIENT_TIMEOUT
         };
-        match tokio::time::timeout(budget, self.post_player(client, &mut payload, referer)).await {
-            Ok(Ok(value)) => Some(value),
+        match tokio::time::timeout(
+            budget,
+            self.post_player_raw(client, &mut payload, referer),
+        )
+        .await
+        {
+            Ok(Ok(value)) => Ok(value),
             Ok(Err(error)) => {
                 warn!(video_id = %video_id, client = client.name, %error, "Player request failed");
-                None
+                Err(if error.is_transient() {
+                    PlayerRequestFailure::Transient
+                } else {
+                    PlayerRequestFailure::Refused
+                })
             }
             Err(_) => {
                 warn!(video_id = %video_id, client = client.name, "Player request timed out");
-                None
+                Err(PlayerRequestFailure::Transient)
             }
         }
     }
@@ -2073,7 +2190,14 @@ impl InnertubeClient {
             })),
         };
 
-        let res = res?;
+        let mut res = res?;
+        // Stamp the visitor-ID-bound streaming poToken onto a web win's
+        // direct format URLs (Android's `withUrlPoToken`): GVS's non-SABR
+        // stream protection rides on the URL as `pot=`. Only web clients get
+        // it — VISIONOS/VR formats are usable only unattested.
+        if winning_client.is_web_sabr() {
+            stamp_streaming_pot(&mut res, visitor_data_for_sabr.as_deref()).await;
+        }
         let playability = &res["playabilityStatus"];
         check_playability_status(playability)?;
         debug!(video_id = %video_id_trimmed, ?playability, "Resolved playback playability status");
@@ -2202,13 +2326,20 @@ impl InnertubeClient {
 
         // Extract SABR metadata (safe: never fails the request, only annotates).
         // SABR is retained only as the original-audio bot-wall fallback.
+        //
+        // The session carries the video-id-bound token the `/player` request
+        // carried — Android's extractor measured exactly that token to work
+        // in `StreamerContext.po_token`, while the visitor-bound token drew
+        // `sabr.media_serving_enforcement_id_error` there. The visitor-bound
+        // streaming token belongs on the direct format URLs instead (stamped
+        // above, Android's `withUrlPoToken`).
         let duration_seconds = extract_duration_seconds_from_player_response(&res);
         let (sabr, sabr_descriptor) = build_sabr_metadata(
             &res,
             streaming_data,
             video_id_trimmed,
             visitor_data_for_sabr,
-            po_token_used,
+            po_token_used.clone(),
             winning_client,
             duration_seconds,
         );
@@ -3241,5 +3372,73 @@ mod video_channel_tests {
 
         let (name, id) = video_channel(&Value::Null, &owner(Some("UCreal"), Some("Real")));
         assert_eq!((name.as_str(), id.as_deref()), ("Real", Some("UCreal")));
+    }
+
+    #[test]
+    fn streaming_pot_is_stamped_on_bare_format_urls() {
+        let mut res = json!({
+            "streamingData": {
+                "formats": [
+                    { "itag": 18, "url": "https://rr1.googlevideo.com/videoplayback?expire=1" },
+                ],
+                "adaptiveFormats": [
+                    { "itag": 137, "url": "https://rr2.googlevideo.com/videoplayback?expire=1&n=abc" },
+                    { "itag": 140, "url": "https://rr3.googlevideo.com/videoplayback?expire=1&pot=old" },
+                    { "itag": 251, "signatureCipher": "s=xyz&url=https%3A%2F%2Frr4.googlevideo.com%2Fx" },
+                ],
+            },
+        });
+        assert_eq!(stamp_pot_on_formats(&mut res, "tok-en_123"), 2);
+        let formats = res["streamingData"]["formats"].as_array().unwrap();
+        assert_eq!(
+            formats[0]["url"].as_str().unwrap(),
+            "https://rr1.googlevideo.com/videoplayback?expire=1&pot=tok-en_123"
+        );
+        let adaptive = res["streamingData"]["adaptiveFormats"].as_array().unwrap();
+        assert!(
+            adaptive[0]["url"]
+                .as_str()
+                .unwrap()
+                .ends_with("&pot=tok-en_123"),
+            "{}",
+            adaptive[0]["url"]
+        );
+        // A URL that already carries a pot is left alone, and a ciphered
+        // format (no plain url) is untouched.
+        assert!(
+            adaptive[1]["url"]
+                .as_str()
+                .unwrap()
+                .ends_with("pot=old"),
+            "{}",
+            adaptive[1]["url"]
+        );
+        assert!(adaptive[2].get("url").is_none());
+    }
+
+    #[test]
+    fn streaming_pot_stamping_is_a_noop_without_streaming_data() {
+        let mut res = json!({ "playabilityStatus": { "status": "OK" } });
+        assert_eq!(stamp_pot_on_formats(&mut res, "token"), 0);
+    }
+
+    #[test]
+    fn pot_param_detection_matches_android_regex() {
+        assert!(has_pot_param("https://x/?pot=abc"));
+        assert!(has_pot_param("https://x/?expire=1&pot=abc"));
+        assert!(!has_pot_param("https://x/?expire=1"));
+        assert!(!has_pot_param("https://x/?potless=1"));
+    }
+
+    #[test]
+    fn pot_is_appended_after_the_query_without_reparsing() {
+        assert_eq!(
+            append_pot_param("https://rr1.googlevideo.com/videoplayback?expire=1&n=abc", "a-b_c.1~2"),
+            "https://rr1.googlevideo.com/videoplayback?expire=1&n=abc&pot=a-b_c.1~2"
+        );
+        assert_eq!(
+            append_pot_param("https://rr1.googlevideo.com/videoplayback", "tok"),
+            "https://rr1.googlevideo.com/videoplayback?pot=tok"
+        );
     }
 }

@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { Copy, Trash2, Bug, RefreshCw, FolderOpen, Save, UserRoundX } from "lucide-react";
+import { Copy, Trash2, Bug, RefreshCw, FolderOpen, Save, UserRoundX, RotateCcw } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { useDiagnostics } from "../lib/useDiagnostics";
+import { clearDiagnosticEvents, formatDiagnosticEvent, getDiagnosticEvents } from "../lib/diagnostics";
 import { resetVisitorIdentity, revealLogsFolder } from "../lib/api/diagnostics";
 import { getBackendErrorMessage } from "../lib/api/errors";
 import { writeBackupFile } from "../lib/api/files";
@@ -18,6 +19,10 @@ export const Diagnostics: React.FC = () => {
   const showToast = useUiStore((state) => state.showToast);
   const { text, logsDir, loading, error, refresh, clear } = useDiagnostics();
   const [busy, setBusy] = useState(false);
+  // Android splits diagnostics into the Session log and Crashes; the identity
+  // reset stays its own action — it is not the session reset.
+  const [tab, setTab] = useState<"session" | "crashes">("session");
+  const [sessionEvents, setSessionEvents] = useState(getDiagnosticEvents);
 
   const hasLogs = text.trim().length > 0;
 
@@ -87,6 +92,24 @@ export const Diagnostics: React.FC = () => {
     }
   };
 
+  const handleResetSession = async () => {
+    const confirmed = await confirmAction({
+      title: getString("diagnostics_reset_session_title"),
+      message: getString("diagnostics_reset_session_body"),
+      icon: RotateCcw,
+      confirmLabel: getString("reset"),
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      clearDiagnosticEvents();
+      setSessionEvents([]);
+      showToast({ message: getString("diagnostics_reset_session_done"), variant: "success" });
+    } catch {
+      showToast({ message: getString("diagnostics_reset_session_failed"), variant: "error" });
+    }
+  };
+
   const handleClear = async () => {
     const confirmed = await confirmAction({
       title: getString("diagnostics_clear_confirm_title"),
@@ -123,6 +146,32 @@ export const Diagnostics: React.FC = () => {
 
       <p className="max-w-2xl text-sm text-chrome-neutral-400">{getString("diagnostics_description")}</p>
 
+      <div className="flex gap-2" role="tablist" aria-label={getString("diagnostics_title")}>
+        {(["session", "crashes"] as const).map((name) => (
+          <button
+            key={name}
+            type="button"
+            role="tab"
+            aria-selected={tab === name}
+            onClick={() => {
+              setTab(name);
+              if (name === "session") setSessionEvents(getDiagnosticEvents());
+            }}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+              tab === name
+                ? "bg-primary text-chrome-white"
+                : "bg-surface-container-low text-chrome-neutral-300 hover:bg-surface-container-high"
+            }`}
+          >
+            {getString(name === "session" ? "diagnostics_session_tab" : "diagnostics_crashes_tab")}
+          </button>
+        ))}
+      </div>
+
+      {tab === "crashes" ? (
+        <CrashReportSection />
+      ) : (
+        <>
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" size="sm" onClick={handleCopy} disabled={!hasLogs}>
           <Copy size={14} />
@@ -140,7 +189,7 @@ export const Diagnostics: React.FC = () => {
           <Bug size={14} />
           {getString("diagnostics_report_github")}
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => void refresh()} disabled={loading}>
+        <Button variant="ghost" size="sm" onClick={() => { void refresh(); setSessionEvents(getDiagnosticEvents()); }} disabled={loading}>
           <RefreshCw size={14} />
           {getString("diagnostics_refresh")}
         </Button>
@@ -148,9 +197,11 @@ export const Diagnostics: React.FC = () => {
           <Trash2 size={14} />
           {getString("diagnostics_clear")}
         </Button>
+        <Button variant="secondary" size="sm" onClick={() => void handleResetSession()}>
+          <RotateCcw size={14} />
+          {getString("diagnostics_reset_session")}
+        </Button>
       </div>
-
-      <CrashReportSection />
 
       <div className="max-w-2xl space-y-3 rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-5">
         <h3 className="text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500">
@@ -192,6 +243,25 @@ export const Diagnostics: React.FC = () => {
           )}
         </div>
       </div>
+
+      <div className="rounded-2xl border border-chrome-neutral-800 bg-surface-container-low overflow-hidden">
+        <div className="px-5 py-3 border-b border-chrome-neutral-800/50">
+          <h3 className="text-xs uppercase tracking-widest text-chrome-neutral-500 font-semibold">
+            {getString("diagnostics_session_tab")}
+          </h3>
+        </div>
+        <div className="max-h-64 overflow-auto p-4">
+          {sessionEvents.length === 0 ? (
+            <p className="text-sm text-chrome-neutral-500">{getString("diagnostics_session_empty")}</p>
+          ) : (
+            <pre className="select-text whitespace-pre-wrap font-mono text-xs leading-relaxed text-chrome-neutral-300">
+              {sessionEvents.map((event) => formatDiagnosticEvent(event)).join("\n")}
+            </pre>
+          )}
+        </div>
+      </div>
+        </>
+      )}
     </div>
   );
 };

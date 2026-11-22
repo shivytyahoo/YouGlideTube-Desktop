@@ -66,15 +66,22 @@ function TabItems({
   items,
   onPlay,
   onAddToQueue,
+  shortsQueue,
 }: {
   layout: ChannelLayout;
   items: ChannelItem[];
   onPlay: (video: VideoSummary) => void;
   onAddToQueue: (video: VideoSummary) => void;
+  shortsQueue?: {
+    channelId: string;
+    sortIndex: number;
+    tabParams: string | null;
+    pageToken: string | null;
+  } | null;
 }) {
   switch (layout) {
     case "shorts":
-      return <ChannelShortsGrid shorts={itemsOfLayout<ShortVideoSummary>(items, "shorts")} />;
+      return <ChannelShortsGrid shorts={itemsOfLayout<ShortVideoSummary>(items, "shorts")} queue={shortsQueue} />;
     case "playlists":
       return <ChannelPlaylistsGrid playlists={itemsOfLayout<PlaylistSummary>(items, "playlists")} />;
     case "posts":
@@ -201,6 +208,25 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
     setActiveSearch("");
   };
   const items = feed.feed?.items ?? [];
+  // The Shorts tab's own queue: the sort chip the tab is showing (its index
+  // in the channel's sort bar) and the page token to continue from.
+  const shortsQueue = useMemo(() => {
+    if (layout !== "shorts" || !channelId) return null;
+    let sortIndex = 0;
+    for (const group of feed.feed?.filters ?? []) {
+      const selected = group.options.findIndex((option) => option.selected);
+      if (selected >= 0) {
+        sortIndex = selected;
+        break;
+      }
+    }
+    return {
+      channelId,
+      sortIndex,
+      tabParams: request?.params ?? null,
+      pageToken: feed.feed?.nextPageToken ?? null,
+    };
+  }, [layout, channelId, feed.feed, request]);
 
   return (
     <div className="relative flex-grow bg-background pb-24">
@@ -257,7 +283,7 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
             {activeSearch ? getString("channel_search_empty", activeSearch) : getString("channel_tab_empty")}
           </EmptyState>
         ) : (
-          <TabItems layout={layout} items={items} onPlay={onPlay} onAddToQueue={onAddToQueue} />
+          <TabItems layout={layout} items={items} onPlay={onPlay} onAddToQueue={onAddToQueue} shortsQueue={shortsQueue} />
         )}
 
         <div ref={sentinelRef} aria-hidden="true" />

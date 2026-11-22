@@ -16,6 +16,7 @@ export function MusicNowPlayingSettings() {
   const [paneCoverColors, setPaneCoverColors] = useBoolPref(SETTINGS.MUSIC_SIDE_PANE_COVER_COLORS);
   const [hideArtwork, setHideArtwork] = useBoolPref(SETTINGS.MUSIC_HIDE_ARTWORK);
   const [splitTransport, setSplitTransport] = useBoolPref(SETTINGS.MUSIC_SPLIT_TRANSPORT);
+  const [coverShape, setCoverShape] = usePreference(SETTINGS.MUSIC_COVER_SHAPE, 'rounded');
   const [seekBarStyle, setSeekBarStyle] = usePreference(SETTINGS.MUSIC_SEEK_BAR_STYLE);
   const expressiveSliders = useExpressiveSliders();
 
@@ -55,6 +56,13 @@ export function MusicNowPlayingSettings() {
       </SettingItem>
       <SettingItem title={getString('settings_hide_music_artwork')} description={getString('settings_hide_music_artwork_desc')}>
         <ToggleSwitch checked={hideArtwork} onChange={setHideArtwork} />
+      </SettingItem>
+      <SettingItem title={getString('settings_music_cover_shape')} description={getString('settings_music_cover_shape_desc')} disabled={hideArtwork}>
+        <Select value={coverShape} onChange={setCoverShape} disabled={hideArtwork} options={[
+          { value: 'rounded', label: getString('settings_cover_rounded') },
+          { value: 'square', label: getString('settings_cover_square') },
+          { value: 'circle', label: getString('settings_cover_circle') },
+        ]} />
       </SettingItem>
       {expressiveSliders && (
         <SettingItem title={getString('settings_music_seek_bar')}>

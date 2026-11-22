@@ -38,6 +38,14 @@ FIXES IN THIS BUILD
 - A music track that fails to load now shows an error instead of silently skipping, and music streams get the same fresh-link fallback as video when Google refuses a link.
 - "Resolving stream" now times out after 60 seconds with an error and a Retry button instead of spinning forever; the player-script fetch is bounded too.
 - Like and dislike: the count now moves even without Return YouTube Dislike data, dislike always reaches the server, and like sends the button's own params so the server accepts it. A failure toast names the real error.
+- Videos resolve much faster now: sign-in auth is no longer sent to clients that do not support login (YouTube used to reject the first attempt twice on every video, wasting about 10 seconds), and the playback token is now minted the Android way, so streams no longer die a few seconds in. If a stream still fails mid-playback, the app first tries the already-loaded stream instead of resolving the whole video again.
+- Comments now have Reply, including replies to replies in nested threads, and Delete on your own comments (Watch, Shorts and community posts).
+- Watch: playback speed up to 4x with presets and a slider, a visible Loop control, live-chat send and delete, per-video SponsorBlock off, description like-count and chapter/transcript shortcuts, and clearer errors with a sign-in action.
+- Home, Search and Music: guest banner, "I want more like this" and inline card feedback, pull-to-refresh on Home and Music home, Purchased search filter, and music tab refresh.
+- Shorts: saving a Short now saves to server Watch Later when signed in, channel and subscriptions queue sources, a top bar with a back button, load-error retry, the real sound title with a spinning disc, all three UI modes, and a per-Shorts ambient toggle.
+- Library, Subscriptions and Downloads: multi-audio downloads now put all languages in one file like Android, the notifications inbox is capped at 100, history merges by time like Android, history-pause freezes the server list, the library splits into video/music playlists and liked videos/music, playlist compact toggle, unsubscribe Undo, hide-watched on for the subscriptions feed, and remove-all-incomplete.
+- Settings: in-app updates now point at the published release, a new Integrations tab, background-play setting, watch-history auto-delete and retention, a Shorts settings cluster, feed/Shorts preview and thumbnail quality, comments preview, notification types, codec fallback, start-paused, and many small rows matching the Android app.
+- Not in this build: Cast/DLNA and Skip silence — both need whole subsystems the desktop does not have yet.
 
 YOUR ACCOUNT
 - Sign in with your Google account right in the app, with multiple accounts. No companion services app is needed for sign-in.

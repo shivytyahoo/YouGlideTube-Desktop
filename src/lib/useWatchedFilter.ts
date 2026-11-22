@@ -23,9 +23,25 @@ export function resolveHideWatched(surfaceValue: string | undefined, legacyValue
   return (surfaceValue || legacyValue) === "true";
 }
 
+/**
+ * The subscriptions feed hides watched videos unless the viewer opts out,
+ * as Android's `SubscriptionFeedFilter` does — it filters watched out
+ * unconditionally, with no switch at all. The home feed keeps the old
+ * opt-in default.
+ */
+export function resolveHideWatchedForSurface(
+  surface: HideWatchedSurface,
+  surfaceValue: string | undefined,
+  legacyValue: string | undefined,
+): boolean {
+  if (surfaceValue === "true" || surfaceValue === "false") return surfaceValue === "true";
+  if (legacyValue === "true" || legacyValue === "false") return legacyValue === "true";
+  return surface === "subscriptions";
+}
+
 export function useHideWatched(surface: HideWatchedSurface): boolean {
   return useAppSettingsStore((state) =>
-    resolveHideWatched(state.values[SURFACE_KEYS[surface]], state.values[SETTINGS.HIDE_WATCHED_VIDEOS]),
+    resolveHideWatchedForSurface(surface, state.values[SURFACE_KEYS[surface]], state.values[SETTINGS.HIDE_WATCHED_VIDEOS]),
   );
 }
 

@@ -28,8 +28,14 @@ const CODECS: Array<{ value: string; family: VideoCodecFamily }> = [
 export function QualityTab() {
   const [qualityWifi, setQualityWifi] = usePreference(SETTINGS.DEFAULT_QUALITY_WIFI, '1080p');
   const [codec, setCodec] = usePreference(SETTINGS.DEFAULT_VIDEO_CODEC, 'H.264');
+  const [fallbackCodec, setFallbackCodec] = usePreference(SETTINGS.FALLBACK_VIDEO_CODEC, 'Auto');
+  const [groupedQualitySelector, setGroupedQualitySelector] = useBoolPref(SETTINGS.GROUPED_QUALITY_SELECTOR, false);
+  const [feedPreviewQuality, setFeedPreviewQuality] = usePreference(SETTINGS.FEED_PREVIEW_QUALITY, 'auto');
+  const [shortsPreviewQuality, setShortsPreviewQuality] = usePreference(SETTINGS.SHORTS_PREVIEW_QUALITY, 'auto');
+  const [thumbnailQuality, setThumbnailQuality] = usePreference(SETTINGS.THUMBNAIL_QUALITY, 'auto');
   const [fastSwitch, setFastSwitch] = useBoolPref(SETTINGS.FAST_QUALITY_SWITCH_ENABLED);
   const [shortsQuality, setShortsQuality] = usePreference(SETTINGS.SHORTS_QUALITY_WIFI, '720p');
+  const [groupedQuality, setGroupedQuality] = useBoolPref(SETTINGS.SHORTS_GROUPED_QUALITY, false);
   const [audioLang, setAudioLang] = usePreference(SETTINGS.PREFERRED_AUDIO_LANGUAGE, 'original');
   const decodeFailures = useCodecHealthStore((state) => state.failures);
   const clearCodecFailures = useCodecHealthStore((state) => state.clearFailures);
@@ -68,6 +74,26 @@ export function QualityTab() {
         >
           <Select value={codec} onChange={setCodec} options={codecOptions} />
         </SettingItem>
+        <SettingItem
+          title={getString('settings_fallback_codec')}
+          description={getString('settings_fallback_codec_desc')}
+        >
+          <Select
+            value={fallbackCodec}
+            onChange={setFallbackCodec}
+            options={[
+              { value: 'Auto', label: getString('quality_auto') },
+              ...CODECS.filter((item) => item.value !== codec).map((item) => ({
+                value: item.value,
+                disabled: !deviceSupportsCodec(item.family),
+                label: item.value,
+              })),
+            ]}
+          />
+        </SettingItem>
+        <SettingItem title={getString('settings_grouped_quality_selector')} description={getString('settings_grouped_quality_selector_desc')}>
+          <ToggleSwitch checked={groupedQualitySelector} onChange={setGroupedQualitySelector} />
+        </SettingItem>
         {codecs.filter((item) => item.failing).map((item) => (
           <SettingItem
             key={item.family}
@@ -87,6 +113,33 @@ export function QualityTab() {
       <SettingsGroup title={getString('settings_group_shorts_quality')}>
         <SettingItem title={getString('settings_shorts_resolution')} description={getString('settings_shorts_resolution_desc')}>
           <Select value={shortsQuality} onChange={setShortsQuality} options={QUALITY_OPTIONS} />
+        </SettingItem>
+        <SettingItem title={getString('settings_grouped_quality_selector')} description={getString('settings_grouped_quality_selector_desc')}>
+          <ToggleSwitch checked={groupedQuality} onChange={setGroupedQuality} />
+        </SettingItem>
+      </SettingsGroup>
+
+      <SettingsGroup title={getString('settings_group_preview_quality')}>
+        <SettingItem title={getString('settings_feed_preview_quality')} description={getString('settings_feed_preview_quality_desc')}>
+          <Select value={feedPreviewQuality} onChange={setFeedPreviewQuality} options={[
+            { value: 'auto', label: getString('settings_quality_auto') },
+            { value: 'low', label: getString('settings_quality_low') },
+            { value: 'high', label: getString('settings_quality_high') },
+          ]} />
+        </SettingItem>
+        <SettingItem title={getString('settings_shorts_preview_quality')} description={getString('settings_shorts_preview_quality_desc')}>
+          <Select value={shortsPreviewQuality} onChange={setShortsPreviewQuality} options={[
+            { value: 'auto', label: getString('settings_quality_auto') },
+            { value: 'low', label: getString('settings_quality_low') },
+            { value: 'high', label: getString('settings_quality_high') },
+          ]} />
+        </SettingItem>
+        <SettingItem title={getString('settings_thumbnail_quality')} description={getString('settings_thumbnail_quality_desc')}>
+          <Select value={thumbnailQuality} onChange={setThumbnailQuality} options={[
+            { value: 'auto', label: getString('settings_quality_auto') },
+            { value: 'standard', label: getString('settings_quality_standard') },
+            { value: 'high', label: getString('settings_quality_high') },
+          ]} />
         </SettingItem>
       </SettingsGroup>
 

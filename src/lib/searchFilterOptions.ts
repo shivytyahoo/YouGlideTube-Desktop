@@ -48,6 +48,7 @@ export const FEATURE_OPTIONS: FilterOption<SearchFeatureFilter>[] = [
   { value: 'vr180', labelKey: 'search_feature_vr180' },
   { value: '3d', labelKey: 'search_feature_3d' },
   { value: 'location', labelKey: 'search_feature_location' },
+  { value: 'purchased', labelKey: 'search_feature_purchased' },
 ];
 
 export const WATCH_OPTIONS: FilterOption<SearchWatchState>[] = [

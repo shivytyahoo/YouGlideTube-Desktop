@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import type { DownloadRecord } from "./api/downloads";
+import type { DownloadProgress, DownloadRecord } from "./api/downloads";
 import {
   downloadRecordToSong,
   downloadRecordToVideo,
   downloadRecordToVideoDetails,
   downloadSponsorSegments,
+  incompleteDownloads,
 } from "./useDownloads";
 
 const record: DownloadRecord = {
@@ -52,5 +53,38 @@ describe("download records", () => {
     ]);
     expect(downloadSponsorSegments(record)).toHaveLength(1);
     expect(downloadRecordToVideoDetails({ ...record, chaptersJson: "not json" }).chapters).toEqual([]);
+  });
+});
+
+describe("incompleteDownloads", () => {
+  const progress = (id: string, mediaKind: "video" | "music", status: DownloadProgress["status"]): DownloadProgress => ({
+    id,
+    title: id,
+    mediaKind,
+    qualityLabel: "1080p",
+    filePath: `/v/${id}`,
+    downloadedBytes: 0,
+    totalBytes: null,
+    status,
+    error: null,
+    errorKind: null,
+    videoId: id,
+    thumbnailUrl: null,
+    collectionDbId: null,
+    artist: null,
+    bytesPerSecond: null,
+    etaSeconds: null,
+  });
+
+  it("splits the in-flight downloads by tab and leaves finished ones alone", () => {
+    const active = [
+      progress("v1", "video", "downloading"),
+      progress("v2", "video", "paused"),
+      progress("m1", "music", "queued"),
+      progress("v3", "video", "completed"),
+      progress("m2", "music", "failed"),
+    ];
+    expect(incompleteDownloads(active, false).map((item) => item.id)).toEqual(["v1", "v2"]);
+    expect(incompleteDownloads(active, true).map((item) => item.id)).toEqual(["m1"]);
   });
 });

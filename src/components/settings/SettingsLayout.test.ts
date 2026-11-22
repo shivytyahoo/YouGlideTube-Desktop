@@ -122,6 +122,7 @@ describe("SettingsLayout", () => {
       getString("settings_quality_codecs"),
       getString("settings_music"),
       getString("music_lyrics"),
+      getString("settings_group_integrations"),
       getString("settings_subscriptions_notifications"),
       getString("settings_appearance"),
       getString("settings_language_region"),

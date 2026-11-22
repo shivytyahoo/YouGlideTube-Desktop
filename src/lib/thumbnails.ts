@@ -2,6 +2,18 @@ import { originalImageUrl } from "./imageProxy";
 
 export type ThumbnailQuality = "standard" | "large";
 
+/** The thumbnail quality setting: Auto picks by card size, as before. */
+export type ThumbnailQualitySetting = "auto" | "standard" | "high";
+
+export function thumbnailQualityForSetting(
+  setting: string | undefined,
+  highRes: boolean,
+): ThumbnailQuality {
+  if (setting === "high") return "large";
+  if (setting === "standard") return "standard";
+  return highRes ? "large" : "standard";
+}
+
 const YOUTUBE_VIDEO_ID = /^[a-zA-Z0-9_-]{11}$/;
 const YOUTUBE_THUMBNAIL_RE = /(?:https?:)?\/\/(?:i\.ytimg\.com|img\.youtube\.com)\/(?:vi|vi_webp)\/([a-zA-Z0-9_-]{11})\/[^/?#]+/i;
 const YOUTUBE_THUMBNAIL_HOST_RE = /(?:^|\.)ytimg\.com$|(?:^|\.)youtube\.com$/i;
@@ -102,6 +114,7 @@ export function resolveYoutubeThumbnailCandidates(
   videoId?: string | null,
   fallbackUrl?: string | null,
   highRes = devicePixelRatio() > 1,
+  qualitySetting: ThumbnailQualitySetting = "auto",
 ): string[] {
   const raw = fallbackUrl?.trim();
   const resolvedId = isYoutubeVideoId(videoId)
@@ -110,11 +123,17 @@ export function resolveYoutubeThumbnailCandidates(
 
   const candidates: string[] = [];
   if (resolvedId) {
-    if (highRes) candidates.push(youtubeThumbnailUrl(resolvedId, "standard"));
+    if (qualitySetting === "high") {
+      candidates.push(youtubeThumbnailUrl(resolvedId, "large"));
+    } else if (qualitySetting === "standard") {
+      candidates.push(youtubeThumbnailUrl(resolvedId, "standard"));
+    } else if (highRes) {
+      candidates.push(youtubeThumbnailUrl(resolvedId, "standard"));
+    }
     candidates.push(youtubeHqDefaultUrl(resolvedId));
   }
   if (raw) {
-    candidates.push(upgradeThumbnailUrl(raw, "standard"), raw);
+    candidates.push(upgradeThumbnailUrl(raw, qualitySetting === "high" ? "large" : "standard"), raw);
   }
   return [...new Set(candidates.filter(Boolean))];
 }

@@ -26,12 +26,20 @@ const topHeight = (track: DashVideoTrack) =>
  * network isn't held back. Sets that tie go to the preferred codec, then to the
  * one that decodes most widely, so a video that tops out at 1080p stays on H.264.
  */
-export function pickAutoVideoTrack(tracks: DashVideoTrack[], preferredCodec: string): DashVideoTrack | null {
+export function pickAutoVideoTrack(
+  tracks: DashVideoTrack[],
+  preferredCodec: string,
+  fallbackCodec = "Auto",
+): DashVideoTrack | null {
   const sdr = tracks.filter((track) => !isHdrTrack(track));
   const pool = sdr.length > 0 ? sdr : tracks;
   const top = Math.max(0, ...pool.map(topHeight));
   const order = (track: DashVideoTrack) =>
-    (preferredCodec !== "Auto" && codecMatches(track.codec, preferredCodec) ? 0 : 1) * 10 + codecRank(track.codec);
+    (preferredCodec !== "Auto" && codecMatches(track.codec, preferredCodec)
+      ? 0
+      : fallbackCodec !== "Auto" && codecMatches(track.codec, fallbackCodec)
+        ? 10
+        : 20) + codecRank(track.codec);
   return pool.filter((track) => topHeight(track) === top).sort((left, right) => order(left) - order(right))[0] ?? null;
 }
 
