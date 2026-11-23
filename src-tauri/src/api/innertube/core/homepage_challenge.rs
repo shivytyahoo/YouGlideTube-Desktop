@@ -52,7 +52,7 @@ pub struct ExtractedChallenge {
     /// `html5_generate_content_po_token` in the page: "y", "n", or "?".
     pub content_flag: String,
     /// Why `raw_challenge` is `None` (`no-atn`, `atn-parse`,
-    /// `no-bgchallenge`, `ytcfg-parse`); `None` when usable.
+    /// `no-bgchallenge`); `None` when usable.
     pub failure: Option<&'static str>,
 }
 
@@ -192,38 +192,35 @@ pub fn build_challenge_data(raw_challenge: &str, interpreter_js: &str) -> Option
 }
 
 /// Extract `(ytcfg, ytAtN)` from a youtube.com page. Mirrors Android's
-/// `extractHomepageChallenge`: the FIRST `ytcfg.set({...})` is the page
-/// config; a match that is not JSON fails the whole page. The challenge is
-/// `window.ytAtN({...}).R` and must mention `bgChallenge`, `program` and
-/// `interpreterUrl`. Never throws.
+/// `extractHomepageChallenge`: the FIRST `ytcfg.set({...})` that parses as a
+/// JSON object is the page config, and the challenge is the FIRST
+/// `window.ytAtN({...})` object-literal call and must mention `bgChallenge`,
+/// `program` and `interpreterUrl`. YouTube now emits two-argument
+/// `ytcfg.set(key, value)` calls (e.g. `ytcfg.set('EMERGENCY_BASE_URL', ...)`)
+/// ahead of the config object, a no-argument `window.ytAtN();` stub ahead of
+/// the real challenge, and a later object can even carry single-quoted values
+/// (`{"CSI_SERVICE_NAME": 'youtube', ...}`), so a candidate that is not a
+/// JSON object is skipped instead of failing the page — Android's regexes
+/// require `{` right after the call for the same reason. A page with no
+/// usable config still yields its challenge with `ytcfg` unset (BotGuard just
+/// sees no `EVENT_ID`). Never throws.
 pub fn extract_homepage_challenge(html: &str) -> ExtractedChallenge {
     let content_flag = content_po_token_flag(html);
     let mut ytcfg: Option<String> = None;
     let mut has_event_id = false;
 
-    if let Some(candidate) = extract_balanced_object(html, "ytcfg.set(") {
-        match serde_json::from_str::<Value>(&candidate) {
-            Ok(config) => {
-                has_event_id = config
-                    .get("EVENT_ID")
-                    .and_then(Value::as_str)
-                    .map(|event_id| !event_id.is_empty())
-                    .unwrap_or(false);
-                ytcfg = Some(candidate);
-            }
-            Err(_) => {
-                return ExtractedChallenge {
-                    raw_challenge: None,
-                    ytcfg: None,
-                    has_event_id: false,
-                    content_flag,
-                    failure: Some("ytcfg-parse"),
-                };
-            }
+    if let Some(candidate) = extract_ytcfg_config(html) {
+        if let Ok(config) = serde_json::from_str::<Value>(&candidate) {
+            has_event_id = config
+                .get("EVENT_ID")
+                .and_then(Value::as_str)
+                .map(|event_id| !event_id.is_empty())
+                .unwrap_or(false);
+            ytcfg = Some(candidate);
         }
     }
 
-    let Some(payload) = extract_balanced_object(html, "window.ytAtN(") else {
+    let Some((_, payload)) = next_object_arg(html, "window.ytAtN(", 0) else {
         return ExtractedChallenge {
             raw_challenge: None,
             ytcfg,
@@ -277,6 +274,54 @@ fn content_po_token_flag(html: &str) -> String {
         Some(rest) if rest.starts_with("false") => "n".to_string(),
         _ => "?".to_string(),
     }
+}
+
+/// The page's first `ytcfg.set({...})` object that parses as JSON text.
+/// YouTube now emits two-argument `ytcfg.set(key, value)` calls ahead of the
+/// config object, so only a call whose next non-whitespace character is `{`
+/// is a candidate at all, and a candidate that is not a JSON object (a JS
+/// fragment, or an object with single-quoted values) is skipped in favour of
+/// the next one. `None` when no candidate parses; the caller still uses the
+/// challenge without a `ytcfg`.
+fn extract_ytcfg_config(html: &str) -> Option<String> {
+    const MARKER: &str = "ytcfg.set(";
+    let mut from = 0;
+    while let Some((next, candidate)) = next_object_arg(html, MARKER, from) {
+        if serde_json::from_str::<Value>(&candidate)
+            .map(|value| value.is_object())
+            .unwrap_or(false)
+        {
+            return Some(candidate);
+        }
+        from = next;
+    }
+    None
+}
+
+/// The next `marker` call at or after `from` whose argument is an object
+/// literal: its balanced `{...}` text plus the offset to resume searching
+/// after. A call is only a candidate when its next non-whitespace character
+/// is `{` — YouTube's pages carry same-named calls that take no object at
+/// all (`window.ytAtN(); delete window.ytAtN;`, two-argument
+/// `ytcfg.set(key, value)`), which a plain first-match scan mistakes for
+/// the real call. `None` when no further candidate exists.
+fn next_object_arg(html: &str, marker: &str, from: usize) -> Option<(usize, String)> {
+    let mut search_from = from;
+    while let Some(at) = html[search_from..].find(marker) {
+        let abs = search_from + at;
+        let after = abs + marker.len();
+        let mut j = after;
+        while j < html.len() && (html.as_bytes()[j] as char).is_whitespace() {
+            j += 1;
+        }
+        if j < html.len() && html.as_bytes()[j] == b'{' {
+            if let Some(obj) = extract_balanced_object(&html[abs..], marker) {
+                return Some((after, obj));
+            }
+        }
+        search_from = after;
+    }
+    None
 }
 
 /// The balanced `{...}` object following `marker` in `html` (the first `{`
@@ -631,12 +676,68 @@ mod tests {
     }
 
     #[test]
-    fn bad_ytcfg_fails_the_page() {
-        // Balanced braces but not JSON: the candidate is found and its parse
-        // fails, so the whole page fails (Android's `ytcfg-parse`).
+    fn bad_ytcfg_candidate_is_skipped() {
+        // A candidate that is not JSON no longer fails the page: the next
+        // parsable config wins, and the challenge is still used.
+        let html = "ytcfg.set({not json}); ytcfg.set({\"EVENT_ID\":\"evt9\"}); window.ytAtN({R: {bgChallenge: 1, program: 2, interpreterUrl: 3}});";
+        let extracted = extract_homepage_challenge(html);
+        assert_eq!(extracted.failure, None);
+        assert!(extracted.has_event_id);
+        assert!(extracted.ytcfg.as_deref().unwrap().contains("evt9"));
+        assert!(extracted.raw_challenge.is_some());
+    }
+
+    #[test]
+    fn no_usable_ytcfg_still_yields_the_challenge() {
+        // No parsable config at all: ytcfg is unset, but the challenge is
+        // still extracted (BotGuard just sees no EVENT_ID).
         let html = "ytcfg.set({not json}); window.ytAtN({R: {bgChallenge: 1, program: 2, interpreterUrl: 3}});";
         let extracted = extract_homepage_challenge(html);
-        assert_eq!(extracted.failure, Some("ytcfg-parse"));
+        assert_eq!(extracted.failure, None);
+        assert_eq!(extracted.ytcfg, None);
+        assert!(!extracted.has_event_id);
+        assert!(extracted.raw_challenge.is_some());
+    }
+
+    #[test]
+    fn two_arg_ytcfg_calls_do_not_break_the_challenge() {
+        // Regression (2026-11-23): youtube.com now starts the page with
+        // two-argument `ytcfg.set(key, value)` calls (`EMERGENCY_BASE_URL`
+        // first) and ends it with a single-quoted object; the config object
+        // in between must still be found, with the challenge alongside it.
+        // Before the fix the first call's trailing JS fragment was taken as
+        // the config, its parse failed, and the whole page failed with
+        // `ytcfg-parse` — so the V4 mint never ran and every MWEB/WEB SABR
+        // session died on a legacy token ~5s into playback.
+        let html = r#"<!doctype html><html><head><script>
+            ytcfg.set('EMERGENCY_BASE_URL', '\/error_204?t\x3djserror');
+            </script><script>
+            ytcfg.set({"EVENT_ID":"evt-live","SERIALIZED_EXPERIMENT_FLAGS":"html5_generate_content_po_token=true"});
+            window.ytAtN({R: {bgChallenge: {interpreterHash: "h1", program: "p1", globalName: "g1", clientExperimentsStateBlob: "b1", interpreterUrl: {privateDoNotAccessOrElseTrustedResourceUrlWrappedValue: "//www.gstatic.com/interp.js"}}}});
+            </script><script>
+            ytcfg.set({"CSI_SERVICE_NAME": 'youtube', "TIMING_A": 1});
+            </script></head></html>"#;
+        let extracted = extract_homepage_challenge(html);
+        assert_eq!(extracted.failure, None);
+        assert!(extracted.has_event_id);
+        assert_eq!(extracted.content_flag, "y");
+        assert!(extracted.ytcfg.as_deref().unwrap().contains("evt-live"));
+        let raw = extracted.raw_challenge.unwrap();
+        assert!(raw.contains("bgChallenge"));
+        assert!(raw.contains("interpreterUrl"));
+    }
+
+    #[test]
+    fn empty_ytatn_stub_call_is_skipped() {
+        // Regression (2026-11-23): the page carries a no-argument
+        // `window.ytAtN(); delete window.ytAtN;` stub ahead of the real
+        // challenge call; a plain first-match scan takes the stub's trailing
+        // JS as the payload and fails with `atn-parse`.
+        let html = "window.ytAtN(); delete window.ytAtN; window.ytAtN({R: {bgChallenge: 1, program: 2, interpreterUrl: 3}});";
+        let extracted = extract_homepage_challenge(html);
+        assert_eq!(extracted.failure, None);
+        let raw = extracted.raw_challenge.unwrap();
+        assert!(raw.contains("bgChallenge"));
     }
 
     #[test]

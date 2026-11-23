@@ -26,8 +26,7 @@ import { IS_LINUX_RUNTIME } from "../../../lib/platform";
 import { GraphicsCompatibilitySection } from "../GraphicsCompatibilitySection";
 import { MAX_FONT_MB, fontImportMessage, importCustomFont } from "../../../lib/appFont";
 import { useUiStore } from "../../../store/useUiStore";
-import { useDateDisplaySettings } from "../../../lib/useDateDisplaySettings";
-import { formatExactDate, formatUploadDate, type DateContext } from "../../../lib/publishedDate";
+import { formatExactDate } from "../../../lib/publishedDate";
 
 export function AppearanceTab() {
   const {
@@ -52,7 +51,6 @@ export function AppearanceTab() {
   const [glassTheme, setGlassTheme] = useBoolPref(SETTINGS.THEME_GLASS, false);
   const [highlightNew, setHighlightNew] = useBoolPref(SETTINGS.HIGHLIGHT_NEW_SETTINGS, false);
   const [highlightDays, setHighlightDays] = usePreference(SETTINGS.HIGHLIGHT_NEW_SETTINGS_DAYS, "7");
-  const dateSettings = useDateDisplaySettings();
   const [dateMode, setDateMode] = usePreference(SETTINGS.DATE_DISPLAY_MODE, "relative");
   const [cardLikeButtons, setCardLikeButtons] = useBoolPref(SETTINGS.CARD_LIKE_BUTTONS, false);
   const [cardMarkWatched, setCardMarkWatched] = useBoolPref(SETTINGS.CARD_MARK_WATCHED, false);
@@ -63,20 +61,8 @@ export function AppearanceTab() {
   const [dateLists, setDateLists] = usePreference(SETTINGS.DATE_MODE_LISTS, "default");
   const [dateWatch, setDateWatch] = usePreference(SETTINGS.DATE_MODE_WATCH, "default");
   const [dateDescription, setDateDescription] = usePreference(SETTINGS.DATE_MODE_DESCRIPTION, "default");
-  // Android's preview sample: an upload from 215 days ago, shown as it reads in each place.
+  // Sample date for the exact-date format dropdown labels.
   const dateSampleMs = Date.now() - 215 * 24 * 60 * 60 * 1000;
-  const dateContexts: { context: DateContext; title: string }[] = [
-    { context: "lists", title: getString("datetime_context_lists") },
-    { context: "watch", title: getString("datetime_context_watch") },
-    { context: "description", title: getString("datetime_context_description") },
-  ];
-  const datePreviews = dateContexts.map(({ context, title }) => ({
-    title,
-    value: formatUploadDate(getString("datetime_sample_relative"), dateSettings, context, {
-      timestampMs: dateSampleMs,
-      timestampIsExact: true,
-    }),
-  }));
   const dateFormatOptions = (["system", "mmm_d_yyyy", "d_mmm_yyyy", "iso", "dmy_slash", "mdy_slash"] as const).map(
     (style) => ({
       value: style,
@@ -308,19 +294,6 @@ export function AppearanceTab() {
       {IS_LINUX_RUNTIME && <GraphicsCompatibilitySection />}
 
       <div className="mt-8">
-        <div className="mb-4 rounded-2xl border border-chrome-neutral-800 bg-surface-container-low p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-chrome-neutral-400">
-            {getString("datetime_preview_header")}
-          </p>
-          <div className="mt-2 space-y-1">
-            {datePreviews.map((preview) => (
-              <div key={preview.title} className="flex items-center justify-between gap-4 text-sm">
-                <span className="text-chrome-neutral-400">{preview.title}</span>
-                <span className="font-medium text-chrome-neutral-100">{preview.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
         <SettingsGroup title={getString("datetime_title")}>
           <SettingItem title={getString("datetime_mode_header")}>
             <Select value={dateMode} onChange={setDateMode} options={dateModeOptions} />

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createComment, createCommentReply, deleteComment as deleteCommentApi, getComments, getPostComments, likeComment as likeCommentApi } from "./api/youtube";
+import { logToBackend } from "./diagnostics";
 import { normalizeBackendError } from "./api/errors";
 import { formatCount } from "./utils";
 import type { Comment, CommentSort } from "../types/video";
@@ -7,11 +8,15 @@ import type { Comment, CommentSort } from "../types/video";
 interface UseVideoCommentsOptions {
   postId?: string | null;
   postCommentParams?: string | null;
+  /** The viewer's own display identity, for a reply shown before the server
+   * row arrives; null when signed out or unknown. */
+  ownIdentity?: { name?: string | null; thumbnailUrl?: string | null } | null;
 }
 
 export function useVideoComments(videoId: string | undefined, options: UseVideoCommentsOptions = {}) {
   const postId = options.postId?.trim() || null;
   const postCommentParams = options.postCommentParams?.trim() || null;
+  const ownIdentity = options.ownIdentity ?? null;
   const sourceId = postId ?? videoId;
   const sourceKey = postId ? `post:${postId}:${postCommentParams ?? ""}` : `video:${videoId ?? ""}`;
   const [comments, setComments] = useState<Comment[]>([]);
@@ -163,7 +168,14 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
     async (parent: Comment, text: string) => {
       const params = parent.replyParams?.trim();
       const body = text.trim();
-      if (!params || !body || posting) return false;
+      if (!params) {
+        // No reply token to post with: without this line a diagnostics log
+        // cannot tell a tap on a token-less comment from a tap that reached
+        // the backend and succeeded.
+        void logToBackend("warn", "reply skipped: no reply token", { commentId: parent.id });
+        return false;
+      }
+      if (!body || posting) return false;
       setPosting(true);
       try {
         const serverReply = await createCommentReply(params, parent.replyPath ?? null, body);
@@ -182,11 +194,65 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
             [ancestorId]: [...(prev[ancestorId] || []), serverReply],
           }));
         } else {
+          // Android's `CommentsPager.postReply`: the answer does not always
+          // carry the row, and reloading the thread right after posting kept
+          // losing it (the fetched first page does not carry a just-posted
+          // reply), so the reply shows at once as a local row and is swapped
+          // for the server row once the thread returns it. A first reply has
+          // no thread fetch at all, so the local row stays until the next
+          // full reload replaces it with the server's copy.
+          const own = [...comments, ...Object.values(replies).flat()].find(
+            (item) => item.isOwn,
+          );
+          const localId = `local-${ancestorId}-${Date.now()}`;
+          const localReply: Comment = {
+            id: localId,
+            author: ownIdentity?.name?.trim() || own?.author || "",
+            authorThumbnail: ownIdentity?.thumbnailUrl ?? own?.authorThumbnail ?? null,
+            authorChannelId: own?.authorChannelId ?? null,
+            text: body,
+            publishedText: null,
+            likeCount: 0,
+            replyCount: 0,
+            isOwn: true,
+          };
+          setReplies((prev) => ({
+            ...prev,
+            [ancestorId]: [...(prev[ancestorId] || []), localReply],
+          }));
           const ancestor = comments.find((comment) => comment.id === ancestorId);
           if (ancestor?.continuationToken) {
-            setReplies((prev) => ({ ...prev, [ancestorId]: [] }));
-            setRepliesNextToken((prev) => ({ ...prev, [ancestorId]: null }));
-            await loadReplies(ancestorId, ancestor.continuationToken);
+            try {
+              const res = await fetchComments(ancestor.continuationToken);
+              setReplies((prev) => {
+                const thread = prev[ancestorId] ?? [];
+                const serverRow = (res.comments || []).find(
+                  (row) => row.isOwn && row.text.trim() === body,
+                );
+                const seen = new Set(thread.map((row) => row.id));
+                const merged = [...thread];
+                for (const row of res.comments || []) {
+                  if (!seen.has(row.id)) {
+                    merged.push(row);
+                    seen.add(row.id);
+                  }
+                }
+                // The server row is already in the merged thread; only the
+                // local stand-in leaves.
+                return {
+                  ...prev,
+                  [ancestorId]: serverRow
+                    ? merged.filter((row) => row.id !== localId)
+                    : merged,
+                };
+              });
+              setRepliesNextToken((prev) => ({
+                ...prev,
+                [ancestorId]: res.nextPageToken || null,
+              }));
+            } catch (err) {
+              console.warn("Failed to reload the thread for the posted reply", err);
+            }
           }
         }
         return true;
@@ -197,7 +263,7 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
         setPosting(false);
       }
     },
-    [ancestorIdOf, comments, loadReplies, posting],
+    [ancestorIdOf, comments, fetchComments, ownIdentity, posting, replies],
   );
 
   /** Deletes one of the viewer's own comments, wherever it sits in the list.
@@ -281,7 +347,13 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
         : current.isDisliked
           ? current.undislikeAction
           : current.dislikeAction;
-      if (!endpoint?.trim()) return false;
+      if (!endpoint?.trim()) {
+        // No vote to replay: without this line a diagnostics log cannot
+        // tell a tap on an action-less comment from a tap that reached the
+        // backend and succeeded.
+        void logToBackend("warn", "comment vote skipped: no vote endpoint", { commentId: current.id });
+        return false;
+      }
       votesInFlight.current.add(current.id);
       const count = current.likeCount ?? 0;
       const optimistic: Comment =

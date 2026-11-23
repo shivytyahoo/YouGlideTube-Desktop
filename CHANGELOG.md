@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.1 — 2026-11-23
+
+A fixes-only release on top of 1.0.0.
+
+- The "7 months ago" Preview box is gone from Settings → Appearance: it only showed sample dates and was not useful; the Date & Time Display settings themselves are unchanged
+- Liking a comment now moves the count: the like only highlighted before, because the liked-count text was never shown; the same fix covers replies
+- Replying to a comment now shows the reply under it at once: the reply was reaching the server but never appeared until the comments were reloaded; liking a reply works now too
+- Video like and dislike no longer send a stale token from another video (fast navigation could attach the previous video's token and the server refused it); signed out, tapping like or dislike now opens Google sign-in instead of pretending the like landed locally
+- Volume slider in the narrow player: in the normal watch view the volume button only muted before — tapping it now opens a small slider above the bar, and the wide player keeps the hover slider
+- "Resolving stream" is fixed for good: the playback token was never minted because the code read the wrong call on YouTube's homepage and failed the whole page, so streams fell back to a legacy token YouTube refused a few seconds in; videos that need the fallback now play through
+- Diagnostics now log every like, dislike, comment like and reply call, so the next log shows exactly whether an action reached the server or stopped in the app
+
 ## 1.0.0 — 2026-11-21
 
 The first desktop release — the YouGlideTube Android app, on the desktop.

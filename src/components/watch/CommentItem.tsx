@@ -137,7 +137,14 @@ export function CommentItem({
 }) {
   const navigate = useNavigate();
   const openAuthor = () => comment.authorChannelId && navigate(`/channel/${comment.authorChannelId}`);
-  const likes = comment.likeCountText || (comment.likeCount ? formatCount(comment.likeCount) : null);
+  // Android's `GlideCommentItem` shows the liked count while liked: the
+  // server's not-liked text is stale the moment the vote lands, so preferring
+  // it left the number visibly frozen while the icon filled in. The numeric
+  // count only backs the text when the server sent neither.
+  const likes =
+    (comment.isLiked ? comment.likeCountLikedText?.trim() : "") ||
+    comment.likeCountText ||
+    (comment.likeCount ? formatCount(comment.likeCount) : null);
   const [showComposer, setShowComposer] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
   const [deleteFailed, setDeleteFailed] = useState(false);

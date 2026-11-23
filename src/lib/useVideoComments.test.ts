@@ -199,6 +199,66 @@ describe("useVideoComments replies and deletes", () => {
     await vi.waitFor(() => expect(latest.replies["c1"]?.map((reply) => reply.id)).toEqual(["r1"]));
   });
 
+  it("shows the reply at once when the answer carried no server row and there is no thread to fetch", async () => {
+    getComments.mockResolvedValue(
+      threadPage({
+        comments: [
+          {
+            ...threadPage().comments[0]!,
+            continuationToken: undefined,
+            replyCount: 0,
+          },
+        ],
+      }),
+    );
+    createCommentReply.mockResolvedValue(null);
+    await renderHarness();
+    const parent = latest.comments[0]!;
+    let posted = false;
+    await act(async () => {
+      posted = await latest.postReply(parent, "thanks!");
+    });
+    expect(posted).toBe(true);
+    const shown = latest.replies["c1"] ?? [];
+    expect(shown).toHaveLength(1);
+    expect(shown[0]?.text).toBe("thanks!");
+    expect(shown[0]?.isOwn).toBe(true);
+    expect(shown[0]?.id.startsWith("local-")).toBe(true);
+    expect(latest.comments[0]?.replyCount).toBe(1);
+    expect(latest.expanded["c1"]).toBe(true);
+  });
+
+  it("keeps the reply visible when the thread fetch does not carry it yet", async () => {
+    getComments.mockImplementation(async (_videoId: unknown, token: unknown) =>
+      token === "REPLIES_TOKEN"
+        ? page({
+            comments: [
+              {
+                id: "r9",
+                author: "Someone else",
+                authorThumbnail: null,
+                text: "another reply",
+                publishedText: "1h",
+                likeCount: 0,
+                replyCount: 0,
+              },
+            ],
+          })
+        : threadPage(),
+    );
+    createCommentReply.mockResolvedValue(null);
+    await renderHarness();
+    const parent = latest.comments[0]!;
+    let posted = false;
+    await act(async () => {
+      posted = await latest.postReply(parent, "thanks!");
+    });
+    expect(posted).toBe(true);
+    const shown = latest.replies["c1"] ?? [];
+    expect(shown.some((reply) => reply.text === "thanks!" && reply.id.startsWith("local-"))).toBe(true);
+    expect(shown.some((reply) => reply.id === "r9")).toBe(true);
+  });
+
   it("does not post a reply when the comment carried no reply token", async () => {
     getComments.mockResolvedValue(threadPage());
     await renderHarness();

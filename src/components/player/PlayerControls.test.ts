@@ -293,6 +293,57 @@ describe("narrow player widths", () => {
     expect(leftGroup?.className).toContain("overflow-hidden");
     expect(leftGroup?.className).toContain("min-w-0");
   });
+
+  it("opens a floating volume slider from the volume button on a narrow panel", () => {
+    mockGlassWidth = 800;
+    render();
+    const volumeButton = () =>
+      host.querySelector<HTMLButtonElement>(`button[title="${getString("music_mute")}"]`);
+    const volumePopup = () => host.querySelector("[data-volume-popup]");
+    // The inline slider never opens below the full-width tier: its hover
+    // expansion is what used to push the row wider than the panel.
+    expect(volumePopup()).toBeNull();
+    expect(host.querySelector(".group\\/volume > div")?.className).not.toContain("group-hover/volume:w-20");
+    const button = volumeButton();
+    expect(button).not.toBeNull();
+    act(() => button!.click());
+    const popup = volumePopup();
+    expect(popup).not.toBeNull();
+    expect(popup!.querySelector(`input[aria-label="${getString("music_volume")}"]`)).not.toBeNull();
+    // The popup floats above the bar, so it must live outside the row —
+    // the row clips its overflow and would cut it off.
+    const row = host.querySelector(".justify-between");
+    expect(row?.contains(popup)).toBe(false);
+  });
+
+  it("closes the floating volume slider on a second click or Escape", () => {
+    mockGlassWidth = 800;
+    render();
+    const volumeButton = () =>
+      host.querySelector<HTMLButtonElement>(`button[title="${getString("music_mute")}"]`);
+    const volumePopup = () => host.querySelector("[data-volume-popup]");
+    act(() => volumeButton()!.click());
+    expect(volumePopup()).not.toBeNull();
+    act(() => volumeButton()!.click());
+    expect(volumePopup()).toBeNull();
+    act(() => volumeButton()!.click());
+    expect(volumePopup()).not.toBeNull();
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(volumePopup()).toBeNull();
+  });
+
+  it("keeps the hover slider and mute toggle on a wide panel", () => {
+    mockGlassWidth = 1200;
+    render();
+    const volumeButton = () =>
+      host.querySelector<HTMLButtonElement>(`button[title="${getString("music_mute")}"]`);
+    // Clicking the volume button mutes on a wide panel; no popup appears.
+    act(() => volumeButton()!.click());
+    expect(host.querySelector("[data-volume-popup]")).toBeNull();
+    expect(host.querySelector(".group\\/volume > div")?.className).toContain("group-hover/volume:w-20");
+  });
 });
 
 describe("video title above the seek bar", () => {

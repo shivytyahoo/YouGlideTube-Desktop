@@ -14,7 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use sqlx::SqlitePool;
 use tauri::State;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::api::innertube::InnertubeClient;
 use crate::api::innertube::extractors::server_feed::{
@@ -72,6 +72,10 @@ pub async fn set_video_liked(
     liked: bool,
     params: Option<String>,
 ) -> Result<bool, ErrorResponse> {
+    // Info-level, so a diagnostics log shows whether a tap ever reached the
+    // backend: success leaves no other trace, and the frontend's signed-out
+    // early-return leaves none at all.
+    info!(video_id = %video_id, liked, "set_video_liked invoked");
     extractor
         .set_video_liked(&video_id, liked, params.as_deref())
         .await
@@ -88,6 +92,10 @@ pub async fn set_video_disliked(
     video_id: String,
     params: Option<String>,
 ) -> Result<bool, ErrorResponse> {
+    // Info-level, so a diagnostics log shows whether a tap ever reached the
+    // backend: success leaves no other trace, and the frontend's signed-out
+    // early-return leaves none at all.
+    info!(video_id = %video_id, "set_video_disliked invoked");
     extractor
         .set_video_disliked(&video_id, params.as_deref())
         .await

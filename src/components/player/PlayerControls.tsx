@@ -348,6 +348,67 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
     observer.observe(glass);
     return () => observer.disconnect();
   }, []);
+
+  // Below the full-width tier the inline slider never opens — its hover
+  // expansion would push the row wider than the panel, which is what used
+  // to slide the time pill under the right-hand buttons. The volume button
+  // opens a floating slider above the bar instead. The popup lives on the
+  // glass panel, not inside the row: the row clips its overflow, which
+  // would cut off a popup positioned above the button.
+  const [volumePopupOpen, setVolumePopupOpen] = useState(false);
+  const [volumePopupLeft, setVolumePopupLeft] = useState(0);
+  const volumeButtonRef = useRef<HTMLButtonElement>(null);
+  const volumePopupRef = useRef<HTMLDivElement>(null);
+  const volumePopupWheelRef = useWheelVolume({
+    volume: volumeLevel,
+    max: maxLevel,
+    muted,
+    onVolumeChange: changeVolume,
+    onUnmute: () => setMuted(false),
+  });
+  const openVolumePopup = () => {
+    const button = volumeButtonRef.current;
+    const glass = glassRef.current;
+    if (button && glass) {
+      const buttonRect = button.getBoundingClientRect();
+      const glassRect = glass.getBoundingClientRect();
+      // Keep the ~160px pill inside the panel on very narrow players.
+      const maxLeft = Math.max(0, glassRect.width - 160);
+      setVolumePopupLeft(Math.min(Math.max(0, buttonRect.left - glassRect.left), maxLeft));
+    }
+    setVolumePopupOpen(true);
+  };
+  useEffect(() => {
+    // The wide bar's hover slider takes over again; the popup would be a duplicate.
+    if (controlsTier === 0) setVolumePopupOpen(false);
+  }, [controlsTier]);
+  useEffect(() => {
+    if (!shouldShowControls) setVolumePopupOpen(false);
+  }, [shouldShowControls]);
+  useEffect(() => {
+    if (!volumePopupOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (volumePopupRef.current?.contains(target)) return;
+      if (volumeButtonRef.current?.contains(target)) return;
+      setVolumePopupOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setVolumePopupOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [volumePopupOpen]);
+  useEffect(() => {
+    if (!volumePopupOpen) return;
+    const node = volumePopupRef.current;
+    if (!node) return;
+    return volumePopupWheelRef(node);
+  }, [volumePopupOpen, volumePopupWheelRef]);
   const proxyBase = useImageProxyStore((state) => state.base);
   const previewLevel = pickStoryboardLevel(storyboard);
   const previewHeight = previewLevel ? storyboardTileHeight(previewLevel) : 0;
@@ -632,7 +693,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
       >
         <div
           ref={glassRef}
-          className={`glass ${controlsLocked ? "pointer-events-none opacity-60" : "pointer-events-auto"} rounded-youglide border px-3 py-2`}
+          className={`glass relative ${controlsLocked ? "pointer-events-none opacity-60" : "pointer-events-auto"} rounded-youglide border px-3 py-2`}
           onClick={(event) => event.stopPropagation()}
         >
           {title && (isFullscreen ? showFullscreenTitle : isPopOut) && (
@@ -833,9 +894,19 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
               {showVolume && (
               <div ref={volumeWheelRef} className={cx("group/volume hidden items-center sm:flex bg-chrome-black/20 rounded-full", controlsTier === 0 && "hover:pr-2")}>
                 <button
+                  ref={volumeButtonRef}
                   type="button"
                   title={getString('music_mute')}
-                  onClick={() => setMuted((value) => !value)}
+                  aria-expanded={controlsTier === 0 ? undefined : volumePopupOpen}
+                  onClick={() => {
+                    // Wide bar: the hover slider is the volume control, so a
+                    // click just mutes. Narrow bar: the slider never opens
+                    // inline, so a click opens the floating slider instead —
+                    // muting lives on the popup's own button.
+                    if (controlsTier === 0) setMuted((value) => !value);
+                    else if (volumePopupOpen) setVolumePopupOpen(false);
+                    else openVolumePopup();
+                  }}
                   className="grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10"
                 >
                   {muted || volume === 0 ? (
@@ -1135,6 +1206,44 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
               )}
             </div>
           </div>
+
+          {showVolume && volumePopupOpen && controlsTier !== 0 && (
+            <div
+              ref={volumePopupRef}
+              data-volume-popup
+              role="group"
+              aria-label={getString("music_volume")}
+              className="absolute bottom-full z-50 mb-2 flex items-center gap-1 rounded-full border border-chrome-white/10 bg-chrome-black/85 px-1.5 py-1 backdrop-blur"
+              style={{ left: volumePopupLeft }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                title={getString("music_mute")}
+                aria-label={getString("music_mute")}
+                onClick={() => setMuted((value) => !value)}
+                className="grid h-7 w-7 place-items-center rounded-full hover:bg-chrome-white/10"
+              >
+                {muted || volume === 0 ? (
+                  <VolumeX size={19} />
+                ) : volume < 0.55 ? (
+                  <Volume1 size={19} />
+                ) : (
+                  <Volume2 size={19} />
+                )}
+              </button>
+              <div className="w-24">
+                <Slider
+                  aria-label={getString("music_volume")}
+                  min={0}
+                  max={maxLevel}
+                  step={0.01}
+                  value={muted ? 0 : volumeLevel}
+                  onChange={changeVolume}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

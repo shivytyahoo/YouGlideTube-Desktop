@@ -163,6 +163,7 @@ export function ShortActionBar({
     ],
   );
   const { state, like, dislike, likeDelta, dislikeDelta } = useVideoReactions(video, {
+    id: details?.id ?? null,
     channelId: short.channelId ?? null,
     likeParams: details?.likeParams ?? null,
     removeLikeParams: details?.removeLikeParams ?? null,

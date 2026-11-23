@@ -367,7 +367,23 @@ describe("CommentsSection votes", () => {
     expect(host.textContent).toContain("3");
   });
 
-  it("offers a Like button on a reply too", async () => {
+  it("shows the liked count while the comment is liked", () => {
+    thread.comments = [
+      {
+        ...defaultComment,
+        isLiked: true,
+        likeCountText: "3",
+        likeCountLikedText: "4",
+        likeAction: "LIKE_ENDPOINT",
+        unlikeAction: "UNLIKE_ENDPOINT",
+      },
+    ];
+    renderSection();
+    const like = host.querySelector('button[aria-label="Like"]');
+    expect(like?.textContent?.trim()).toBe("4");
+  });
+
+  it("shows the liked count on a liked reply too", () => {
     thread.comments = [{ ...defaultComment, replyCount: 1 }];
     thread.replies = {
       c1: [
@@ -378,6 +394,9 @@ describe("CommentsSection votes", () => {
           text: "a reply",
           publishedText: "1h",
           likeCount: 1,
+          likeCountText: "1",
+          likeCountLikedText: "2",
+          isLiked: true,
           replyCount: 0,
           likeAction: "REPLY_LIKE_ENDPOINT",
           unlikeAction: "REPLY_UNLIKE_ENDPOINT",
@@ -387,10 +406,6 @@ describe("CommentsSection votes", () => {
     thread.expanded = { c1: true };
     renderSection();
     const like = host.querySelector('button[aria-label="Like"]');
-    expect(like).toBeDefined();
-    await act(async () => {
-      (like as HTMLButtonElement).click();
-    });
-    expect(thread.toggleCommentLike).toHaveBeenCalledWith(expect.objectContaining({ id: "r1" }));
+    expect(like?.textContent?.trim()).toBe("2");
   });
 });

@@ -860,6 +860,10 @@ pub async fn create_comment_reply(
     reply_path: Option<String>,
     comment_text: String,
 ) -> Result<Option<crate::models::comment::Comment>, ErrorResponse> {
+    // Info-level, so a diagnostics log shows whether a reply tap ever
+    // reached the backend: success leaves no other trace, and a silent
+    // frontend early-return leaves none at all.
+    info!("create_comment_reply invoked");
     youtube_service
         .create_comment_reply(&reply_params, reply_path.as_deref(), &comment_text)
         .await
@@ -887,6 +891,10 @@ pub async fn like_comment(
     youtube_service: State<'_, YoutubeService>,
     endpoint_json: String,
 ) -> Result<(), ErrorResponse> {
+    // Info-level, so a diagnostics log shows whether a tap ever reached the
+    // backend: success leaves no other trace, and a silent frontend
+    // early-return leaves none at all.
+    info!("like_comment invoked");
     youtube_service
         .like_comment(&endpoint_json)
         .await

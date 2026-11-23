@@ -44,6 +44,7 @@ const video = {
 let latest: ReturnType<typeof useVideoReactions>;
 let root: Root;
 let meta: {
+  id?: string | null;
   likeParams?: string | null;
   removeLikeParams?: string | null;
   dislikeParams?: string | null;
@@ -62,7 +63,7 @@ beforeEach(() => {
   getAccountSignedIn.mockResolvedValue(false);
   setVideoLiked.mockResolvedValue(true);
   useLikesStore.setState({ items: [], loaded: true });
-  useUiStore.setState({ toast: null });
+  useUiStore.setState({ toast: null, signInDialogOpen: false });
   root = createRoot(document.createElement("div"));
 });
 
@@ -105,14 +106,27 @@ describe("useVideoReactions server confirmation", () => {
     await vi.waitFor(() => expect(useLikesStore.getState().items).toEqual([]));
   });
 
-  it("stays local-only when signed out", async () => {
+  it("opens sign-in instead of toggling locally when signed out", async () => {
     await renderHarness();
     await act(async () => {
       await latest.like();
     });
+    expect(useUiStore.getState().signInDialogOpen).toBe(true);
     expect(setVideoLiked).not.toHaveBeenCalled();
-    expect(latest.state).toBe("liked");
+    expect(latest.state).toBe("none");
     expect(latest.likeDelta).toBe(0);
+    expect(useLikesStore.getState().items).toEqual([]);
+  });
+
+  it("opens sign-in instead of disliking locally when signed out", async () => {
+    await renderHarness();
+    await act(async () => {
+      await latest.dislike();
+    });
+    expect(useUiStore.getState().signInDialogOpen).toBe(true);
+    expect(setVideoDisliked).not.toHaveBeenCalled();
+    expect(latest.state).toBe("none");
+    expect(latest.dislikeDelta).toBe(0);
   });
 
   it("a dislike registers on the account and moves the dislike count", async () => {
@@ -177,6 +191,7 @@ describe("useVideoReactions server confirmation", () => {
   it("passes the harvested like params to the server", async () => {
     getAccountSignedIn.mockResolvedValue(true);
     meta = {
+      id: "vid00000001",
       likeParams: "LIKE_PARAMS",
       removeLikeParams: "REMOVE_PARAMS",
       dislikeParams: "DISLIKE_PARAMS",
@@ -191,5 +206,27 @@ describe("useVideoReactions server confirmation", () => {
       await latest.dislike();
     });
     await vi.waitFor(() => expect(setVideoDisliked).toHaveBeenCalledWith("vid00000001", "DISLIKE_PARAMS"));
+  });
+
+  it("drops the harvested params when they belong to another video", async () => {
+    getAccountSignedIn.mockResolvedValue(true);
+    // Details that arrived for the previous video after a fast navigation:
+    // sending its tokens with this video's id is a call the server refuses.
+    meta = {
+      id: "other0000000",
+      likeParams: "STALE_LIKE_PARAMS",
+      removeLikeParams: "STALE_REMOVE_PARAMS",
+      dislikeParams: "STALE_DISLIKE_PARAMS",
+      removeDislikeParams: "STALE_DISLIKE_REMOVE_PARAMS",
+    };
+    await renderHarness();
+    await act(async () => {
+      await latest.like();
+    });
+    await vi.waitFor(() => expect(setVideoLiked).toHaveBeenCalledWith("vid00000001", true, null));
+    await act(async () => {
+      await latest.dislike();
+    });
+    await vi.waitFor(() => expect(setVideoDisliked).toHaveBeenCalledWith("vid00000001", null));
   });
 });

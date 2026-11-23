@@ -6,7 +6,7 @@ import { ToggleSwitch } from "../ui/ToggleSwitch";
 import { CommentItem } from "./CommentItem";
 import { GoogleSignInDialog } from "../GoogleSignInDialog";
 import { useVideoComments } from "../../lib/useVideoComments";
-import { useGoogleAccount } from "../../lib/useGoogleAccount";
+import { googleAccountDisplayName, useGoogleAccount } from "../../lib/useGoogleAccount";
 import { useUiStore } from "../../store/useUiStore";
 import { useTimedComments } from "../../lib/useTimedComments";
 import { useTimedFollow } from "../../lib/useTimedFollow";
@@ -44,8 +44,14 @@ export function CommentsSection({
   fill = false,
   onClose,
 }: CommentsSectionProps) {
-  const thread = useVideoComments(videoId, { postId, postCommentParams });
-  const { status } = useGoogleAccount();
+  const { status, account } = useGoogleAccount();
+  const thread = useVideoComments(videoId, {
+    postId,
+    postCommentParams,
+    ownIdentity: account
+      ? { name: googleAccountDisplayName(account), thumbnailUrl: account.thumbnailUrl }
+      : null,
+  });
   const [filter, setFilter] = useState<CommentFilter>("top");
   const [draft, setDraft] = useState("");
   // The sign-in dialog lives here, not behind the top-bar store flag:
