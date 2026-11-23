@@ -22,16 +22,17 @@ import { useSystemDarkMode } from "./useSystemDarkMode";
 import { useThemeFileSync } from "./useThemeFile";
 import { useAppFont } from "./appFont";
 import { profileStorage } from "./storage/profileStorage";
+import { useGlassThemeActive } from "./glassTheme";
 
 /** Read before the app loads by public/boot-theme.js. */
-const BOOT_THEME_KEY = "youglidetube_boot_theme";
+export const BOOT_THEME_KEY = "youglidetube_boot_theme";
 
 /** Remembers the theme this install shows, for its next first paint. */
-function saveBootTheme(themeId: string, colors: ThemeColors, variant: ThemeVariant): void {
+function saveBootTheme(themeId: string, colors: ThemeColors, variant: ThemeVariant, glass: boolean): void {
   try {
     profileStorage.setItem(
       BOOT_THEME_KEY,
-      JSON.stringify({ themeId, variant, variables: themeCssVariables(colors, variant) }),
+      JSON.stringify({ themeId, variant, glass, variables: themeCssVariables(colors, variant) }),
     );
   } catch {
     // Storage full or blocked: the next start just paints the stylesheet defaults first.
@@ -91,13 +92,14 @@ export function useTheme() {
 export function ThemeController() {
   const { theme, themeId, variant, followSystem } = useTheme();
   const settingsLoaded = useAppSettingsStore((state) => state.loaded);
+  const glassActive = useGlassThemeActive();
   useThemeFileSync(themeId === THEME_FILE_ID);
 
   // Only once settings are in: the schema defaults shown before must not replace the snapshot.
   useEffect(() => {
     if (!settingsLoaded) return;
-    saveBootTheme(theme.id, theme.variants[variant] ?? DEFAULT_THEME.variants.dark, variant);
-  }, [settingsLoaded, theme, variant]);
+    saveBootTheme(theme.id, theme.variants[variant] ?? DEFAULT_THEME.variants.dark, variant, glassActive);
+  }, [settingsLoaded, theme, variant, glassActive]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -112,15 +114,16 @@ export function ThemeController() {
     let disposed = false;
     const appWindow = getCurrentWindow();
     // A window forced to a mode makes the system query report that mode, so Follow system lets go of it.
+    // With glass on, the native background goes transparent so the vibrancy shows through.
     void appWindow.setTheme(followSystem ? null : variant === "light" ? "light" : "dark")
       .then(async () => {
-        if (!disposed) await setNativeWindowBackground(colors.background);
+        if (!disposed) await setNativeWindowBackground(glassActive ? "#00000000" : colors.background);
       })
       .catch((cause) => {
         void logToBackend("warn", "native window appearance failed", { cause: String(cause) });
       });
     return () => { disposed = true; };
-  }, [followSystem, theme, variant]);
+  }, [followSystem, theme, variant, glassActive]);
 
   useAppFont();
 

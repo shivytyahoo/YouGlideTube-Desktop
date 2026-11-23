@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { recentUploadsPerChannel, useSubscriptionFeed } from "./useSubscriptionFeed";
 import { setSetting } from "./api/db";
 import { streamSubscriptionRssFeed, type SubscriptionRssFeed } from "./api/youtube";
+import { useUiStore } from "../store/useUiStore";
 import type { VideoSummary } from "../types/video";
 
 vi.mock("./api/youtube", () => ({
@@ -110,6 +111,35 @@ describe("refreshing the whole feed", () => {
     await act(async () => finish());
     expect(hook.videos.map((v) => v.id)).toEqual(["new1", "old1", "old2"]);
     expect(hook.scanProgress).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("refetches when the top-bar refresh button is pressed", async () => {
+    // Fresh channel ids: the module-level feed cache is shared with the
+    // tests above, so reusing their ids would serve their cached feed.
+    vi.mocked(streamSubscriptionRssFeed).mockClear();
+    vi.mocked(streamSubscriptionRssFeed).mockImplementationOnce(async (_ids, onFeed) => {
+      onFeed(batch([upload("old1", "e")], 2));
+    });
+    let hook!: ReturnType<typeof useSubscriptionFeed>;
+    const channels = [{ id: "e" }, { id: "f" }] as Parameters<typeof useSubscriptionFeed>[0];
+    function Probe() {
+      hook = useSubscriptionFeed(channels);
+      return null;
+    }
+    const root = createRoot(document.createElement("div"));
+    await act(async () => root.render(createElement(Probe)));
+    expect(hook.videos.map((v) => v.id)).toEqual(["old1"]);
+    expect(vi.mocked(streamSubscriptionRssFeed)).toHaveBeenCalledTimes(1);
+
+    vi.mocked(streamSubscriptionRssFeed).mockImplementationOnce(async (_ids, onFeed) => {
+      onFeed(batch([upload("new1", "e")], 2));
+    });
+    await act(async () => {
+      useUiStore.setState((state) => ({ pageRefreshNonce: state.pageRefreshNonce + 1 }));
+    });
+    expect(vi.mocked(streamSubscriptionRssFeed)).toHaveBeenCalledTimes(2);
+    expect(hook.videos.map((v) => v.id)).toEqual(["new1"]);
     await act(async () => root.unmount());
   });
 });

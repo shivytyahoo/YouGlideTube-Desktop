@@ -142,6 +142,18 @@ export function elapsedOrRemaining(current: number, duration: number, remaining:
   return remaining && duration > 0 ? `-${formatTime(Math.max(0, duration - current))}` : formatTime(current);
 }
 
+/** The bar's width tiers: which buttons fit, by the width of the glass panel holding the bar. */
+export type ControlsTier = 0 | 1 | 2;
+/** The full row (every button, plus the volume slider opening on hover) needs about this much. */
+export const CONTROLS_TIER_FULL_WIDTH = 960;
+/** Below this the bar also drops the quality label, theater and prev/next buttons. */
+export const CONTROLS_TIER_COMPACT_WIDTH = 690;
+export function controlsTierForWidth(width: number): ControlsTier {
+  if (width >= CONTROLS_TIER_FULL_WIDTH) return 0;
+  if (width >= CONTROLS_TIER_COMPACT_WIDTH) return 1;
+  return 2;
+}
+
 function formatTime(value: number) {
   if (!Number.isFinite(value) || value < 0) return "0:00";
   const total = Math.floor(value);
@@ -315,6 +327,27 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   const hoverPreviewRef = useRef<HTMLDivElement>(null);
   const liveDotRef = useRef<HTMLSpanElement>(null);
   const timePillRef = useRef<HTMLDivElement>(null);
+  // On a narrow player the full row is wider than the bar, and the time pill
+  // used to slide under the right-hand group (ending up behind the autoplay
+  // switch). The bar sheds its least-used buttons as the panel narrows —
+  // they all live in the settings menu too — so the row always fits.
+  const glassRef = useRef<HTMLDivElement>(null);
+  const [controlsTier, setControlsTier] = useState<ControlsTier>(0);
+  useEffect(() => {
+    const glass = glassRef.current;
+    if (!glass || typeof ResizeObserver === "undefined") return;
+    const update = () => {
+      // A zero width means no layout (jsdom, or not laid out yet): stay full
+      // rather than hiding buttons on a guess.
+      if (glass.clientWidth <= 0) return;
+      const next = controlsTierForWidth(glass.clientWidth);
+      setControlsTier((prev) => (prev === next ? prev : next));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(glass);
+    return () => observer.disconnect();
+  }, []);
   const proxyBase = useImageProxyStore((state) => state.base);
   const previewLevel = pickStoryboardLevel(storyboard);
   const previewHeight = previewLevel ? storyboardTileHeight(previewLevel) : 0;
@@ -598,6 +631,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
         )}
       >
         <div
+          ref={glassRef}
           className={`glass ${controlsLocked ? "pointer-events-none opacity-60" : "pointer-events-auto"} rounded-youglide border px-3 py-2`}
           onClick={(event) => event.stopPropagation()}
         >
@@ -739,9 +773,9 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-              {showNextPrevious && (
+          <div className="flex min-w-0 items-center justify-between gap-3 overflow-hidden">
+            <div className="flex min-w-0 items-center gap-1 overflow-hidden sm:gap-2 [&>*]:shrink-0">
+              {showNextPrevious && controlsTier < 2 && (
                 <button
                   type="button"
                   title={getString('previous')}
@@ -785,7 +819,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                   </button>
                 </>
               )}
-              {showNextPrevious && (
+              {showNextPrevious && controlsTier < 2 && (
                 <button
                   type="button"
                   title={getString('next')}
@@ -797,7 +831,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
               )}
 
               {showVolume && (
-              <div ref={volumeWheelRef} className="group/volume hidden items-center sm:flex bg-chrome-black/20 rounded-full hover:pr-2">
+              <div ref={volumeWheelRef} className={cx("group/volume hidden items-center sm:flex bg-chrome-black/20 rounded-full", controlsTier === 0 && "hover:pr-2")}>
                 <button
                   type="button"
                   title={getString('music_mute')}
@@ -812,7 +846,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                     <Volume2 size={19} />
                   )}
                 </button>
-                <div className="w-0 overflow-hidden opacity-0 transition-all group-hover/volume:w-20 group-hover/volume:opacity-100">
+                <div className={cx("w-0 overflow-hidden opacity-0 transition-all", controlsTier === 0 && "group-hover/volume:w-20 group-hover/volume:opacity-100")}>
                   <Slider
                     aria-label={getString('music_volume')}
                     min={0}
@@ -867,7 +901,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
               </button>
             </div>
 
-            <div className="flex items-center gap-1 sm:gap-2 bg-chrome-black/20 rounded-full px-1 py-1">
+            <div className="flex shrink-0 items-center gap-1 bg-chrome-black/20 rounded-full px-1 py-1 sm:gap-2 [&>*]:shrink-0">
               {isFullscreen && showChapters && (
                 <button
                   type="button"
@@ -916,7 +950,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                   <MessagesSquare size={19} />
                 </button>
               )}
-              {sbSubmitEnabled && currentVideo && showSponsorBlock && (
+              {sbSubmitEnabled && currentVideo && showSponsorBlock && controlsTier === 0 && (
                 <button
                   type="button"
                   title={getString('player_submit_sponsorblock_segment')}
@@ -947,7 +981,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                   <Repeat size={19} />
                 </button>
               )}
-              {showQuality && (
+              {showQuality && controlsTier < 2 && (
               <button
                 type="button"
                 {...{ [PLAYER_MENU_OWNER_ATTR]: "" }}
@@ -966,7 +1000,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                 {qualityLabel(selectedQualityId || "auto", supportedQualities, activeQualityLabel)}
               </button>
               )}
-              {showCaptions && (
+              {showCaptions && controlsTier === 0 && (
               <button
                 type="button"
                 {...{ [PLAYER_MENU_OWNER_ATTR]: "" }}
@@ -989,7 +1023,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                 <Captions size={19} />
               </button>
               )}
-              {showSpeedIndicator && (
+              {showSpeedIndicator && controlsTier === 0 && (
               <button
                 type="button"
                 title={getString("settings_button_speed_indicator")}
@@ -1008,7 +1042,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                 {`${playbackRate}×`}
               </button>
               )}
-              {showSleepTimer && (
+              {showSleepTimer && controlsTier === 0 && (
               <button
                 type="button"
                 title={getString("sleep_timer")}
@@ -1027,7 +1061,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                 <Timer size={19} />
               </button>
               )}
-              {showLock && (
+              {showLock && controlsTier === 0 && (
               <button
                 type="button"
                 title={getString(controlsLocked ? "settings_button_lock_unlock" : "settings_button_lock")}
@@ -1063,7 +1097,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                   }
                 />
               </button>
-              {showPipButton && (
+              {showPipButton && controlsTier === 0 && (
                 <button
                   type="button"
                   title={getString('player_picture_in_picture')}
@@ -1076,7 +1110,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
                   <PictureInPicture2 size={19} />
                 </button>
               )}
-              {!isFullscreen && showTheater && (
+              {!isFullscreen && showTheater && controlsTier < 2 && (
                 <button
                   type="button"
                   title={getString('player_theater_mode')}

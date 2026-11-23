@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Heart, Loader2, MoreVertical, Pin, ThumbsUp, Trash2 } from "lucide-react";
+import { Heart, Loader2, MoreVertical, Pin, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
 import { ChannelLabel } from "../video/CardMeta";
 import { LinkedText } from "./LinkedText";
 import { Button } from "../ui/Button";
@@ -114,17 +114,26 @@ function ReplyComposer({
 
 /** One comment or reply: author line with its badges, text, likes and the creator's heart.
  * A comment that carries a reply token offers a Reply box; the viewer's own comment
- * offers Delete behind its options menu, after a confirm dialog. */
+ * offers Delete behind its options menu, after a confirm dialog. A comment that
+ * carries vote tokens offers Like and Dislike buttons, as Android's toolbar does;
+ * without them the like count stays a static label, as before. */
 export function CommentItem({
   comment,
   reply = false,
   onPostReply,
   onDelete,
+  onToggleLike,
+  onToggleDislike,
+  deleteError,
 }: {
   comment: Comment;
   reply?: boolean;
   onPostReply?: (comment: Comment, text: string) => Promise<boolean>;
   onDelete?: (comment: Comment) => Promise<boolean>;
+  onToggleLike?: (comment: Comment) => void;
+  onToggleDislike?: (comment: Comment) => void;
+  /** The real reason this comment's last delete failed, when it failed. */
+  deleteError?: string | null;
 }) {
   const navigate = useNavigate();
   const openAuthor = () => comment.authorChannelId && navigate(`/channel/${comment.authorChannelId}`);
@@ -136,6 +145,8 @@ export function CommentItem({
 
   const canReply = Boolean(comment.replyParams && onPostReply);
   const canDelete = Boolean(comment.isOwn && comment.deleteAction && onDelete);
+  const canVote = Boolean(onToggleLike && (comment.likeAction || comment.unlikeAction));
+  const canDislike = Boolean(onToggleDislike && (comment.dislikeAction || comment.undislikeAction));
 
   const askDelete = async () => {
     setMenuAnchor(null);
@@ -185,12 +196,42 @@ export function CommentItem({
           comment={comment}
           className={`mt-1 select-text text-chrome-neutral-200 ${reply ? "font-normal" : "text-sm"}`}
         />
-        {(likes || comment.isHearted || canReply || canDelete) && (
+        {(likes || canVote || canDislike || comment.isHearted || canReply || canDelete) && (
           <div className={`mt-2 flex items-center gap-3 text-chrome-neutral-400 ${reply ? "text-[10px]" : "text-xs"}`}>
-            {likes && (
-              <span className="flex items-center gap-1">
-                <ThumbsUp size={reply ? 10 : 12} /> {likes}
-              </span>
+            {canVote ? (
+              <button
+                type="button"
+                aria-label={getString("like")}
+                aria-pressed={comment.isLiked}
+                onClick={() => onToggleLike!(comment)}
+                className="flex cursor-pointer items-center gap-1 transition-colors duration-200 ease-out hover:text-chrome-neutral-100"
+              >
+                <ThumbsUp
+                  size={reply ? 10 : 12}
+                  className={comment.isLiked ? "fill-primary text-primary" : ""}
+                />{" "}
+                {likes}
+              </button>
+            ) : (
+              likes && (
+                <span className="flex items-center gap-1">
+                  <ThumbsUp size={reply ? 10 : 12} /> {likes}
+                </span>
+              )
+            )}
+            {canDislike && (
+              <button
+                type="button"
+                aria-label={getString("watch_dislike")}
+                aria-pressed={comment.isDisliked}
+                onClick={() => onToggleDislike!(comment)}
+                className="grid cursor-pointer place-items-center transition-colors duration-200 ease-out hover:text-chrome-neutral-100"
+              >
+                <ThumbsDown
+                  size={reply ? 10 : 12}
+                  className={comment.isDisliked ? "fill-primary text-primary" : ""}
+                />
+              </button>
             )}
             {comment.isHearted && (
               <span title={comment.heartedByText ?? undefined} aria-label={comment.heartedByText ?? getString("comment_hearted")}>
@@ -223,9 +264,11 @@ export function CommentItem({
             )}
           </div>
         )}
-        {deleteFailed && (
+        {deleteError ? (
+          <p className="mt-2 text-sm text-chrome-red-400">{deleteError}</p>
+        ) : deleteFailed ? (
           <p className="mt-2 text-sm text-chrome-red-400">{getString("comment_delete_failed")}</p>
-        )}
+        ) : null}
         {showComposer && canReply && (
           <ReplyComposer
             onSubmit={(text) => onPostReply!(comment, text)}

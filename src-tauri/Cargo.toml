@@ -105,6 +105,9 @@ tauri-winrt-notification = "0.8"
 windows-registry = "0.100"
 # Core Audio and the process snapshot name YouGlideTube's WebView2 audio in the volume mixer.
 windows = { version = "0.62", features = [
+  "Foundation",
+  "Globalization",
+  "Media_SpeechRecognition",
   "Win32_Foundation",
   "Win32_UI_Shell",
   "Win32_UI_Shell_Common",
@@ -118,6 +121,9 @@ windows = { version = "0.62", features = [
   "Win32_System_Diagnostics_ToolHelp",
 ] }
 windows-core = "0.62"
+# WinRT async operations (IAsyncOperation/AsyncStatus) live in this crate
+# since windows 0.58; voice search polls the recognition operation through it.
+windows-future = "0.3"
 
 # Single-instance: forward a second `youglidetube://` launch to the running window
 # instead of spawning a duplicate. The "deep-link" feature makes it hand the

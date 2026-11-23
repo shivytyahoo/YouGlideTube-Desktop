@@ -54,6 +54,26 @@ pub struct Comment {
     /// carried a delete.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delete_action: Option<String>,
+    /// The toolbar's vote commands (`likeCommand` / `unlikeCommand` /
+    /// `dislikeCommand` / `undislikeCommand`), each a bare
+    /// `performCommentActionEndpoint` object as raw JSON to replay verbatim.
+    /// Null when the comment carries no vote.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub like_action: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unlike_action: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dislike_action: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub undislike_action: Option<String>,
+    /// The viewer's vote on this comment, from the toolbar state.
+    #[serde(default)]
+    pub is_liked: bool,
+    #[serde(default)]
+    pub is_disliked: bool,
+    /// "26K", as the comment shows it when liked.
+    #[serde(default)]
+    pub like_count_liked_text: Option<String>,
 }
 
 /// One way to order the comments, and the token that loads them that way.

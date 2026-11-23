@@ -2098,6 +2098,8 @@ impl InnertubeClient {
             like_count_text: primary.like_count_text,
             like_params: primary.like_params,
             remove_like_params: primary.remove_like_params,
+            dislike_params: primary.dislike_params,
+            remove_dislike_params: primary.remove_dislike_params,
             view_count_text: primary.view_count_text,
             published_text: primary
                 .published_text

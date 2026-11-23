@@ -21,6 +21,7 @@
         "minHeight": 360,
         "maximized": true,
         "decorations": false,
+        "transparent": true,
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required",
         "generalAutofillEnabled": false
       }

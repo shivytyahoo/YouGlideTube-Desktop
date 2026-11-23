@@ -55,6 +55,24 @@ pub enum AppError {
     #[error("No match found: {0}")]
     RecognitionNoMatch(String),
 
+    /// The OS speech recognizer heard nothing usable — silence, or speech it
+    /// could not turn into words. The UI offers "try again".
+    #[error("No speech recognised: {0}")]
+    VoiceSearchNoSpeech(String),
+
+    /// The OS speech recognizer refused microphone access.
+    #[error("Microphone access denied for voice search: {0}")]
+    VoiceSearchDenied(String),
+
+    /// No OS speech recognizer is installed or reachable on this machine.
+    #[error("Voice search is not available: {0}")]
+    VoiceSearchUnavailable(String),
+
+    /// This platform has no native speech recognizer; the frontend falls back
+    /// to the web recognizer where one exists.
+    #[error("No native voice search on this platform: {0}")]
+    VoiceSearchUnsupported(String),
+
     /// The server asked the app to slow down (HTTP 429).
     #[error("Rate limited: {0}")]
     RateLimited(String),
@@ -181,6 +199,10 @@ impl From<AppError> for ErrorResponse {
             AppError::ContentNotAvailable(_) => "contentNotAvailable",
             AppError::Network(_) => "network",
             AppError::RecognitionNoMatch(_) => "recognitionNoMatch",
+            AppError::VoiceSearchNoSpeech(_) => "voiceSearchNoSpeech",
+            AppError::VoiceSearchDenied(_) => "voiceSearchDenied",
+            AppError::VoiceSearchUnavailable(_) => "voiceSearchUnavailable",
+            AppError::VoiceSearchUnsupported(_) => "voiceSearchUnsupported",
             AppError::RateLimited(_) => "rateLimited",
             AppError::Database(_) => "database",
             AppError::ScrobbleSignInRejected(_) => "scrobbleSignInRejected",
@@ -240,6 +262,22 @@ mod tests {
             (
                 AppError::RecognitionNoMatch("m".into()),
                 "recognitionNoMatch",
+            ),
+            (
+                AppError::VoiceSearchNoSpeech("s".into()),
+                "voiceSearchNoSpeech",
+            ),
+            (
+                AppError::VoiceSearchDenied("d".into()),
+                "voiceSearchDenied",
+            ),
+            (
+                AppError::VoiceSearchUnavailable("u".into()),
+                "voiceSearchUnavailable",
+            ),
+            (
+                AppError::VoiceSearchUnsupported("p".into()),
+                "voiceSearchUnsupported",
             ),
             (AppError::MembersOnly("m".into()), "membersOnly"),
             (AppError::NetworkWall("w".into()), "networkWall"),

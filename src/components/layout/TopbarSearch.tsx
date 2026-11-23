@@ -20,7 +20,7 @@ import { useSearchHistoryStore, useVisibleSearchHistory, type SearchHistoryScope
 import { useSettingsSearchStore } from '../../store/useSettingsSearchStore';
 import type { SearchFilterState } from '../../lib/searchFilterState';
 import { useRunSearch } from '../../lib/useRunSearch';
-import { startVoiceSearch, type VoiceSearchHandle } from '../../lib/voiceSearch';
+import { startVoiceSearch, voiceSearchErrorKey, type VoiceSearchHandle } from '../../lib/voiceSearch';
 import { useUiStore } from '../../store/useUiStore';
 
 const SHORTCUT_LABEL = IS_MACOS_RUNTIME ? '⌘K' : 'Ctrl K';
@@ -140,7 +140,7 @@ export function TopbarSearch() {
     }
     const handle = startVoiceSearch({
       onTranscript: (spoken) => runTextSearch(spoken),
-      onError: () => showToast({ variant: 'error', message: getString('search_voice_unavailable') }),
+      onError: (error) => showToast({ variant: 'error', message: getString(voiceSearchErrorKey(error, 'search')) }),
       onEnd: () => {
         setListening(false);
         voiceRef.current = null;

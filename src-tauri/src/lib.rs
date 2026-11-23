@@ -52,7 +52,8 @@ use commands::account::{
     create_server_playlist, delete_server_playlist, get_liked_videos, get_server_history,
     get_server_home_feed, get_server_playlists, get_server_subscriptions, get_watch_later,
     merge_watch_history, remove_video_from_server_playlist, remove_videos_from_server_playlist,
-    rename_server_playlist, set_channel_subscribed, set_video_liked, set_video_watch_later,
+    rename_server_playlist, set_channel_subscribed, set_video_disliked, set_video_liked,
+    set_video_watch_later,
 };
 use commands::app_window::{AppWindowSession, AppWindowState, app_window_session, open_app_window};
 use commands::backup::{export_backup_data, import_backup_data};
@@ -121,6 +122,7 @@ use commands::pip::{
 };
 use commands::process::relaunch_app;
 use commands::recognition::recognize_song;
+use commands::voice_search::{voice_search_cancel, voice_search_listen};
 use commands::scrobble::{
     scrobble_flush, scrobble_listened, scrobble_love, scrobble_now_playing,
     scrobble_retry_keychain, scrobble_set_own_key, scrobble_sign_in, scrobble_sign_out,
@@ -142,7 +144,8 @@ use commands::youtube::{
     get_live_chat, get_mix_playlist, get_more_related_videos, get_non_music_segments,
     get_original_title, get_paid_promotion, get_playlist_details, get_post_comments,
     get_related_videos, get_return_youtube_dislike, get_sabr_debug_state,
-    get_search_suggestions, get_sponsorblock_segments, get_stream_info, like_post,
+    get_search_suggestions, get_sponsorblock_segments, get_stream_info, like_comment,
+    like_post,
     get_subscription_rotation_feed, get_subscription_rss_feed, get_unplayable_video_ids,
     get_video_category, get_video_details, get_video_metadata, get_video_storyboard,
     parse_subscription_export, resolve_channel_id, scan_subscription_collaborations, search_videos,
@@ -623,6 +626,7 @@ pub fn run() {
             create_comment,
             create_comment_reply,
             delete_comment,
+            like_comment,
             like_post,
             get_live_chat,
             send_live_chat_message,
@@ -653,6 +657,7 @@ pub fn run() {
             get_server_home_feed,
             set_channel_subscribed,
             set_video_liked,
+            set_video_disliked,
             get_server_history,
             merge_watch_history,
             clear_server_history,
@@ -781,6 +786,7 @@ pub fn run() {
             updates_supported,
             set_player_fullscreen,
             commands::window::set_window_background,
+            commands::window::set_glass_theme,
             commands::app_font::save_custom_font,
             commands::app_font::read_custom_font,
             commands::theme::theme_file_state,
@@ -824,6 +830,8 @@ pub fn run() {
             set_music_liked,
             set_music_playlist_saved,
             recognize_song,
+            voice_search_listen,
+            voice_search_cancel,
             get_music_artist_page,
             get_music_playlist_page,
             get_music_playlist_continuation,

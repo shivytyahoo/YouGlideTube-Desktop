@@ -4,6 +4,7 @@ import { Button } from "../ui/Button";
 import { Chip } from "../ui/Chip";
 import { ToggleSwitch } from "../ui/ToggleSwitch";
 import { CommentItem } from "./CommentItem";
+import { GoogleSignInDialog } from "../GoogleSignInDialog";
 import { useVideoComments } from "../../lib/useVideoComments";
 import { useGoogleAccount } from "../../lib/useGoogleAccount";
 import { useUiStore } from "../../store/useUiStore";
@@ -47,6 +48,18 @@ export function CommentsSection({
   const { status } = useGoogleAccount();
   const [filter, setFilter] = useState<CommentFilter>("top");
   const [draft, setDraft] = useState("");
+  // The sign-in dialog lives here, not behind the top-bar store flag:
+  // the prompt's store call opened nothing on a real machine, while the
+  // top bar's own dialog (local state, same component) works. Rendered
+  // locally, the prompt opens the dialog it can see.
+  const [signInOpen, setSignInOpen] = useState(false);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  // Set when the prompt was the way in: after a sign-in the box takes
+  // focus, so the user lands back ready to type. Cleared when the dialog
+  // closes without a sign-in, or once the box has taken focus.
+  const focusAfterSignIn = useRef(false);
+  const statusRef = useRef(status);
+  statusRef.current = status;
   useEffect(() => {
     setFilter("top");
     setDraft("");
@@ -81,6 +94,26 @@ export function CommentsSection({
   // The Timed list scrolls by itself, so following it never moves the page or the player.
   const listClass = fill ? "min-h-0 flex-1 overflow-y-auto pe-1" : isTimed ? "max-h-[70vh] overflow-y-auto pe-1" : "";
 
+  /** The list was fetched as a guest while signed out, so it carries no
+   * comment box token: a sign-in reloads it signed-in, and only then does
+   * the composer appear. A list that already had a token needs no reload. */
+  const prevStatusRef = useRef(status);
+  useEffect(() => {
+    if (prevStatusRef.current !== "signed-in" && status === "signed-in" && !thread.createCommentParams) {
+      thread.refresh();
+    }
+    prevStatusRef.current = status;
+  }, [status, thread.createCommentParams, thread.refresh]);
+
+  /** After a sign-in from the prompt, the composer takes focus once its
+   * token has arrived — the user lands back ready to type. */
+  useEffect(() => {
+    if (thread.createCommentParams && focusAfterSignIn.current) {
+      focusAfterSignIn.current = false;
+      composerRef.current?.focus();
+    }
+  }, [thread.createCommentParams]);
+
   /** A reply posts through the thread and reports back; success toasts like a top-level post. */
   const postReply = async (comment: Comment, text: string) => {
     const ok = await thread.postReply(comment, text);
@@ -98,6 +131,9 @@ export function CommentsSection({
           reply
           onPostReply={postReply}
           onDelete={async (comment) => thread.deleteComment(comment.id)}
+          onToggleLike={(comment) => void thread.toggleCommentLike(comment)}
+          onToggleDislike={(comment) => void thread.toggleCommentDislike(comment)}
+          deleteError={thread.deleteError?.id === node.comment.id ? thread.deleteError.message : null}
         />
         {node.children.length > 0 && (
           <div className="ms-4 space-y-4 border-s-2 border-chrome-neutral-800 ps-4">
@@ -162,6 +198,7 @@ export function CommentsSection({
       {!thread.disabled && !loading && thread.createCommentParams ? (
         <div className="space-y-2">
           <textarea
+            ref={composerRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder={getString("comment_post_placeholder")}
@@ -191,7 +228,10 @@ export function CommentsSection({
       ) : !thread.disabled && !loading && !thread.createCommentParams && status === "signed-out" ? (
         <button
           type="button"
-          onClick={() => useUiStore.getState().openSignInDialog()}
+          onClick={() => {
+            focusAfterSignIn.current = true;
+            setSignInOpen(true);
+          }}
           className="text-sm font-medium text-primary hover:underline"
         >
           {getString("comment_sign_in")}
@@ -220,7 +260,14 @@ export function CommentsSection({
                   c.id === anchorId ? "bg-surface-container-high" : ""
                 }`}
               >
-                <CommentItem comment={c} onPostReply={postReply} onDelete={async (comment) => thread.deleteComment(comment.id)} />
+                <CommentItem
+                  comment={c}
+                  onPostReply={postReply}
+                  onDelete={async (comment) => thread.deleteComment(comment.id)}
+                  onToggleLike={(comment) => void thread.toggleCommentLike(comment)}
+                  onToggleDislike={(comment) => void thread.toggleCommentDislike(comment)}
+                  deleteError={thread.deleteError?.id === c.id ? thread.deleteError.message : null}
+                />
                 <div className="ms-14">
                   {(c.continuationToken || (c.replyCount != null && c.replyCount > 0)) && (
                     <button
@@ -282,6 +329,16 @@ export function CommentsSection({
             </div>
           )}
         </div>
+      )}
+
+      {signInOpen && (
+        <GoogleSignInDialog
+          onClose={() => {
+            setSignInOpen(false);
+            // A dismissal without a sign-in leaves no box to land in.
+            if (statusRef.current !== "signed-in") focusAfterSignIn.current = false;
+          }}
+        />
       )}
     </div>
   );

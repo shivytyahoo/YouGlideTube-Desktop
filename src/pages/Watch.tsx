@@ -15,6 +15,7 @@ import { usePlaybackSettled } from "../lib/usePlaybackSettled";
 import { useRelatedLane } from "../lib/useRelatedLane";
 import { useUnseenFilter } from "../lib/useUnseenFilter";
 import { autoplayCandidates, relatedItemToVideoSummary } from "../lib/relatedLane";
+import { isVideoId } from "../lib/youtubeUrl";
 import { decideWatchRouteSync } from "../lib/watchRouteSync";
 import { WatchNote } from "../components/note/WatchNote";
 import {
@@ -213,14 +214,18 @@ export function Watch() {
             console.warn("Failed to resolve related playlist", error);
           }
         }
-        if (item.videoId) {
+        if (item.videoId && isVideoId(item.videoId)) {
           setQueue([relatedItemToVideoSummary(item)], 0);
           navigate(`/watch/${item.videoId}`);
         }
         return;
       }
 
+      // A promo/upsell card is not a video: its id must never reach the
+      // player, so a tap on one does nothing instead of opening a broken
+      // watch page (the parser already drops these, this is the backstop).
       const targetVideoId = item.videoId || item.id;
+      if (!isVideoId(targetVideoId)) return;
       setQueue([relatedItemToVideoSummary(item)], 0);
       navigate(`/watch/${targetVideoId}`);
     },

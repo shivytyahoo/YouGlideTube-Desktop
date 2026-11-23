@@ -9,7 +9,7 @@ import { MusicItemCard } from "../../components/music/MusicItemCard";
 import { getString } from "../../lib/i18n/index";
 import { MUSIC_SEARCH_FILTERS, useMusicSearch, type MusicSearchFilter } from "../../lib/useMusicSearch";
 import { useMusicMoods } from "../../lib/useMusicMoods";
-import { startVoiceSearch, type VoiceSearchHandle } from "../../lib/voiceSearch";
+import { startVoiceSearch, voiceSearchErrorKey, type VoiceSearchHandle } from "../../lib/voiceSearch";
 import { musicSeeAllRoute } from "../../lib/musicRoutes";
 import { episodeAsSong } from "../../lib/searchResults";
 import { useUiStore } from "../../store/useUiStore";
@@ -48,9 +48,14 @@ export default function MusicSearchPage() {
   };
 
   const handleVoiceSearch = () => {
+    // Tapping again while listening stops it, like the top-bar mic.
+    if (listening) {
+      voiceRef.current?.stop();
+      return;
+    }
     const handle = startVoiceSearch({
       onTranscript: (spoken) => search.performSearch(spoken),
-      onError: () => showToast({ variant: "error", message: getString("music_search_voice_unavailable") }),
+      onError: (error) => showToast({ variant: "error", message: getString(voiceSearchErrorKey(error, "music")) }),
       onEnd: () => {
         setListening(false);
         voiceRef.current = null;

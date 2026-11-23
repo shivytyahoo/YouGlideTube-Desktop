@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CircleUserRound, HatGlasses, LogOut, PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, CircleUserRound, HatGlasses, LogOut, PanelLeftClose, PanelLeftOpen, RefreshCw, Settings } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '../ui/Button';
 import { GoogleSignInDialog } from '../GoogleSignInDialog';
 import { usePlayerStore } from '../../store/usePlayerStore';
@@ -47,6 +47,20 @@ export function Topbar() {
   const googleAccount = useGoogleAccount();
   const [signInOpen, setSignInOpen] = useState(false);
   const [signInMode, setSignInMode] = useState<"sign-in" | "add-account">("sign-in");
+  const requestPageRefresh = useUiStore((s) => s.requestPageRefresh);
+  // Brief spinner feedback while the page reloads; the store itself guards
+  // against double-taps remounting the page twice.
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+  }, []);
+  const handleRefresh = useCallback(() => {
+    requestPageRefresh();
+    setRefreshing(true);
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => setRefreshing(false), 900);
+  }, [requestPageRefresh]);
   const signInDialogOpen = useUiStore((s) => s.signInDialogOpen);
   const closeSignInDialog = useUiStore((s) => s.closeSignInDialog);
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
@@ -118,6 +132,15 @@ export function Topbar() {
             className="text-chrome-neutral-300 hover:text-chrome-neutral-100"
           >
             <ArrowRight className="rtl:-scale-x-100" />
+          </IconButton>
+          <IconButton
+            title={getString('refresh')}
+            aria-label={getString('refresh')}
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="text-chrome-neutral-300 hover:text-chrome-neutral-100"
+          >
+            <RefreshCw className={refreshing ? 'animate-spin' : ''} />
           </IconButton>
         </div>
       </div>

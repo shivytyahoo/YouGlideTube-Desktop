@@ -20,7 +20,15 @@ export function PageWrapper() {
   // every mounted card included — on each keystroke in the search box.
   const isWatchSidebarOpen = useUiStore((s) => s.isWatchSidebarOpen);
   const setWatchSidebarOpen = useUiStore((s) => s.setWatchSidebarOpen);
+  // The top-bar refresh button bumps this; keying the outlet remounts the
+  // current route, so its mount effects re-run and the view reloads. The
+  // top bar and sidebar sit outside the outlet and stay put.
+  const pageRefreshNonce = useUiStore((s) => s.pageRefreshNonce);
   const isWatchPage = location.pathname.startsWith('/watch/');
+  // The rail renders nothing on Watch/Settings (the menu opens the drawer
+  // there), so its wrapper must not keep 240px of empty space on the left —
+  // it was squeezing the watch player for no reason.
+  const railHidden = isWatchPage || location.pathname.startsWith('/settings');
   const usesDrawer = useSidebarDrawer();
   const isPlaylistDetailsPage =
     location.pathname.startsWith('/playlist/') ||
@@ -110,12 +118,12 @@ export function PageWrapper() {
   }, [isWatchSidebarOpen, setWatchSidebarOpen]);
 
   return (
-    <div className="flex h-full flex-col bg-background text-chrome-zinc-100 overflow-hidden font-sans">
+    <div className="app-shell flex h-full flex-col bg-background text-chrome-zinc-100 overflow-hidden font-sans">
       <Topbar />
       <div className="flex flex-1 overflow-hidden">
-        {!interfaceMobile && (
+        {!interfaceMobile && !railHidden && (
           <div
-            className={`hidden shrink-0 overflow-hidden transition-all duration-300 sm:block ${navHidden ? 'w-0 opacity-0' : 'w-60'}`}
+            className={`hidden shrink-0 overflow-hidden transition-all duration-300 sm:flex sm:flex-col ${navHidden ? 'w-0 opacity-0' : 'w-60'}`}
           >
             <Sidebar />
           </div>
@@ -136,7 +144,7 @@ export function PageWrapper() {
             engages. Anything needing the real scrollport reads it from here.
           */}
           <ScrollContainerContext.Provider value={mainRef}>
-            <Outlet />
+            <Outlet key={pageRefreshNonce} />
           </ScrollContainerContext.Provider>
         </main>
       </div>

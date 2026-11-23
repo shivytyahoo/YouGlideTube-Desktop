@@ -50,3 +50,17 @@ The first desktop release — the YouGlideTube Android app, on the desktop.
 - Library, Subscriptions and Downloads: multi-audio downloads now put all languages in one file like Android, the notifications inbox is capped at 100, history merges by time like Android, history-pause freezes the server list, the library splits into video/music playlists and liked videos/music, playlist compact toggle, unsubscribe Undo, hide-watched on for the subscriptions feed, and remove-all-incomplete
 - Settings: in-app updates now point at the published release, a new Integrations tab, background-play setting, watch-history auto-delete and retention, a Shorts settings cluster, feed/Shorts preview and thumbnail quality, comments preview, notification types, codec fallback, start-paused, and many small rows matching the Android app
 - Not in this build: Cast/DLNA and Skip silence — both need whole subsystems the desktop does not have yet
+
+### Fixed in the re-tagged 1.0.0 build (2026-11-23)
+
+- The sidebar now scrolls: Downloads, Local Media, Settings and Extensions below Likes were unreachable because the rail never got a height to scroll in
+- Comment delete is fixed: the delete action was sent in the wrong shape and rejected before it ever reached the server; a real failure now names its own cause
+- Comment like and dislike are new on desktop: they did not exist at all — like and dislike now work on comments and replies, with the count moving
+- "Sign in to comment" now opens the Google sign-in dialog — tapping it used to do nothing; after signing in you land back at the comment box, ready to type
+- Video dislike is fixed for real: the old dislike only removed a like and never recorded one; dislike now sends the dislike button's own params to the server, the count moves, and un-disliking reaches the server too
+- The watch action row no longer wraps into a ragged staircase: Subscribe, Share, Save, Download and Note now sit in one scrollable row and nothing is cut off
+- The top bar has a Refresh button next to back/forward: it reloads the current page without going Home, and the Subscriptions feed refreshes for real instead of showing its cache
+- Voice search works on Windows now: the mic uses Windows' own speech recognizer — the browser speech feature the app used to rely on does not exist in the desktop webview
+- Player layout: the video time no longer climbs over the autoplay switch at narrow widths, and the player now uses the full width — the watch page no longer reserves 240px on the left for a sidebar that is not shown there
+- The "Try YouTube Premium free" card is gone from Up Next and every other feed: it was a fake video item with a non-video id, and tapping it sent the player a bad id; such items are filtered out at the parser, and the player refuses bad ids
+- Glass theme: Settings → Appearance now has a Glass theme toggle — it was missing entirely; on Windows 11 the window uses native Mica, so the sidebar, top bar and player bar turn frosted glass with the desktop showing through; battery saver still turns glass solid

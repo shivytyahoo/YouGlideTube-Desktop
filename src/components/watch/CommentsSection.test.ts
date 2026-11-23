@@ -41,6 +41,10 @@ const thread = vi.hoisted(() => ({
   postComment: vi.fn(async (_text: string) => true),
   postReply: vi.fn(async (_comment: Comment, _text: string) => true),
   deleteComment: vi.fn(async (_commentId: string) => true),
+  deleteError: null as { id: string; message: string } | null,
+  toggleCommentLike: vi.fn(async (_comment: Comment) => true),
+  toggleCommentDislike: vi.fn(async (_comment: Comment) => true),
+  refresh: vi.fn(),
 }));
 vi.mock("../../lib/useVideoComments", () => ({
   useVideoComments: () => thread,
@@ -109,6 +113,10 @@ beforeEach(() => {
   thread.postComment.mockResolvedValue(true);
   thread.postReply.mockResolvedValue(true);
   thread.deleteComment.mockResolvedValue(true);
+  thread.deleteError = null;
+  thread.toggleCommentLike.mockResolvedValue(true);
+  thread.toggleCommentDislike.mockResolvedValue(true);
+  useUiStore.setState({ signInDialogOpen: false });
   accountState.status = "signed-in";
   useUiStore.setState({ toast: null });
   host = document.createElement("div");
@@ -161,6 +169,55 @@ describe("CommentsSection composer", () => {
     renderSection();
     expect(textarea()).toBeNull();
     expect(button("Sign in to comment")).toBeDefined();
+  });
+
+  it("opens the sign-in dialog when the prompt is clicked", () => {
+    thread.createCommentParams = null;
+    accountState.status = "signed-out";
+    renderSection();
+    const prompt = button("Sign in to comment");
+    expect(prompt).toBeDefined();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    act(() => {
+      prompt!.click();
+    });
+    // The dialog renders here, not behind the top-bar store flag.
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain("Sign in with Google");
+  });
+
+  it("reloads the list signed-in when the account signs in", () => {
+    thread.createCommentParams = null;
+    accountState.status = "signed-out";
+    renderSection();
+    expect(thread.refresh).not.toHaveBeenCalled();
+    accountState.status = "signed-in";
+    renderSection();
+    expect(thread.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("lands back at the comment box ready to type after signing in", async () => {
+    thread.createCommentParams = null;
+    accountState.status = "signed-out";
+    renderSection();
+    act(() => {
+      button("Sign in to comment")!.click();
+    });
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    // The sign-in completes, then the dialog closes.
+    accountState.status = "signed-in";
+    renderSection();
+    const close = [...document.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === "Close",
+    );
+    await act(async () => {
+      close!.click();
+    });
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    // The signed-in list carries the comment box token now.
+    thread.createCommentParams = "Ehk123";
+    renderSection();
+    await vi.waitFor(() => expect(document.activeElement).toBe(textarea()));
   });
 
   it("shows nothing to post with when signed in but the page has no token", () => {
@@ -266,5 +323,74 @@ describe("CommentsSection deletes", () => {
   it("hides the options menu on a comment that is not the viewer's own", () => {
     renderSection();
     expect(host.querySelector('button[aria-label="Comment options"]')).toBeNull();
+  });
+
+  it("shows the real delete error instead of only the static string", () => {
+    thread.deleteError = { id: "c1", message: "Validation error: no delete action" };
+    renderSection();
+    expect(host.textContent).toContain("Validation error: no delete action");
+    expect(host.textContent).not.toContain("Please try again");
+  });
+});
+
+describe("CommentsSection votes", () => {
+  it("offers a Like button on a comment that carries a like token", async () => {
+    thread.comments = [
+      { ...defaultComment, likeAction: "LIKE_ENDPOINT", unlikeAction: "UNLIKE_ENDPOINT" },
+    ];
+    renderSection();
+    const like = host.querySelector('button[aria-label="Like"]');
+    expect(like).toBeDefined();
+    await act(async () => {
+      (like as HTMLButtonElement).click();
+    });
+    expect(thread.toggleCommentLike).toHaveBeenCalledWith(expect.objectContaining({ id: "c1" }));
+  });
+
+  it("shows the like highlighted when the comment is already liked", () => {
+    thread.comments = [
+      {
+        ...defaultComment,
+        isLiked: true,
+        likeAction: "LIKE_ENDPOINT",
+        unlikeAction: "UNLIKE_ENDPOINT",
+      },
+    ];
+    renderSection();
+    const icon = host.querySelector('button[aria-label="Like"] svg');
+    expect(icon?.classList.contains("fill-primary")).toBe(true);
+  });
+
+  it("shows only a static like count when the comment carries no vote token", () => {
+    renderSection();
+    expect(host.querySelector('button[aria-label="Like"]')).toBeNull();
+    expect(host.textContent).toContain("3");
+  });
+
+  it("offers a Like button on a reply too", async () => {
+    thread.comments = [{ ...defaultComment, replyCount: 1 }];
+    thread.replies = {
+      c1: [
+        {
+          id: "r1",
+          author: "@a",
+          authorThumbnail: null,
+          text: "a reply",
+          publishedText: "1h",
+          likeCount: 1,
+          replyCount: 0,
+          likeAction: "REPLY_LIKE_ENDPOINT",
+          unlikeAction: "REPLY_UNLIKE_ENDPOINT",
+        },
+      ],
+    };
+    thread.expanded = { c1: true };
+    renderSection();
+    const like = host.querySelector('button[aria-label="Like"]');
+    expect(like).toBeDefined();
+    await act(async () => {
+      (like as HTMLButtonElement).click();
+    });
+    expect(thread.toggleCommentLike).toHaveBeenCalledWith(expect.objectContaining({ id: "r1" }));
   });
 });

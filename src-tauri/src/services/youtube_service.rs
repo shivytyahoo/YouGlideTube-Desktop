@@ -177,6 +177,11 @@ impl YoutubeService {
         self.extractor.delete_comment(delete_action).await
     }
 
+    /// Votes on a comment (like/dislike and their undos).
+    pub async fn like_comment(&self, endpoint_json: &str) -> AppResult<()> {
+        self.extractor.like_comment(endpoint_json).await
+    }
+
     pub async fn like_post(&self, endpoint_json: &str) -> AppResult<()> {
         self.extractor.like_post(endpoint_json).await
     }

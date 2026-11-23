@@ -16,6 +16,9 @@
       root.dataset.themeVariant = theme.variant;
       root.style.colorScheme = theme.variant === "light" ? "light" : "dark";
     }
+    // Glass theme: the shell is transparent from the first paint, so the
+    // native backdrop shows through before React applies the class itself.
+    if (theme.glass) root.classList.add("glass-theme");
   } catch (error) {
     // Without a snapshot the stylesheet's own defaults apply, as before.
   }

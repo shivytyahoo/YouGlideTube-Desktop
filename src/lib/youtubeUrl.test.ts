@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { SETTINGS } from "./settings/schema";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
 import {
+  isVideoId,
   routeForYoutubeUrl,
   youtubeMusicAlbumUrl,
   youtubeMusicWatchUrl,
@@ -10,6 +11,18 @@ import {
   youtubeShortsUrl,
   youtubeWatchUrl,
 } from "./youtubeUrl";
+
+describe("isVideoId", () => {
+  it("accepts only 11-character base64url ids", () => {
+    expect(isVideoId("dQw4w9WgXcQ")).toBe(true);
+    expect(isVideoId("9bZkp7q19f0")).toBe(true);
+    // A promo/upsell card's id is not a video id, however it arrives.
+    expect(isVideoId("sb-acq-c-projectemu-wn-NNDb")).toBe(false);
+    expect(isVideoId("")).toBe(false);
+    expect(isVideoId("short")).toBe(false);
+    expect(isVideoId("dQw4w9WgXcQ!")).toBe(false);
+  });
+});
 
 describe("youtubeWatchUrl", () => {
   it("links to the video on YouTube", () => {

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Topbar } from "./Topbar";
 import { usePlayerStore } from "../../store/usePlayerStore";
+import { useUiStore } from "../../store/useUiStore";
 import type { AccountSummary } from "../../lib/api/account";
 import type { GoogleAccountInfo } from "../../lib/useGoogleAccount";
 
@@ -66,6 +67,7 @@ describe("Topbar", () => {
     host.remove();
     vi.unstubAllGlobals();
     usePlayerStore.setState({ isAmbientSpreadShown: false, isPlayerBelowTopbar: false });
+    useUiStore.setState({ pageRefreshNonce: 0 });
   });
 
   it("lets the glow through while the player sits below it", () => {
@@ -117,5 +119,39 @@ describe("Topbar", () => {
     const avatar = host.querySelector("button[aria-haspopup='menu'][aria-label='Signed in']");
     expect(avatar).toBeDefined();
     expect(avatar?.textContent).not.toContain("Y");
+  });
+
+  it("reloads the current page from the refresh button", () => {
+    useUiStore.setState({ pageRefreshNonce: 0 });
+    barAt("/feed", { spread: false, below: false });
+    const refresh = host.querySelector("button[aria-label='Refresh']");
+    expect(refresh).toBeDefined();
+    act(() => {
+      (refresh as HTMLElement).click();
+    });
+    expect(useUiStore.getState().pageRefreshNonce).toBe(1);
+    expect(refresh?.querySelector("svg")?.getAttribute("class") ?? "").toContain("animate-spin");
+  });
+
+  it("ignores a second refresh pressed within the guard window", () => {
+    vi.useFakeTimers();
+    try {
+      useUiStore.setState({ pageRefreshNonce: 0 });
+      // Move past any refresh the previous test triggered.
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      const requestPageRefresh = useUiStore.getState().requestPageRefresh;
+      requestPageRefresh();
+      requestPageRefresh();
+      expect(useUiStore.getState().pageRefreshNonce).toBe(1);
+      act(() => {
+        vi.advanceTimersByTime(800);
+      });
+      requestPageRefresh();
+      expect(useUiStore.getState().pageRefreshNonce).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -880,6 +880,19 @@ pub async fn delete_comment(
     Ok(true)
 }
 
+/// Votes on a comment (like/dislike and their undos), with the toolbar
+/// command's endpoint the comment carried. Signed in only.
+#[tauri::command]
+pub async fn like_comment(
+    youtube_service: State<'_, YoutubeService>,
+    endpoint_json: String,
+) -> Result<(), ErrorResponse> {
+    youtube_service
+        .like_comment(&endpoint_json)
+        .await
+        .map_err(ErrorResponse::from)
+}
+
 /// Likes or unlikes a community post, with the toggle endpoint the posts
 /// page carried. Signed in only.
 #[tauri::command]

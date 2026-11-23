@@ -15,6 +15,7 @@ pub mod subscription_feed;
 pub mod system_output;
 pub mod theme_file;
 pub mod upcoming_reminders;
+pub mod voice_search;
 #[cfg(windows)]
 pub mod win_mixer;
 #[cfg(windows)]

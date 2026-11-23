@@ -7151,6 +7151,7 @@ dependencies = [
  "webm-iterable",
  "windows",
  "windows-core",
+ "windows-future",
  "windows-registry 0.100.0",
  "wiremock",
  "zip",

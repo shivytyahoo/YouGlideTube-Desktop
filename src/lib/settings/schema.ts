@@ -40,6 +40,7 @@ export const SETTINGS = {
   THEME_LIGHT_ID: "theme_light_id",
   THEME_DARK_ID: "theme_dark_id",
   THEME_DARK_STYLE: "theme_dark_style",
+  THEME_GLASS: "theme_glass",
   APP_FONT: "app_font",
   APP_FONT_CUSTOM_NAME: "app_font_custom_name",
   EXPRESSIVE_SLIDERS_ENABLED: "expressive_sliders_enabled",
@@ -460,6 +461,8 @@ export const SETTING_DEFINITIONS = [
   str(SETTINGS.THEME_LIGHT_ID, "appearance", "youglidetube", "wired"),
   str(SETTINGS.THEME_DARK_ID, "appearance", "youglidetube", "wired"),
   str(SETTINGS.THEME_DARK_STYLE, "appearance", "dark", "wired", ["dark", "amoled"]),
+  /** Frosted glass window, as on Android's Morphe theme: the desktop shows through the app. Default off. */
+  bool(SETTINGS.THEME_GLASS, "appearance", false, "wired"),
   str(SETTINGS.APP_FONT, "appearance", "inter", "wired", ["inter", "system", "condensed", "serif", "custom"]),
   str(SETTINGS.APP_FONT_CUSTOM_NAME, "appearance", "", "wired"),
   bool(SETTINGS.EXPRESSIVE_SLIDERS_ENABLED, "appearance", true, "wired"),

@@ -86,7 +86,7 @@ import { DownloadActivity } from "./components/downloads/DownloadActivity";
 import { UpdateManager } from "./components/updater/UpdateManager";
 import { ConfirmHost } from "./components/common/ConfirmHost";
 import { NoteEditorHost } from "./components/note/NoteEditorHost";
-import { ThemeController } from "./lib/useTheme";
+import { ThemeController, useTheme } from "./lib/useTheme";
 import { useTabHistoryShortcuts } from "./lib/tabs/useTabHistoryShortcuts";
 import { installTabPlaybackSync } from "./lib/tabs/tabPlayback";
 import { useTabShortcuts } from "./lib/tabs/useTabShortcuts";
@@ -96,6 +96,8 @@ import { useSingleTabWhenOff } from "./lib/tabs/useSingleTabWhenOff";
 import { useMediaCommands } from "./lib/useMediaCommands";
 import { applyBatterySaverClass } from "./lib/batterySaver";
 import { useBatterySaver } from "./lib/useBatterySaver";
+import { applyGlassThemeClass, setWindowGlassTheme, useGlassThemeActive } from "./lib/glassTheme";
+import { logToBackend } from "./lib/diagnostics";
 import { setStreamPrefetchEnabled } from "./lib/streamResolution";
 import { setMusicPrefetchEnabled } from "./lib/musicStreamResolution";
 import { useCrossWindowSync } from "./lib/useCrossWindowSync";
@@ -155,6 +157,18 @@ function App() {
     setStreamPrefetchEnabled(!batterySaver);
     setMusicPrefetchEnabled(!batterySaver);
   }, [batterySaver]);
+
+  // Glass theme (Android's Morphe look): the shell goes transparent and the
+  // native backdrop — Mica on Windows, vibrancy on macOS — shows through.
+  // A failed native call never breaks the app; the CSS glass still applies.
+  const glassThemeActive = useGlassThemeActive();
+  const { variant } = useTheme();
+  useEffect(() => {
+    applyGlassThemeClass(glassThemeActive);
+    void setWindowGlassTheme(glassThemeActive, variant !== "light").catch((cause) => {
+      void logToBackend("warn", "native glass theme failed", { cause: String(cause) });
+    });
+  }, [glassThemeActive, variant]);
 
   useEffect(() => {
     void useFeedActionsStore.getState().load();

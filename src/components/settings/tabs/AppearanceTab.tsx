@@ -49,6 +49,7 @@ export function AppearanceTab() {
   const fontInputRef = useRef<HTMLInputElement>(null);
   const themeOptions = [...BUILTIN_THEMES, ...customThemes].map((theme) => ({ value: theme.id, label: theme.name }));
   const [expressiveSliders, setExpressiveSliders] = useBoolPref(SETTINGS.EXPRESSIVE_SLIDERS_ENABLED, true);
+  const [glassTheme, setGlassTheme] = useBoolPref(SETTINGS.THEME_GLASS, false);
   const [highlightNew, setHighlightNew] = useBoolPref(SETTINGS.HIGHLIGHT_NEW_SETTINGS, false);
   const [highlightDays, setHighlightDays] = usePreference(SETTINGS.HIGHLIGHT_NEW_SETTINGS_DAYS, "7");
   const dateSettings = useDateDisplaySettings();
@@ -257,6 +258,9 @@ export function AppearanceTab() {
           </SettingItem>
           <SettingItem title={getString("settings_expressive_sliders")} description={getString("settings_expressive_sliders_desc")}>
             <ToggleSwitch checked={expressiveSliders} onChange={setExpressiveSliders} />
+          </SettingItem>
+          <SettingItem title={getString("settings_glass_theme")} description={getString("settings_glass_theme_desc")}>
+            <ToggleSwitch checked={glassTheme} onChange={setGlassTheme} />
           </SettingItem>
           <SettingItem title={getString("settings_highlight_new")} description={getString("settings_highlight_new_desc")}>
             <ToggleSwitch checked={highlightNew} onChange={setHighlightNew} />

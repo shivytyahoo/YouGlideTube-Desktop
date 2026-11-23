@@ -125,6 +125,41 @@ pub fn set_window_background(
     })
 }
 
+/// Glass theme (Android's Morphe look): the native window backdrop behind the
+/// transparent shell — Mica on Windows, system vibrancy on macOS. Clearing
+/// removes the effect; the webview paints opaque again. On Linux and on
+/// Windows 10 (no Mica) the effect is a no-op and the transparent shell
+/// still shows the desktop, unblurred. `set_effects` swallows the platform
+/// error itself, so this only fails if the window itself is gone.
+#[tauri::command]
+pub fn set_glass_theme(window: WebviewWindow, enabled: bool, dark: bool) -> Result<(), ErrorResponse> {
+    #[cfg(target_os = "windows")]
+    {
+        use tauri::window::{Effect, EffectsBuilder};
+        // Mica follows the app's own variant, not the Windows theme, so a
+        // dark app never gets a light backdrop (and vice versa).
+        let effects = enabled.then(|| {
+            EffectsBuilder::new()
+                .effect(if dark { Effect::MicaDark } else { Effect::MicaLight })
+                .build()
+        });
+        window.set_effects(effects).map_err(|error| {
+            ErrorResponse::from(AppError::Internal(format!("Native glass theme failed: {error}")))
+        })?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use tauri::window::{Effect, EffectsBuilder};
+        let effects = enabled.then(|| EffectsBuilder::new().effect(Effect::AppearanceBased).build());
+        window.set_effects(effects).map_err(|error| {
+            ErrorResponse::from(AppError::Internal(format!("Native glass theme failed: {error}")))
+        })?;
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let _ = (window, enabled, dark);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::cell::{Cell, RefCell};

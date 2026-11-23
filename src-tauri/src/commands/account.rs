@@ -61,11 +61,10 @@ pub async fn get_server_home_feed(
         .map_err(ErrorResponse::from)
 }
 
-/// Likes or unlikes a video on the account, on the server. Disliking is
-/// the same call with `liked = false`: there is no account dislike
-/// endpoint — a dislike at least removes the account like, as Android does.
-/// `params` is the button-issued token from the watch answer, when the
-/// video's details carried one.
+/// Likes or unlikes a video on the account, on the server. `params` is
+/// the button-issued token from the watch answer, when the video's details
+/// carried one — it is only sent for the like; the unlike carries no
+/// params, as Android's `unlikeVideo` does.
 #[tauri::command]
 pub async fn set_video_liked(
     extractor: State<'_, Arc<InnertubeClient>>,
@@ -75,6 +74,22 @@ pub async fn set_video_liked(
 ) -> Result<bool, ErrorResponse> {
     extractor
         .set_video_liked(&video_id, liked, params.as_deref())
+        .await
+        .map_err(ErrorResponse::from)?;
+    Ok(true)
+}
+
+/// Dislikes a video on the account, on the server: `like/like` with the
+/// dislike button's token. A dislike is a rating of its own, not a removed
+/// like — the old path sent `like/removelike`, which never records one.
+#[tauri::command]
+pub async fn set_video_disliked(
+    extractor: State<'_, Arc<InnertubeClient>>,
+    video_id: String,
+    params: Option<String>,
+) -> Result<bool, ErrorResponse> {
+    extractor
+        .set_video_disliked(&video_id, params.as_deref())
         .await
         .map_err(ErrorResponse::from)?;
     Ok(true)

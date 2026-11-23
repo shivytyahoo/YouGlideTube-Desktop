@@ -42,13 +42,13 @@ interface WatchNoteProps {
   videoData: VideoDetails | null;
 }
 
-export function WatchNoteButton({ video, videoData }: WatchNoteProps) {
+export function WatchNoteButton({ video, videoData, className }: WatchNoteProps & { className?: string }) {
   const enabled = useNotesEnabled("Video");
   const note = useNote("Video", video.id);
   const open = useOpenVideoNote(video, videoData);
   if (!enabled) return null;
   return (
-    <Button variant="tonal" onClick={open} aria-label={getString(note ? "note_edit" : "note_add")} aria-pressed={!!note}>
+    <Button variant="tonal" className={className} onClick={open} aria-label={getString(note ? "note_edit" : "note_add")} aria-pressed={!!note}>
       <StickyNote size={18} fill={note ? "currentColor" : "none"} />
       {getString("note_title")}
     </Button>

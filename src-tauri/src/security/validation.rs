@@ -36,6 +36,16 @@ pub fn validate_video_id(video_id: &str) -> AppResult<()> {
     Ok(())
 }
 
+/// Whether `id` has the shape of a YouTube video id: 11 base64url characters.
+/// Promo and upsell cards the server inserts into feeds (the "Try YouTube
+/// Premium free" card in Up Next, whose content id is `sb-acq-…`) are not
+/// videos, and the player already rejects their ids — this keeps them out of
+/// playable lists at parse time instead of letting them reach the player.
+#[must_use]
+pub fn is_valid_video_id(id: &str) -> bool {
+    validate_video_id(id).is_ok()
+}
+
 pub fn validate_playlist_id(playlist_id: &str) -> AppResult<()> {
     let trimmed = playlist_id.trim();
 

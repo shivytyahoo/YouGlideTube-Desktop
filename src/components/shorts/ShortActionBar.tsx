@@ -109,7 +109,6 @@ export function ShortActionBar({
   const discAvatar = useProxiedImageUrl(
     upgradeAvatarUrl(short.channelAvatarUrl ?? fetchedAvatar),
   );
-  const dislikeCountText = rydData ? formatCount(rydData.dislikes) : "Dislike";
   const resolvedCommentCountText = formatCount(commentCountText ?? short.commentCountText) || getString('settings_comments');
   const originalTitle = useOriginalTitle(short.id);
   const resolvedTitle = originalTitle || details?.title?.trim() || short.title || getString('shorts_short');
@@ -163,10 +162,12 @@ export function ShortActionBar({
       short,
     ],
   );
-  const { state, like, dislike, likeDelta } = useVideoReactions(video, {
+  const { state, like, dislike, likeDelta, dislikeDelta } = useVideoReactions(video, {
     channelId: short.channelId ?? null,
     likeParams: details?.likeParams ?? null,
     removeLikeParams: details?.removeLikeParams ?? null,
+    dislikeParams: details?.dislikeParams ?? null,
+    removeDislikeParams: details?.removeDislikeParams ?? null,
   });
   // A server-confirmed like in this session moves the displayed count,
   // like Android's likeCountDelta. An unparseable snapshot keeps its text.
@@ -181,6 +182,9 @@ export function ShortActionBar({
   const likeCountText = likeCount !== null
     ? formatCount(likeCount)
     : formatCount(short.likeCountText ?? details?.likeCountText) || getString('like');
+  // A server-confirmed dislike in this session moves the displayed count,
+  // like Android's dislikeCountDelta.
+  const dislikeCountText = rydData ? formatCount(rydData.dislikes + dislikeDelta) : "Dislike";
   useEffect(() => {
     likeFromSurfaceRef.current = () => {
       if (state !== "liked") like();

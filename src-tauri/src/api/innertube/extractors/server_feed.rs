@@ -871,13 +871,13 @@ impl InnertubeClient {
 
     /// Likes or unlikes a video on the account: `like/like` +
     /// `like/removelike` on WEB_REMIX, `{context, target: {videoId}}`, as
-    /// Android's `YouTube.likeVideo` does. Disliking is the same call with
-    /// `liked = false`: Android has no account dislike endpoint — a
-    /// dislike at least removes the account like. `params` is the
+    /// Android's `YouTube.likeVideo` does. The like carries the
     /// button-issued token harvested from the watch answer's like button
-    /// (`likeParams` to like, `removeLikeParams` to unlike); the server
-    /// 403s the call without it, so it is sent whenever the watch answer
-    /// carried one. Without it the call behaves exactly as before.
+    /// (`likeParams`); the server 403s the call without it. The unlike
+    /// carries no params at all, exactly as Android's `unlikeVideo` does:
+    /// the button-issued `removeLikeParams` belongs to the `like/like`
+    /// INDIFFERENT transition, not to this endpoint, and sending it here
+    /// is a pairing neither Android nor youtubei.js uses.
     pub async fn set_video_liked(
         &self,
         video_id: &str,
@@ -888,7 +888,11 @@ impl InnertubeClient {
         validate_video_id(video_id)?;
         let endpoint = if liked { "like/like" } else { "like/removelike" };
         let mut payload = json!({ "target": { "videoId": video_id } });
-        let params = params.filter(|params| !params.is_empty());
+        let params = if liked {
+            params.filter(|params| !params.is_empty())
+        } else {
+            None
+        };
         if let Some(params) = params {
             payload["params"] = json!(params);
         }
@@ -902,6 +906,38 @@ impl InnertubeClient {
             with_params = params.is_some(),
             response_status = response.get("status").and_then(|status| status.as_str()),
             "like request answered"
+        );
+        Ok(())
+    }
+
+    /// Registers a dislike on the account: `like/like` with the dislike
+    /// button's `dislikeParams`, as youtubei.js replays the button's own
+    /// endpoint. `like/removelike` only removes a rating — it never records
+    /// a dislike — which is why the old dislike call (removelike with the
+    /// like button's token) left nothing on the server, and on a
+    /// never-liked video there is nothing to remove, so the server refuses
+    /// it outright.
+    pub async fn set_video_disliked(
+        &self,
+        video_id: &str,
+        params: Option<&str>,
+    ) -> AppResult<()> {
+        self.require_signed_in()?;
+        validate_video_id(video_id)?;
+        let mut payload = json!({ "target": { "videoId": video_id } });
+        let params = params.filter(|params| !params.is_empty());
+        if let Some(params) = params {
+            payload["params"] = json!(params);
+        }
+        let response = self
+            .post_innertube("like/like", &clients::WEB_REMIX, &mut payload)
+            .await?;
+        debug!(
+            endpoint = "like/like",
+            video_id,
+            with_params = params.is_some(),
+            response_status = response.get("status").and_then(|status| status.as_str()),
+            "dislike request answered"
         );
         Ok(())
     }

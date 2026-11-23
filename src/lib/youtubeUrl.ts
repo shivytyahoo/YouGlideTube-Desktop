@@ -14,6 +14,11 @@ export type ParsedYoutubeUrl =
 
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 const ID_CHARS = /^[A-Za-z0-9_-]+$/;
+
+/** Whether `id` has the shape of a YouTube video id: 11 base64url characters. */
+export function isVideoId(id: string): boolean {
+  return VIDEO_ID.test(id);
+}
 const MAX_URL_CHARS = 2048;
 
 const YOUTUBE_DOMAINS = ["youtube.com", "youtube-nocookie.com"];

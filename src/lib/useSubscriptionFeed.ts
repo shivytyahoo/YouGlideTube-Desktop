@@ -10,6 +10,7 @@ import {
 import { getSetting, setSetting } from './api/db';
 import { SETTINGS } from './settings/schema';
 import { useAppSettingsStore } from '../store/useAppSettingsStore';
+import { useUiStore } from '../store/useUiStore';
 import type { SubscribedChannel } from '../store/useSubscriptionStore';
 import type { ChannelDetails, VideoSummary } from '../types/video';
 import { mapWithConcurrency } from './concurrency';
@@ -126,6 +127,10 @@ export function useSubscriptionFeed(channels: SubscribedChannel[]) {
   );
   const channelIds = useMemo(() => feedKey(channels.map((channel) => channel.id)), [channels]);
   const scopeRequestRef = useRef(0);
+  // The top-bar refresh button bumps this; a change while this feed is
+  // mounted refreshes exactly like the page's own refresh button.
+  const pageRefreshNonce = useUiStore((s) => s.pageRefreshNonce);
+  const seenPageRefreshNonceRef = useRef(pageRefreshNonce);
   // Read by the load effect, which runs after this one in the same commit.
   const shownCountRef = useRef(0);
   useEffect(() => {
@@ -135,6 +140,12 @@ export function useSubscriptionFeed(channels: SubscribedChannel[]) {
   useEffect(() => {
     let active = true;
     const ids = channelIds.split('|').filter(Boolean);
+
+    // A top-bar refresh while this feed is mounted asks again however fresh
+    // the cached feed is. The ref starts at the mounted nonce, so arriving
+    // here after refreshing another page does not refetch on mount.
+    const globalRefresh = pageRefreshNonce !== seenPageRefreshNonceRef.current;
+    seenPageRefreshNonceRef.current = pageRefreshNonce;
 
     if (ids.length === 0) {
       setVideos([]);
@@ -148,7 +159,7 @@ export function useSubscriptionFeed(channels: SubscribedChannel[]) {
     }
 
     // A refresh asks again however fresh the cached feed is.
-    if (refreshNonce > 0) feedCache.delete(channelIds);
+    if (refreshNonce > 0 || globalRefresh) feedCache.delete(channelIds);
     const mem = feedCache.get(channelIds);
     const alreadyShown = shownCountRef.current > 0;
     if (mem) {
@@ -164,7 +175,7 @@ export function useSubscriptionFeed(channels: SubscribedChannel[]) {
     setScanProgress(null);
 
     const loadFeed = async () => {
-      if (!mem && refreshNonce === 0 && startupRefresh?.key === channelIds) {
+      if (!mem && refreshNonce === 0 && !globalRefresh && startupRefresh?.key === channelIds) {
         await startupRefresh.done;
         if (!active) return;
         const scanned = feedCache.get(channelIds);
@@ -181,7 +192,7 @@ export function useSubscriptionFeed(channels: SubscribedChannel[]) {
       let cachedAt = mem?.cachedAt ?? null;
       let haveVideos = mem != null && mem.videos.length > 0;
 
-      if (!mem && refreshNonce === 0) {
+      if (!mem && refreshNonce === 0 && !globalRefresh) {
         const persisted = await loadPersistedFeed();
         if (!active) return;
         if (persisted && persisted.key === channelIds && persisted.videos.length > 0) {
@@ -271,7 +282,7 @@ export function useSubscriptionFeed(channels: SubscribedChannel[]) {
     return () => {
       active = false;
     };
-  }, [channelIds, refreshNonce]);
+  }, [channelIds, refreshNonce, pageRefreshNonce]);
 
   // A heavy look at a few channels, after the feed itself is on screen and never blocking it.
   useEffect(() => {

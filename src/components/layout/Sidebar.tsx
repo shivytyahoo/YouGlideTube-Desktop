@@ -94,7 +94,7 @@ export function Sidebar({ mode = 'normal' }: SidebarProps) {
       className={
         isOverlay
           ? 'flex h-full w-60 shrink-0 flex-col glass'
-          : 'sidebar-rail hidden shrink-0 overflow-hidden glass sm:flex'
+          : 'sidebar-rail hidden min-h-0 flex-1 shrink-0 flex-col overflow-hidden glass sm:flex'
       }
     >
       {/* Always 240 px wide, so labels never rewrap while the rail opens and closes. */}

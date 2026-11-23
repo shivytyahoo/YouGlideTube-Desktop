@@ -14,6 +14,7 @@ use crate::api::innertube::json::thumbnail::{
     largest_url, normalize_youtube_image_url, thumbnail_url_from_array,
 };
 use crate::models::video::{RelatedContentItem, VideoSummary};
+use crate::security::validation::is_valid_video_id;
 
 /// One metadata part of a lockup.
 struct Part<'a> {
@@ -204,7 +205,14 @@ fn ids(lockup: &Value, is_video: bool, is_playlist: bool) -> Option<Ids> {
         let is_mix = playlist_id.starts_with("RD") || playlist_id.starts_with("UL");
         (if is_mix { "mix" } else { "playlist" }, playlist_id, is_mix)
     } else {
-        ("video", video_id.clone()?, false)
+        // A video card needs a real 11-character video id. The server also
+        // serves promo/upsell lockups (the "Try YouTube Premium free" card in
+        // Up Next) as video lockups, with a content id like
+        // `sb-acq-c-projectemu-wn-NNDb` that is not a video at all: Android
+        // never shows them, and the player rejects the id as invalid.
+        // (Clone first: the outer id is still needed for the `Ids` below.)
+        let video_id = video_id.clone().filter(|id| is_valid_video_id(id));
+        ("video", video_id?, false)
     };
 
     Some(Ids {
@@ -520,7 +528,7 @@ mod tests {
 
         let collab = json!({
             "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
-            "contentId": "co",
+            "contentId": "co000000000",
             "metadata": { "lockupMetadataViewModel": {
                 "image": { "avatarStackViewModel": { "rendererContext": { "commandContext": { "onTap": {
                     "innertubeCommand": dialog(&[("UC1", "A"), ("UC2", "B")])
@@ -596,5 +604,30 @@ mod tests {
         let item = lockup_item(&lockup).unwrap();
         assert_eq!(item.channel_name, "100D Beatz");
         assert_eq!(item.view_count_text, None);
+    }
+
+    #[test]
+    fn a_premium_upsell_lockup_is_not_a_video() {
+        // The server inserts this card into Up Next as a video lockup whose
+        // content id is not a video at all; on a real machine tapping it fed
+        // the id to the player, which rejected it as an invalid video id.
+        let promo = json!({
+            "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+            "contentId": "sb-acq-c-projectemu-wn-NNDb",
+            "contentImage": { "thumbnailViewModel": { "image": { "sources": [] } } },
+            "metadata": { "lockupMetadataViewModel": {
+                "title": { "content": "Try YouTube Premium free" },
+                "metadata": { "contentMetadataViewModel": { "metadataRows": [
+                    { "metadataParts": [{ "text": { "content": "Get ad-free YouTube + YouTube Music" } }] },
+                    { "badges": [{ "badgeViewModel": { "badgeText": "YouTube featured" } }] }
+                ] } }
+            } }
+        });
+        assert!(lockup_item(&promo).is_none());
+
+        let video = video_lockup(&json!([
+            { "metadataParts": [{ "text": { "content": "Channel" } }] }
+        ]));
+        assert_eq!(lockup_item(&video).unwrap().id, "vid00000001");
     }
 }

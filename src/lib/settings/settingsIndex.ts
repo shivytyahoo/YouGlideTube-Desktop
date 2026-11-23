@@ -84,6 +84,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     { title: "settings_highlight_new", summary: "settings_highlight_new_desc" },
     { title: "settings_highlight_new_days" },
     { title: "settings_expressive_sliders", summary: "settings_expressive_sliders_desc" },
+    { title: "settings_glass_theme", summary: "settings_glass_theme_desc", keywords: ["glass", "frosted", "translucent", "mica"] },
     { title: "settings_graphics_compat", summary: "settings_graphics_compat_desc" },
     { title: "theme_presets", keywords: ["color", "palette", "dark", "light"] },
     { title: "theme_variant" },

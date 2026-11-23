@@ -208,6 +208,26 @@
   }
 }
 
+/* The glass theme is an explicit choice, so it wins over the OS
+   reduced-transparency preference: the user asked for frosted surfaces.
+   Battery saver still forces them solid (below). */
+html.glass-theme .glass {
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  background-color: color-mix(in srgb, var(--color-surface) 72%, transparent);
+}
+
+/* Glass theme: the app shell goes transparent so the native backdrop (Mica
+   on Windows, vibrancy on macOS) shows through; the .glass surfaces frost
+   over it. Every other theme keeps its opaque shell. */
+html.glass-theme body {
+  background-color: transparent;
+}
+
+html.glass-theme .app-shell {
+  background-color: transparent;
+}
+
 /* Battery saver forces the same solid surfaces as reduced transparency. */
 html.battery-saver .glass {
   -webkit-backdrop-filter: none;

@@ -30,5 +30,6 @@ pub mod subscription_posts;
 pub mod subtitle_file;
 pub mod theme;
 pub mod tray;
+pub mod voice_search;
 pub mod window;
 pub mod youtube;

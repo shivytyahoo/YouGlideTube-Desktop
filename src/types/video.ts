@@ -164,6 +164,10 @@ export interface VideoDetails {
   likeParams?: string | null;
   /** The button-issued token for `like/removelike`. */
   removeLikeParams?: string | null;
+  /** The button-issued token for `like/like` with a dislike, from the watch answer's dislike button. */
+  dislikeParams?: string | null;
+  /** The button-issued token for removing a dislike. */
+  removeDislikeParams?: string | null;
   viewCountText?: string | null;
   publishedText?: string | null;
   chapters?: VideoChapter[];
@@ -650,6 +654,17 @@ export interface Comment {
   isOwn?: boolean;
   /** The own comment's delete perform-action endpoint, as raw JSON. */
   deleteAction?: string | null;
+  /** The toolbar's vote commands, each a bare `performCommentActionEndpoint`
+   * object as raw JSON to replay verbatim. Null when the comment carries no vote. */
+  likeAction?: string | null;
+  unlikeAction?: string | null;
+  dislikeAction?: string | null;
+  undislikeAction?: string | null;
+  /** The viewer's vote on this comment, from the toolbar state. */
+  isLiked?: boolean;
+  isDisliked?: boolean;
+  /** "26K", as the comment shows it when liked. */
+  likeCountLikedText?: string | null;
 }
 
 /** One way to order the comments, and the token that loads them that way. */

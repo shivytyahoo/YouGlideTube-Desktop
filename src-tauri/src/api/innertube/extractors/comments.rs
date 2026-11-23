@@ -19,6 +19,8 @@ use crate::models::comment::{Comment, CommentSort, CommentsResponse};
 /// What a thread renders with when its comment is pinned to the top.
 const PINNED_PRIORITY: &str = "RENDERING_PRIORITY_PINNED_COMMENT";
 const HEARTED: &str = "TOOLBAR_HEART_STATE_HEARTED";
+const LIKE_STATE_LIKED: &str = "TOOLBAR_LIKE_STATE_LIKED";
+const LIKE_STATE_DISLIKED: &str = "TOOLBAR_LIKE_STATE_DISLIKED";
 
 fn find_comment_count_text(val: &Value) -> Option<String> {
     if let Some(panels) = val["engagementPanels"].as_array() {
@@ -550,6 +552,13 @@ fn replay_write(
     })
 }
 
+/// One toolbar-surface command's perform-action endpoint, as raw JSON to
+/// replay verbatim — Android's `surfaceAction(command)`: the first
+/// `performCommentActionEndpoint` object anywhere inside the command.
+fn surface_action(surface: &Value, command: &str) -> Option<String> {
+    find_key_object(&surface[command], "performCommentActionEndpoint")
+        .map(|endpoint| endpoint.to_string())
+}
 /// The reply write a comment's toolbar surface offers. The dialog's reply
 /// button carries a `createCommentReplyEndpoint` with its OWN
 /// `createReplyParams` — not the create box's `createCommentParams`.
@@ -657,6 +666,19 @@ fn build_comment_from_view_model(
     } else {
         None
     };
+    // The toolbar's vote commands, as Android's `surfaceAction` reads them:
+    // like/unlike and dislike/undislike, each a bare perform-action endpoint
+    // to replay verbatim. The viewer's vote comes from the toolbar state.
+    let like_action = toolbar_surface.and_then(|surface| surface_action(surface, "likeCommand"));
+    let unlike_action =
+        toolbar_surface.and_then(|surface| surface_action(surface, "unlikeCommand"));
+    let dislike_action =
+        toolbar_surface.and_then(|surface| surface_action(surface, "dislikeCommand"));
+    let undislike_action =
+        toolbar_surface.and_then(|surface| surface_action(surface, "undislikeCommand"));
+    let like_state = toolbar_state.and_then(|state| state["likeState"].as_str());
+    let is_liked = like_state == Some(LIKE_STATE_LIKED);
+    let is_disliked = like_state == Some(LIKE_STATE_DISLIKED);
 
     let id = properties["commentId"]
         .as_str()
@@ -709,6 +731,16 @@ fn build_comment_from_view_model(
             .as_str()
             .filter(|count| !count.trim().is_empty())
             .map(ToOwned::to_owned),
+        like_count_liked_text: toolbar["likeCountLiked"]
+            .as_str()
+            .filter(|count| !count.trim().is_empty())
+            .map(ToOwned::to_owned),
+        is_liked,
+        is_disliked,
+        like_action,
+        unlike_action,
+        dislike_action,
+        undislike_action,
         reply_count,
         continuation_token,
         rich_text: rich_text(&properties["content"], own_video_id)
@@ -1015,41 +1047,47 @@ impl InnertubeClient {
     /// replayed like a vote, as Android's `YouTubeRepository.deleteComment`
     /// does.
     pub async fn delete_comment(&self, delete_action: &str) -> AppResult<()> {
-        self.require_signed_in()?;
-        let actions = comment_action_list(delete_action).ok_or_else(|| {
-            AppError::Validation(
-                "This comment has no delete action — open the comments again.".to_string(),
-            )
-        })?;
-        match self.post_comment_action(&actions, false).await {
-            Ok(()) => Ok(()),
-            Err(TransportError::Status { code: 404, .. }) => {
-                tracing::info!("comment delete answered 404; retrying with X-Goog-AuthUser");
-                self.post_comment_action(&actions, true)
-                    .await
-                    .map_err(|error| to_app_error("comment/perform_comment_action", &error))?;
-                Ok(())
-            }
-            Err(error) => Err(to_app_error("comment/perform_comment_action", &error)),
-        }
+        self.replay_comment_action(
+            delete_action,
+            "This comment has no delete action — open the comments again.",
+        )
+        .await
+    }
+
+    /// Votes on a comment (like/dislike and their undos): the toolbar
+    /// command's endpoint, as Android's `YouTubeRepository` vote does.
+    pub async fn like_comment(&self, endpoint_json: &str) -> AppResult<()> {
+        self.replay_comment_action(
+            endpoint_json,
+            "This comment has no vote to use — open the comments again.",
+        )
+        .await
     }
 
     /// Likes or unlikes a community post: `comment/perform_comment_action`
     /// with the toggle endpoint's actions, as Android's `YouTube.likePost`
-    /// does. A delegated (brand) channel's token is bound to the
+    /// does.
+    pub async fn like_post(&self, endpoint_json: &str) -> AppResult<()> {
+        self.replay_comment_action(
+            endpoint_json,
+            "This post has no like button to use — open the channel again.",
+        )
+        .await
+    }
+
+    /// Replays one server-issued comment action (delete, vote, post like)
+    /// through `comment/perform_comment_action`, with the delegated-channel
+    /// 404 retry. A delegated (brand) channel's token is bound to the
     /// account-slot identity the web sends as `X-Goog-AuthUser`, so a bare
     /// 404 is retried once carrying it.
-    pub async fn like_post(&self, endpoint_json: &str) -> AppResult<()> {
+    async fn replay_comment_action(&self, endpoint_json: &str, missing: &str) -> AppResult<()> {
         self.require_signed_in()?;
-        let actions = comment_action_list(endpoint_json).ok_or_else(|| {
-            AppError::Validation(
-                "This post has no like button to use — open the channel again.".to_string(),
-            )
-        })?;
+        let actions = comment_action_list(endpoint_json)
+            .ok_or_else(|| AppError::Validation(missing.to_string()))?;
         match self.post_comment_action(&actions, false).await {
             Ok(()) => Ok(()),
             Err(TransportError::Status { code: 404, .. }) => {
-                tracing::info!("post like answered 404; retrying with X-Goog-AuthUser");
+                tracing::info!("comment action answered 404; retrying with X-Goog-AuthUser");
                 self.post_comment_action(&actions, true)
                     .await
                     .map_err(|error| to_app_error("comment/perform_comment_action", &error))?;
@@ -1083,14 +1121,22 @@ impl InnertubeClient {
     }
 }
 
-/// The actions a comment-action endpoint carries: `performCommentActionEndpoint`
-/// holds an array of them, or a single `action`, which is wrapped the way
-/// Android's `performCommentAction` wraps it. Shared by the post like and the
-/// comment delete, which replay different endpoints through the same call.
+/// The actions a comment-action endpoint carries. Android's
+/// `performCommentAction` takes the bare `performCommentActionEndpoint`
+/// object — that is the form the comment delete and vote paths store — so a
+/// bare object is read as the endpoint itself. The community-post like path
+/// stores the whole service endpoint instead, so a wrapped object is unwrapped
+/// first. Either way the result is the `actions` list, or a single `action`
+/// wrapped the way Android's `performCommentAction` wraps it.
 fn comment_action_list(endpoint_json: &str) -> Option<Value> {
     let outer: Value = serde_json::from_str(endpoint_json).ok()?;
-    let inner = outer.get("performCommentActionEndpoint")?;
-    if let Some(actions) = inner.get("actions") {
+    let inner = outer
+        .get("performCommentActionEndpoint")
+        .unwrap_or(&outer);
+    // Android's `performCommentAction` reads `actions` only as an array and
+    // falls back to a single `action` otherwise — a non-array `actions`
+    // value must not be replayed as the action list.
+    if let Some(actions) = inner.get("actions").filter(|actions| actions.is_array()) {
         return Some(actions.clone());
     }
     inner
@@ -1331,13 +1377,29 @@ mod tests {
         )
         .expect("single action");
         assert_eq!(single, serde_json::json!([{"type":"like"}]));
+        // The comment delete and vote paths store the bare endpoint object
+        // itself, as Android's `performCommentAction` consumes it — that form
+        // must read the same way, or every delete fails before the network.
+        let bare = comment_action_list(r#"{"actions":[{"type":"delete"}]}"#).expect("bare");
+        assert_eq!(bare, serde_json::json!([{"type":"delete"}]));
+        let bare_single =
+            comment_action_list(r#"{"action":{"type":"like"}}"#).expect("bare single");
+        assert_eq!(bare_single, serde_json::json!([{"type":"like"}]));
         assert!(comment_action_list(r#"{"somethingElse":{}}"#).is_none());
         assert!(comment_action_list("not json").is_none());
+        // A non-array `actions` is not an action list: Android falls back to
+        // the single `action`, and without one there is nothing to replay.
+        let non_array = comment_action_list(
+            r#"{"actions":"like","action":{"type":"like"}}"#,
+        )
+        .expect("single action fallback");
+        assert_eq!(non_array, serde_json::json!([{"type":"like"}]));
+        assert!(comment_action_list(r#"{"actions":"like"}"#).is_none());
     }
 
     /// A toolbar surface with a reply dialog and a delete menu: the reply
     /// carries its own token and path, and the own comment's menu carries a
-    /// delete action to replay.
+    /// delete action to replay. The surface also carries the vote commands.
     fn surface_mutations() -> HashMap<String, serde_json::Value> {
         let mut mutations = payloads(serde_json::json!({
             "properties": {
@@ -1346,11 +1408,15 @@ mod tests {
                 "toolbarSurfaceKey": "surface-1",
             },
             "author": { "displayName": "Me", "isCurrentUser": true },
-            "toolbar": { "likeCountNotliked": "3" },
+            "toolbar": { "likeCountNotliked": "3", "likeCountLiked": "4" },
         }));
         mutations.insert(
             "surface-1".to_string(),
             serde_json::json!({ "engagementToolbarSurfaceEntityPayload": {
+                "likeCommand": { "performCommentActionEndpoint": { "actions": [{ "type": "like" }] } },
+                "unlikeCommand": { "performCommentActionEndpoint": { "actions": [{ "type": "unlike" }] } },
+                "dislikeCommand": { "performCommentActionEndpoint": { "actions": [{ "type": "dislike" }] } },
+                "undislikeCommand": { "performCommentActionEndpoint": { "actions": [{ "type": "undislike" }] } },
                 "replyCommand": { "commentReplyDialogRenderer": { "replyButton": { "buttonRenderer": {
                     "serviceEndpoint": {
                         "createCommentReplyEndpoint": { "createReplyParams": "REPLY_TOKEN" },
@@ -1391,6 +1457,45 @@ mod tests {
             comment.delete_action.as_deref(),
             Some(r#"{"actions":[{"type":"delete"}]}"#)
         );
+        // The toolbar's vote commands, as bare endpoints to replay.
+        assert_eq!(
+            comment.like_action.as_deref(),
+            Some(r#"{"actions":[{"type":"like"}]}"#)
+        );
+        assert_eq!(
+            comment.unlike_action.as_deref(),
+            Some(r#"{"actions":[{"type":"unlike"}]}"#)
+        );
+        assert_eq!(
+            comment.dislike_action.as_deref(),
+            Some(r#"{"actions":[{"type":"dislike"}]}"#)
+        );
+        assert_eq!(
+            comment.undislike_action.as_deref(),
+            Some(r#"{"actions":[{"type":"undislike"}]}"#)
+        );
+        assert_eq!(comment.like_count_liked_text.as_deref(), Some("4"));
+    }
+
+    #[test]
+    fn the_toolbar_state_names_the_viewer_vote() {
+        let mut mutations = surface_mutations();
+        mutations.insert(
+            "toolbar-1".to_string(),
+            serde_json::json!({ "engagementToolbarStateEntityPayload": {
+                "likeState": "TOOLBAR_LIKE_STATE_LIKED",
+            } }),
+        );
+        let comment = build_comment_from_view_model(
+            &view_model(),
+            None,
+            &mutations,
+            None,
+            false,
+        )
+        .expect("comment");
+        assert!(comment.is_liked);
+        assert!(!comment.is_disliked);
     }
 
     #[test]

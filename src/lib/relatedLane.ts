@@ -1,4 +1,5 @@
 import type { RelatedContentItem, VideoSummary } from "../types/video";
+import { isVideoId } from "./youtubeUrl";
 
 const identity = (item: RelatedContentItem) =>
   `${item.itemType}:${item.videoId ?? ""}:${item.playlistId ?? item.id}`;
@@ -43,9 +44,13 @@ export function autoplayCandidates(
   autoplayVideoId: string | null | undefined,
   currentVideoId?: string | null,
 ): VideoSummary[] {
+  // Only real videos are offered: a promo/upsell card the server inserts
+  // into the lane carries an id that is not a video at all, and must never
+  // reach the player — by tap or by autoplay.
   const videos = related
     .filter((item) => !item.itemType || item.itemType === "video")
     .map(relatedItemToVideoSummary)
+    .filter((video) => isVideoId(video.id))
     .filter((video) => !currentVideoId || video.id !== currentVideoId);
   if (!autoplayVideoId) return videos;
   const index = videos.findIndex((video) => video.id === autoplayVideoId);

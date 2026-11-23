@@ -259,6 +259,48 @@ mod tests {
     }
 
     #[test]
+    fn a_premium_upsell_in_up_next_is_dropped_but_real_videos_stay() {
+        fn video_lockup(id: &str, title: &str) -> Value {
+            json!({
+                "lockupViewModel": {
+                    "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+                    "contentId": id,
+                    "contentImage": { "thumbnailViewModel": { "image": { "sources": [
+                        { "url": format!("https://i.ytimg.com/vi/{id}/hqdefault.jpg") }
+                    ] } } },
+                    "metadata": { "lockupMetadataViewModel": {
+                        "title": { "content": title },
+                        "metadata": { "contentMetadataViewModel": { "metadataRows": [] } }
+                    } }
+                }
+            })
+        }
+        let promo = json!({ "lockupViewModel": {
+            "contentType": "LOCKUP_CONTENT_TYPE_VIDEO",
+            "contentId": "sb-acq-c-projectemu-wn-NNDb",
+            "contentImage": { "thumbnailViewModel": { "image": { "sources": [] } } },
+            "metadata": { "lockupMetadataViewModel": {
+                "title": { "content": "Try YouTube Premium free" },
+                "metadata": { "contentMetadataViewModel": { "metadataRows": [
+                    { "metadataParts": [{ "text": { "content": "Get ad-free YouTube + YouTube Music" } }] }
+                ] } }
+            } }
+        } });
+        let next = json!({ "contents": { "twoColumnWatchNextResults": { "secondaryResults": {
+            "secondaryResults": { "results": [
+                video_lockup("dQw4w9WgXcQ", "A video"),
+                promo,
+                video_lockup("9bZkp7q19f0", "Another video"),
+            ] }
+        } } } });
+        let page = related_page(&next);
+        assert_eq!(page.items.len(), 2);
+        assert_eq!(page.items[0].video_id.as_deref(), Some("dQw4w9WgXcQ"));
+        assert_eq!(page.items[1].video_id.as_deref(), Some("9bZkp7q19f0"));
+        assert!(page.items.iter().all(|item| item.title != "Try YouTube Premium free"));
+    }
+
+    #[test]
     fn the_cache_keeps_the_newest_answers() {
         for index in 0..=CAPACITY {
             remember(&format!("cache-test-{index}"), Arc::new(json!(index)));

@@ -72,7 +72,7 @@ export function WatchMetadata({
       : videoData?.likeCountText
       ? formatCount(videoData.likeCountText)
       : getString("like");
-  const dislikeLabel = rytdEnabled && rydData ? formatCount(rydData.dislikes) : getString("watch_dislike");
+  const dislikeLabel = rytdEnabled && rydData ? formatCount(rydData.dislikes + reactions.dislikeDelta) : getString("watch_dislike");
   const saveTarget = {
     ...currentVideo,
     title: primaryTitle,
@@ -159,8 +159,15 @@ export function WatchMetadata({
           collaborators={videoData?.collaborators ?? []}
         />
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex h-10 items-center divide-x divide-chrome-neutral-800 overflow-hidden rounded-full bg-surface-container-low">
+        {/*
+          One row, horizontally scrollable, like Android's LazyRow: the old
+          `flex-wrap` row broke into a ragged staircase (Share/Save on one
+          line, Download alone on the next) whenever the owner took too much
+          width. Every button is `shrink-0` so none squashes, and the
+          scrollbars are hidden app-wide, so the row reads as one clean line.
+        */}
+        <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto">
+          <div className="flex h-10 shrink-0 items-center divide-x divide-chrome-neutral-800 overflow-hidden rounded-full bg-surface-container-low">
             <button
               onClick={reactions.like}
               aria-pressed={reactions.state === "liked"}
@@ -183,16 +190,16 @@ export function WatchMetadata({
             </button>
           </div>
 
-          <WatchNoteButton video={currentVideo} videoData={videoData} />
-          <Button variant="tonal" onClick={() => void shareVideo()}>
+          <WatchNoteButton video={currentVideo} videoData={videoData} className="shrink-0" />
+          <Button variant="tonal" className="shrink-0" onClick={() => void shareVideo()}>
             <Share2 size={18} />
             {getString("share")}
           </Button>
-          <Button variant="tonal" onClick={() => openAddToPlaylist(saveTarget)}>
+          <Button variant="tonal" className="shrink-0" onClick={() => openAddToPlaylist(saveTarget)}>
             {isSaved ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
             {getString(isSaved ? "watch_saved" : "save")}
           </Button>
-          <Button variant="tonal" onClick={() => openVideoDownload(saveTarget)}>
+          <Button variant="tonal" className="shrink-0" onClick={() => openVideoDownload(saveTarget)}>
             {isDownloaded ? <Check size={18} /> : <Download size={18} />}
             {getString(isDownloaded ? "downloaded" : "download")}
           </Button>

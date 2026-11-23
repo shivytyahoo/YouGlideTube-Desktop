@@ -10,7 +10,7 @@ vi.mock("../../lib/streamResolution", async (importOriginal) => ({
   prefetchStreamInfo: vi.fn(),
 }));
 
-const { PlayerControls, elapsedOrRemaining } = await import("./PlayerControls");
+const { PlayerControls, elapsedOrRemaining, controlsTierForWidth } = await import("./PlayerControls");
 const { useAppSettingsStore } = await import("../../store/useAppSettingsStore");
 const { usePlayerStore } = await import("../../store/usePlayerStore");
 const { PLAYER_BUTTON_ROWS } = await import("../../lib/playerButtons");
@@ -199,6 +199,99 @@ describe("autoplay switch", () => {
     setButton("autoplay", false);
     render();
     expect(autoplay()).toBeNull();
+  });
+});
+
+describe("narrow player widths", () => {
+  // jsdom lays nothing out, so the bar's width is faked: a ResizeObserver
+  // stand-in plus a clientWidth getter the test drives.
+  let mockGlassWidth = 0;
+  let observerCallback: (() => void) | null = null;
+  let clientWidthDescriptor: PropertyDescriptor | undefined;
+
+  class MockResizeObserver {
+    constructor(callback: () => void) {
+      observerCallback = callback;
+    }
+    observe() {
+      observerCallback?.();
+    }
+    unobserve() {}
+    disconnect() {}
+  }
+
+  beforeEach(() => {
+    mockGlassWidth = 0;
+    clientWidthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => mockGlassWidth,
+    });
+    vi.stubGlobal("ResizeObserver", MockResizeObserver);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (clientWidthDescriptor) {
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", clientWidthDescriptor);
+    } else {
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth;
+    }
+    observerCallback = null;
+  });
+
+  const setGlassWidth = (width: number) => {
+    mockGlassWidth = width;
+    observerCallback?.();
+  };
+
+  it("maps panel widths to tiers", () => {
+    expect(controlsTierForWidth(1200)).toBe(0);
+    expect(controlsTierForWidth(960)).toBe(0);
+    expect(controlsTierForWidth(959)).toBe(1);
+    expect(controlsTierForWidth(690)).toBe(1);
+    expect(controlsTierForWidth(689)).toBe(2);
+  });
+
+  it("sheds the least-used buttons on a narrow panel but keeps play, settings and fullscreen", () => {
+    mockGlassWidth = 800;
+    render();
+    expect(hasButton(getString("sleep_timer"))).toBe(false);
+    expect(hasButton(getString("player_menu_captions"))).toBe(false);
+    expect(hasButton(getString("settings_button_speed_indicator"))).toBe(false);
+    expect(hasButton(getString("player_picture_in_picture"))).toBe(false);
+    expect(hasButton(getString("player_menu_quality"))).toBe(true);
+    expect(hasButton(getString("player_theater_mode"))).toBe(true);
+    expect(hasButton(getString("next"))).toBe(true);
+    expect(hasButton(getString("player_menu_settings"))).toBe(true);
+    expect(hasButton(getString("player_fullscreen"))).toBe(true);
+    expect(host.querySelector('button[title="Play"], button[title="Pause"]')).not.toBeNull();
+  });
+
+  it("also drops quality, theater and prev/next on a very narrow panel, and brings them back when widened", () => {
+    mockGlassWidth = 500;
+    render();
+    expect(hasButton(getString("player_menu_quality"))).toBe(false);
+    expect(hasButton(getString("player_theater_mode"))).toBe(false);
+    expect(hasButton(getString("next"))).toBe(false);
+    expect(hasButton(getString("previous"))).toBe(false);
+    expect(hasButton(getString("player_menu_settings"))).toBe(true);
+    expect(hasButton(getString("player_fullscreen"))).toBe(true);
+    act(() => setGlassWidth(1200));
+    expect(hasButton(getString("player_menu_quality"))).toBe(true);
+    expect(hasButton(getString("player_theater_mode"))).toBe(true);
+    expect(hasButton(getString("next"))).toBe(true);
+  });
+
+  it("never lets the row's groups paint over each other", () => {
+    render();
+    const row = host.querySelector(".justify-between");
+    expect(row?.className).toContain("overflow-hidden");
+    // The time pill sits in the left group; that group clips instead of
+    // sliding under the right-hand buttons when the row runs out of room.
+    const leftGroup = row?.querySelector(":scope > div");
+    expect(leftGroup?.className).toContain("overflow-hidden");
+    expect(leftGroup?.className).toContain("min-w-0");
   });
 });
 

@@ -44,6 +44,10 @@ const MAX_TOAST_ACTIONS = 2;
 
 let nextToastId = 0;
 
+/** Double-taps on the refresh button must not remount the page twice. */
+const PAGE_REFRESH_MIN_INTERVAL_MS = 750;
+let lastPageRefreshAt = 0;
+
 const getSavedSidebarExpanded = () => {
   try {
     const saved = profileStorage.getItem("youglidetube_sidebar_expanded");
@@ -91,6 +95,9 @@ interface UiState {
   signInDialogOpen: boolean;
   openSignInDialog: () => void;
   closeSignInDialog: () => void;
+  /** Bumps when the top-bar refresh button is pressed; PageWrapper remounts the current route on change. */
+  pageRefreshNonce: number;
+  requestPageRefresh: () => void;
   setActiveTab: (tab: ActiveTab) => void;
   setSearchQuery: (query: string) => void;
   setIsSearching: (isSearching: boolean) => void;
@@ -114,6 +121,13 @@ export const useUiStore = create<UiState>((set) => ({
   signInDialogOpen: false,
   openSignInDialog: () => set({ signInDialogOpen: true }),
   closeSignInDialog: () => set({ signInDialogOpen: false }),
+  pageRefreshNonce: 0,
+  requestPageRefresh: () => {
+    const now = Date.now();
+    if (now - lastPageRefreshAt < PAGE_REFRESH_MIN_INTERVAL_MS) return;
+    lastPageRefreshAt = now;
+    set((state) => ({ pageRefreshNonce: state.pageRefreshNonce + 1 }));
+  },
 
   setActiveTab: (activeTab) => set({ activeTab }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),

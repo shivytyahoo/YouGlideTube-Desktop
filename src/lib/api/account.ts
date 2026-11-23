@@ -141,11 +141,10 @@ export async function setChannelSubscribed(
 }
 
 /**
- * Likes or unlikes a video on the account, on the server. Disliking is
- * the same call with `liked = false`: there is no account dislike
- * endpoint — a dislike at least removes the account like, as Android does.
- * `params` is the button-issued token from the watch answer, when the
- * video's details carried one; the server refuses the call without it.
+ * Likes or unlikes a video on the account, on the server. `params` is the
+ * button-issued token from the watch answer, when the video's details
+ * carried one; the server refuses the like without it. The unlike carries
+ * no params, as Android's `unlikeVideo` does.
  */
 export async function setVideoLiked(
   videoId: string,
@@ -153,6 +152,18 @@ export async function setVideoLiked(
   params?: string | null,
 ): Promise<boolean> {
   return invokeBackend<boolean>("set_video_liked", { videoId, liked, params: params ?? null });
+}
+
+/**
+ * Dislikes a video on the account, on the server: `like/like` with the
+ * dislike button's token. A dislike is a rating of its own, not a removed
+ * like — the old path sent `like/removelike`, which never records one.
+ */
+export async function setVideoDisliked(
+  videoId: string,
+  params?: string | null,
+): Promise<boolean> {
+  return invokeBackend<boolean>("set_video_disliked", { videoId, params: params ?? null });
 }
 
 /** One page of the account's watch history (`FEhistory`), newest first. */

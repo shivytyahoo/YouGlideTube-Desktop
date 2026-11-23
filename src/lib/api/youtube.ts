@@ -452,6 +452,11 @@ export async function deleteComment(deleteAction: string): Promise<boolean> {
   return invokeBackend<boolean>("delete_comment", { deleteAction });
 }
 
+/** Votes on a comment (like/dislike and their undos), with the toolbar command's endpoint. */
+export async function likeComment(endpointJson: string): Promise<void> {
+  return invokeBackend<void>("like_comment", { endpointJson });
+}
+
 /** Likes or unlikes a community post, with the toggle endpoint the posts page carried. */
 export async function likePost(endpointJson: string): Promise<void> {
   return invokeBackend<void>("like_post", { endpointJson });

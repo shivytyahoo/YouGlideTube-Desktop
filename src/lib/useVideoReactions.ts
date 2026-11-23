@@ -6,7 +6,7 @@ import { useUiStore } from "../store/useUiStore";
 import { showSaveFailedToast, showSaveToast } from "./saveToast";
 import type { VideoSummary } from "../types/video";
 import { recapAction, recapDislike, recapDislikeRemoved } from "./recap/recapQueue";
-import { getAccountSignedIn, setVideoLiked } from "./api/account";
+import { getAccountSignedIn, setVideoDisliked, setVideoLiked } from "./api/account";
 import { normalizeBackendError } from "./api/errors";
 import { getString } from "./i18n/index";
 
@@ -19,21 +19,27 @@ interface ReactionVideoMeta {
   likeParams?: string | null;
   /** Button-issued token for `like/removelike`. */
   removeLikeParams?: string | null;
+  /** Button-issued token for `like/like` with a dislike. */
+  dislikeParams?: string | null;
+  /** Button-issued token for removing a dislike. */
+  removeDislikeParams?: string | null;
 }
 
 /**
  * Like/dislike for the active video. The local library toggles instantly,
  * and — when signed in — the like is confirmed on the Google account
- * (`like/like` / `like/removelike`, WEB_REMIX). There is no account
- * dislike endpoint: a dislike at least removes the account like, as
- * Android does. A server failure rolls the local toggle back and shows an
- * error toast instead of leaving the UI and the account out of sync.
- * `likeDelta` is +1 only after a server-confirmed like in this session,
- * so the displayed like count can move like Android's `likeCountDelta`.
+ * (`like/like` / `like/removelike`, WEB_REMIX). A dislike is a rating of
+ * its own, not a removed like: it goes to the server as `like/like` with
+ * the dislike button's token, as youtubei.js replays the button. A server
+ * failure rolls the local toggle back and shows an error toast instead of
+ * leaving the UI and the account out of sync. `likeDelta`/`dislikeDelta`
+ * are +1 only after a server-confirmed rating in this session, so the
+ * displayed counts can move like Android's `likeCountDelta`.
  */
 export function useVideoReactions(video: VideoSummary | null, videoMeta: ReactionVideoMeta | null) {
   const [state, setState] = useState<ReactionState>("none");
   const [likeDelta, setLikeDelta] = useState(0);
+  const [dislikeDelta, setDislikeDelta] = useState(0);
   const localItems = useLikesStore((s) => s.items);
   const serverItems = useLikesStore((s) => s.serverItems);
   // A video liked on the phone is liked here too, so the button follows
@@ -60,12 +66,13 @@ export function useVideoReactions(video: VideoSummary | null, videoMeta: Reactio
     void loadServerLikes();
   }, [loadServerLikes]);
 
-  // A new video starts from the library; the delta only lives for this video.
+  // A new video starts from the library; the deltas only live for this video.
   // `likedInLibrary` is deliberately not a dependency: this resets only when
   // the video changes, not when the library does.
   useEffect(() => {
     setState(likedInLibrary ? "liked" : "none");
     setLikeDelta(0);
+    setDislikeDelta(0);
   }, [video?.id]);
 
   // The library stays the source of truth for likes — except an explicit
@@ -137,12 +144,31 @@ export function useVideoReactions(video: VideoSummary | null, videoMeta: Reactio
     const next: ReactionState = state === "disliked" ? "none" : "disliked";
     setState(next);
     if (next !== "disliked") {
+      // Un-dislike: remove the rating on the account, as Android's
+      // unlikeVideo does — `like/removelike` with no params. The old path
+      // never called the server here, so a dislike outlived its toggle.
       recapDislikeRemoved(video.id);
+      setDislikeDelta(0);
+      if (signedIn) {
+        void setVideoLiked(video.id, false, null).catch((err) => {
+          console.warn("Failed to remove the account dislike", err);
+          setState("disliked");
+          setDislikeDelta(1);
+          useUiStore.getState().showToast({
+            variant: "error",
+            message: `${getString("account_dislike_failed")}: ${normalizeBackendError(err).message}`,
+          });
+        });
+      }
       return;
     }
-    // A dislike always removes the account like, as Android does — even
-    // when the video was never in this device's library. The local like
-    // comes off first when there is one; the server call runs either way.
+    // A dislike is a rating of its own: it goes to the server as
+    // `like/like` with the dislike button's token. The old call sent
+    // `like/removelike` with the like button's token instead, which never
+    // records a dislike — and on a never-liked video there is nothing to
+    // remove, so the server refuses it and the button falls back. The
+    // local like comes off first when there is one; the server call runs
+    // either way.
     const removeLocalLike = likedInLibrary
       ? toggleVideoLike({ ...video, channelId }).catch((err) => {
           console.warn("Failed to remove disliked video from likes", err);
@@ -150,20 +176,22 @@ export function useVideoReactions(video: VideoSummary | null, videoMeta: Reactio
       : Promise.resolve(true);
     void removeLocalLike.then(() => {
       if (!signedIn) return;
-      void setVideoLiked(video.id, false, likeParamsFor(false)).then((ok) => {
+      void setVideoDisliked(video.id, videoMeta?.dislikeParams ?? null).then((ok) => {
         if (ok) {
           setLikeDelta(0);
+          setDislikeDelta(1);
           return;
         }
-        throw new Error("server declined the unlike");
+        throw new Error("server declined the dislike");
       }).catch((err) => {
-        console.warn("Failed to remove the account like", err);
+        console.warn("Failed to save the dislike on the account", err);
         if (likedInLibrary) {
           void toggleVideoLike({ ...video, channelId });
           setState("liked");
         } else {
           setState("none");
         }
+        setDislikeDelta(0);
         useUiStore.getState().showToast({
           variant: "error",
           message: `${getString("account_dislike_failed")}: ${normalizeBackendError(err).message}`,
@@ -175,5 +203,5 @@ export function useVideoReactions(video: VideoSummary | null, videoMeta: Reactio
     hideVideo(video.id);
   };
 
-  return { state, like, dislike, likeDelta };
+  return { state, like, dislike, likeDelta, dislikeDelta };
 }

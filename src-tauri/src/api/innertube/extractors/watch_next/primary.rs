@@ -21,6 +21,16 @@ pub struct WatchPrimary {
     /// The button-issued token for `like/removelike`, from the toggled
     /// like button's `likeEndpoint`.
     pub remove_like_params: Option<String>,
+    /// The button-issued token for `like/like` with a dislike, from the
+    /// dislike button's `likeEndpoint`; `None` when the watch answer
+    /// carries none. The old dislike call sent `like/removelike` with the
+    /// like button's token instead, which never records a dislike — and
+    /// on a never-liked video there is nothing to remove, so the server
+    /// refuses it and the button falls back.
+    pub dislike_params: Option<String>,
+    /// The button-issued token for removing a dislike, from the toggled
+    /// dislike button's `likeEndpoint`.
+    pub remove_dislike_params: Option<String>,
     pub hashtags: Vec<String>,
     pub badges: Vec<String>,
 }
@@ -28,7 +38,8 @@ pub struct WatchPrimary {
 #[must_use]
 pub fn primary(next: &Value) -> WatchPrimary {
     let primary = info_renderers(next).0;
-    let (like_params, remove_like_params) = like_button_params(primary);
+    let (like_params, remove_like_params, dislike_params, remove_dislike_params) =
+        like_dislike_button_params(primary);
     WatchPrimary {
         title: text_of(&primary["title"]),
         view_count_text: view_count_text(primary),
@@ -37,6 +48,8 @@ pub fn primary(next: &Value) -> WatchPrimary {
         like_count_text: like_count_text(primary),
         like_params,
         remove_like_params,
+        dislike_params,
+        remove_dislike_params,
         hashtags: hashtags(primary),
         badges: primary["badges"]
             .as_array()
@@ -71,30 +84,37 @@ fn like_count_text(primary: &Value) -> Option<String> {
         })
 }
 
-/// The like button's issued tokens, harvested from its `likeEndpoint`s.
-/// Only the like button's subtree is searched, in document order, so the
-/// dislike button's own tokens never leak in: the default button carries
-/// `likeParams` (to like), the toggled button `removeLikeParams` (to
-/// unlike). The search is recursive because the endpoint hides behind a
-/// sign-in modal for signed-out answers and sits directly on the tap for
-/// signed-in ones. The server 403s `like/like` without the button-issued
-/// token, so a call without these params is a call the server refuses.
-fn like_button_params(primary: &Value) -> (Option<String>, Option<String>) {
-    let Some(toggle) = primary["videoActions"]["menuRenderer"]["topLevelButtons"]
+/// The like and dislike buttons' issued tokens, harvested from their
+/// `likeEndpoint`s. Only each button's own subtree is searched, in document
+/// order, so the dislike button's tokens never leak into the like's and
+/// vice versa: the default like button carries `likeParams` (to like), its
+/// toggled button `removeLikeParams` (to unlike), the default dislike
+/// button `dislikeParams` (to dislike), its toggled button
+/// `removeLikeParams` (to un-dislike). The search is recursive because the
+/// endpoint hides behind a sign-in modal for signed-out answers and sits
+/// directly on the tap for signed-in ones. The server 403s `like/like`
+/// without the button-issued token, so a call without these params is a
+/// call the server refuses.
+fn like_dislike_button_params(
+    primary: &Value,
+) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
+    let Some(segmented) = primary["videoActions"]["menuRenderer"]["topLevelButtons"]
         .as_array()
         .into_iter()
         .flatten()
         .find_map(|button| button.get("segmentedLikeDislikeButtonViewModel"))
-        .map(|view_model| {
-            &view_model["likeButtonViewModel"]["likeButtonViewModel"]["toggleButtonViewModel"]
-                ["toggleButtonViewModel"]
-        })
     else {
-        return (None, None);
+        return (None, None, None, None);
     };
+    let like_toggle = &segmented["likeButtonViewModel"]["likeButtonViewModel"]["toggleButtonViewModel"]
+        ["toggleButtonViewModel"];
+    let dislike_toggle = &segmented["dislikeButtonViewModel"]["dislikeButtonViewModel"]
+        ["toggleButtonViewModel"]["toggleButtonViewModel"];
     (
-        find_like_endpoint_param(toggle, "likeParams"),
-        find_like_endpoint_param(toggle, "removeLikeParams"),
+        find_like_endpoint_param(like_toggle, "likeParams"),
+        find_like_endpoint_param(like_toggle, "removeLikeParams"),
+        find_like_endpoint_param(dislike_toggle, "dislikeParams"),
+        find_like_endpoint_param(dislike_toggle, "removeLikeParams"),
     )
 }
 
@@ -233,6 +253,11 @@ mod tests {
         let primary = primary(&next);
         assert_eq!(primary.like_params.as_deref(), Some("LIKE_PARAMS"));
         assert_eq!(primary.remove_like_params.as_deref(), Some("REMOVE_PARAMS"));
+        assert_eq!(primary.dislike_params.as_deref(), Some("DISLIKE_PARAMS"));
+        assert_eq!(
+            primary.remove_dislike_params.as_deref(),
+            Some("DISLIKE_REMOVE_PARAMS")
+        );
     }
 
     #[test]

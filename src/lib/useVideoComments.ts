@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
-import { createComment, createCommentReply, deleteComment as deleteCommentApi, getComments, getPostComments } from "./api/youtube";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createComment, createCommentReply, deleteComment as deleteCommentApi, getComments, getPostComments, likeComment as likeCommentApi } from "./api/youtube";
 import { normalizeBackendError } from "./api/errors";
+import { formatCount } from "./utils";
 import type { Comment, CommentSort } from "../types/video";
 
 interface UseVideoCommentsOptions {
@@ -35,6 +36,11 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
   const [repliesLoading, setRepliesLoading] = useState<Record<string, boolean>>({});
   const [repliesNextToken, setRepliesNextToken] = useState<Record<string, string | null>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // The real reason the last delete failed, with the comment it belonged to —
+  // the caller shows this instead of only a static string.
+  const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null);
+  // Votes already in flight, by comment id: a double tap must not send twice.
+  const votesInFlight = useRef<Set<string>>(new Set());
 
   const fetchComments = useCallback(
     (pageToken?: string | null) => {
@@ -91,7 +97,12 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
     };
   }, [fetchComments, sourceId, sourceKey, sortToken, reloadNonce]);
 
-  /** Reloads the list in the order `token` names (Top or Newest). */
+  /** Reloads the list from the server — the comments were fetched as a
+   * guest while signed out, so after a sign-in the section calls this to
+   * pick up the signed-in tokens (the comment box token above all). */
+  const refresh = useCallback(() => {
+    setReloadNonce((n) => n + 1);
+  }, []);
   const selectSort = useCallback(
     (token: string) => {
       setSortOptions((options) => options.map((option) => ({ ...option, selected: option.token === token })));
@@ -200,6 +211,7 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
           .find((reply) => reply.id === commentId);
       const action = target?.deleteAction?.trim();
       if (!action) return false;
+      setDeleteError(null);
       try {
         const ok = await deleteCommentApi(action);
         if (!ok) throw new Error("server declined the delete");
@@ -224,10 +236,97 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
         return true;
       } catch (err) {
         console.warn("Failed to delete the comment", err);
+        setDeleteError({ id: commentId, message: normalizeBackendError(err).message });
         return false;
       }
     },
     [ancestorIdOf, comments, replies],
+  );
+
+  /** Replaces one comment by id, wherever it sits in the list. */
+  const replaceComment = useCallback((commentId: string, next: Comment) => {
+    setComments((prev) => prev.map((comment) => (comment.id === commentId ? next : comment)));
+    setReplies((prev) => {
+      let changed = false;
+      const nextReplies: Record<string, Comment[]> = {};
+      for (const [ancestorId, thread] of Object.entries(prev)) {
+        nextReplies[ancestorId] = thread.map((reply) => {
+          if (reply.id !== commentId) return reply;
+          changed = true;
+          return next;
+        });
+      }
+      return changed ? nextReplies : prev;
+    });
+  }, []);
+
+  /** Likes a comment, or withdraws the like when it is already liked — and
+   * the same for dislike. As Android's `CommentsPager.vote` does: the
+   * toolbar command for the direction, an optimistic count move, and the
+   * parsed state back on a refusal. Works on top-level comments and replies
+   * alike. False when there is no vote to send, or the server refused it. */
+  const voteOnComment = useCallback(
+    async (comment: Comment, like: boolean) => {
+      const current =
+        comments.find((item) => item.id === comment.id) ??
+        Object.values(replies)
+          .flat()
+          .find((reply) => reply.id === comment.id) ??
+        comment;
+      if (votesInFlight.current.has(current.id)) return false;
+      const endpoint = like
+        ? current.isLiked
+          ? current.unlikeAction
+          : current.likeAction
+        : current.isDisliked
+          ? current.undislikeAction
+          : current.dislikeAction;
+      if (!endpoint?.trim()) return false;
+      votesInFlight.current.add(current.id);
+      const count = current.likeCount ?? 0;
+      const optimistic: Comment =
+        like && current.isLiked
+          ? { ...current, isLiked: false, likeCount: Math.max(0, count - 1) }
+          : like
+            ? {
+                ...current,
+                isLiked: true,
+                isDisliked: false,
+                likeCount: count + 1,
+                likeCountLikedText:
+                  current.likeCountLikedText?.trim() || formatCount(count + 1),
+              }
+            : current.isDisliked
+              ? { ...current, isDisliked: false }
+              : {
+                  ...current,
+                  isDisliked: true,
+                  isLiked: false,
+                  likeCount: current.isLiked ? Math.max(0, count - 1) : count,
+                };
+      replaceComment(current.id, optimistic);
+      try {
+        await likeCommentApi(endpoint);
+        return true;
+      } catch (err) {
+        console.warn("Failed to vote on the comment", err);
+        replaceComment(current.id, current);
+        return false;
+      } finally {
+        votesInFlight.current.delete(current.id);
+      }
+    },
+    [comments, replies, replaceComment],
+  );
+
+  const toggleCommentLike = useCallback(
+    (comment: Comment) => voteOnComment(comment, true),
+    [voteOnComment],
+  );
+
+  const toggleCommentDislike = useCallback(
+    (comment: Comment) => voteOnComment(comment, false),
+    [voteOnComment],
   );
 
   /** Posts a comment, then reloads the list from the server. False on failure. */
@@ -278,10 +377,14 @@ export function useVideoComments(videoId: string | undefined, options: UseVideoC
     repliesNextToken,
     expanded,
     loadMore,
+    refresh,
     toggleReplies,
     loadReplies,
     postReply,
     deleteComment,
+    deleteError,
+    toggleCommentLike,
+    toggleCommentDislike,
     createCommentParams,
     posting,
     postError,
