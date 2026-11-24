@@ -150,10 +150,8 @@ mod tests {
 
     #[test]
     fn sizes_are_split_by_kind_and_missing_files_count_for_nothing() {
-        let dir = std::env::temp_dir().join(format!(
-            "youglidetube-storage-test-{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("youglidetube-storage-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let video = write_file(&dir, "clip.mp4", &[0u8; 100]);
         let song = write_file(&dir, "song.m4a", &[0u8; 40]);

@@ -107,8 +107,7 @@ async fn fetch_homepage_challenge_inner() -> Option<HomepageChallengeData> {
     let Some(raw_challenge) = extracted.raw_challenge.as_deref() else {
         warn!(
             failure = extracted.failure.unwrap_or("no-challenge"),
-            page_ms,
-            "Homepage has no usable ytAtN challenge"
+            page_ms, "Homepage has no usable ytAtN challenge"
         );
         return None;
     };
@@ -160,11 +159,13 @@ fn interpreter_url(raw_challenge: &str) -> Option<String> {
     if trusted.is_empty() {
         return None;
     }
-    Some(if trusted.starts_with("https:") || trusted.starts_with("http:") {
-        trusted.to_string()
-    } else {
-        format!("https:{trusted}")
-    })
+    Some(
+        if trusted.starts_with("https:") || trusted.starts_with("http:") {
+            trusted.to_string()
+        } else {
+            format!("https:{trusted}")
+        },
+    )
 }
 
 /// Build the Android-shaped challenge-data JSON from a raw `ytAtN` challenge
@@ -174,10 +175,10 @@ pub fn build_challenge_data(raw_challenge: &str, interpreter_js: &str) -> Option
     let root: Value = serde_json::from_str(raw_challenge).ok()?;
     let bg = root.get("bgChallenge")?;
     let get = |key: &str| bg.get(key)?.as_str().map(str::to_string);
-    let trusted_url = bg["interpreterUrl"]
-        ["privateDoNotAccessOrElseTrustedResourceUrlWrappedValue"]
-        .as_str()?
-        .to_string();
+    let trusted_url =
+        bg["interpreterUrl"]["privateDoNotAccessOrElseTrustedResourceUrlWrappedValue"]
+            .as_str()?
+            .to_string();
     let data = serde_json::json!({
         "interpreterJavascript": {
             "privateDoNotAccessOrElseSafeScriptWrappedValue": interpreter_js,
@@ -268,7 +269,10 @@ fn content_po_token_flag(html: &str) -> String {
         return "?".to_string();
     };
     let rest = &html[at + marker.len()..];
-    let rest = rest.strip_prefix('=').or_else(|| rest.strip_prefix("\\u003d")).or_else(|| rest.strip_prefix("\\u003D"));
+    let rest = rest
+        .strip_prefix('=')
+        .or_else(|| rest.strip_prefix("\\u003d"))
+        .or_else(|| rest.strip_prefix("\\u003D"));
     match rest {
         Some(rest) if rest.starts_with("true") => "y".to_string(),
         Some(rest) if rest.starts_with("false") => "n".to_string(),
@@ -402,12 +406,7 @@ fn normalize_loose_value(value: Value) -> Value {
             }
             Value::String(decoded)
         }
-        Value::Array(items) => Value::Array(
-            items
-                .into_iter()
-                .map(normalize_loose_value)
-                .collect(),
-        ),
+        Value::Array(items) => Value::Array(items.into_iter().map(normalize_loose_value).collect()),
         Value::Object(map) => Value::Object(
             map.into_iter()
                 .map(|(key, value)| (key, normalize_loose_value(value)))
@@ -764,7 +763,8 @@ mod tests {
 
     #[test]
     fn loose_json_r_object_round_trips() {
-        let payload = r#"{R: {bgChallenge: {interpreterHash: "h"}, program: "p", interpreterUrl: "u"}}"#;
+        let payload =
+            r#"{R: {bgChallenge: {interpreterHash: "h"}, program: "p", interpreterUrl: "u"}}"#;
         let raw = parse_loose_r(payload).unwrap();
         assert!(raw.contains("\"program\":\"p\""), "{raw}");
     }
@@ -775,8 +775,7 @@ mod tests {
         let json = build_challenge_data(raw, "var interp = 1;").unwrap();
         let value: Value = serde_json::from_str(&json).unwrap();
         assert_eq!(
-            value["interpreterJavascript"]
-                ["privateDoNotAccessOrElseSafeScriptWrappedValue"]
+            value["interpreterJavascript"]["privateDoNotAccessOrElseSafeScriptWrappedValue"]
                 .as_str(),
             Some("var interp = 1;")
         );

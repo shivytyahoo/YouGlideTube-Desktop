@@ -6,8 +6,8 @@
 //! shape is parsed in `crate::auth::identity`; this module only owns
 //! the request.
 
-use crate::api::innertube::core::clients;
 use crate::api::innertube::InnertubeClient;
+use crate::api::innertube::core::clients;
 use crate::auth::identity::{AccountInfo, parse_account_info};
 use crate::errors::{AppError, AppResult};
 
@@ -16,7 +16,11 @@ impl InnertubeClient {
     /// photo from `account/account_menu` (WEB_REMIX client, like Android).
     /// Returns the cached identity's replacement; the caller persists it.
     pub async fn account_info(&self) -> AppResult<AccountInfo> {
-        if self.auth.as_ref().is_none_or(|session| !session.is_signed_in()) {
+        if self
+            .auth
+            .as_ref()
+            .is_none_or(|session| !session.is_signed_in())
+        {
             return Err(AppError::Validation(
                 "Not signed in — sign in with Google first to see the account.".to_string(),
             ));

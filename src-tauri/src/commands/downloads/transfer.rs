@@ -546,9 +546,10 @@ pub(crate) async fn fetch_range_bytes(
     for attempt in 1..=MAX_SEGMENT_ATTEMPTS {
         match range_attempt(fetch, from, to).await {
             RangeAttempt::Response(response) => {
-                let bytes = response.bytes().await.map_err(|error| {
-                    format!("{} range read failed: {error}", fetch.label)
-                })?;
+                let bytes = response
+                    .bytes()
+                    .await
+                    .map_err(|error| format!("{} range read failed: {error}", fetch.label))?;
                 if bytes.len() != expected {
                     if attempt == MAX_SEGMENT_ATTEMPTS {
                         return Err(format!(
@@ -577,7 +578,9 @@ pub(crate) async fn fetch_range_bytes(
             RangeAttempt::Fatal(reason) => return Err(reason),
             RangeAttempt::Retry(reason, retry_after) => {
                 if attempt == MAX_SEGMENT_ATTEMPTS {
-                    return Err(format!("{reason} (gave up after {MAX_SEGMENT_ATTEMPTS} tries)"));
+                    return Err(format!(
+                        "{reason} (gave up after {MAX_SEGMENT_ATTEMPTS} tries)"
+                    ));
                 }
                 wait_between_segment_attempts(fetch, attempt, &reason, retry_after).await?;
             }
@@ -629,7 +632,9 @@ pub(crate) async fn fetch_range_into_file(
             RangeAttempt::Fatal(reason) => return Err(reason),
             RangeAttempt::Retry(reason, retry_after) => {
                 if attempt == MAX_SEGMENT_ATTEMPTS {
-                    return Err(format!("{reason} (gave up after {MAX_SEGMENT_ATTEMPTS} tries)"));
+                    return Err(format!(
+                        "{reason} (gave up after {MAX_SEGMENT_ATTEMPTS} tries)"
+                    ));
                 }
                 wait_between_segment_attempts(fetch, attempt, &reason, retry_after).await?;
             }
@@ -722,8 +727,7 @@ async fn write_range_to_file(
 fn magic_matches(peeked: &[u8], magic: &SegmentMagic) -> bool {
     match magic {
         SegmentMagic::Mp4 => {
-            peeked.len() >= 8
-                && (&peeked[4..8] == b"moof" || &peeked[4..8] == b"styp")
+            peeked.len() >= 8 && (&peeked[4..8] == b"moof" || &peeked[4..8] == b"styp")
         }
         SegmentMagic::Webm => {
             peeked.len() >= 4

@@ -48,6 +48,3 @@ pub async fn forget(pool: &SqlitePool, channel_id: &str) -> AppResult<()> {
     }
     Ok(())
 }
-
-
-

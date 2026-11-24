@@ -52,7 +52,8 @@ impl DownloadJob {
     }
 
     fn staged(&self, suffix: &str) -> PathBuf {
-        self.dir().join(format!(".{}{suffix}.youglidetube-part", self.id))
+        self.dir()
+            .join(format!(".{}{suffix}.youglidetube-part", self.id))
     }
 
     /// Every partial file this job can leave behind.
@@ -187,14 +188,14 @@ async fn run_single(
     let mime = source.current(Role::Single).await.mime_type;
     let is_aac = mime.to_ascii_lowercase().starts_with("audio/mp4");
     if job.request.is_clip() && !is_aac {
-        return Err(
-            "This song's stream cannot be clipped: only AAC audio can be trimmed".into(),
-        );
+        return Err("This song's stream cannot be clipped: only AAC audio can be trimmed".into());
     }
     let fetch = track_fetch(job, source, Role::Single, &path, emitter, "media stream");
     emitter.emit(DownloadStatus::Downloading, None);
     let segment_only = match job.request.clip_range() {
-        Some(clip) => try_clip_segments(source, None, std::slice::from_ref(&fetch), clip, emitter).await?,
+        Some(clip) => {
+            try_clip_segments(source, None, std::slice::from_ref(&fetch), clip, emitter).await?
+        }
         None => false,
     };
     if !segment_only {
@@ -304,17 +305,16 @@ async fn run_pair(
         let probe = std::iter::once(transfer::probe_length(&video))
             .chain(audio_fetches.iter().map(transfer::probe_length));
         let totals: Vec<Option<u64>> = futures_util::future::join_all(probe).await;
-        let total = totals
-            .iter()
-            .fold(Some(0_u64), |sum, next| sum.and_then(|sum| next.map(|bytes| sum + bytes)));
+        let total = totals.iter().fold(Some(0_u64), |sum, next| {
+            sum.and_then(|sum| next.map(|bytes| sum + bytes))
+        });
         emitter.set_total(total);
-        let fetch = std::iter::once(transfer::fetch_track(&video, totals[0]))
-            .chain(
-                audio_fetches
-                    .iter()
-                    .enumerate()
-                    .map(|(index, fetch)| transfer::fetch_track(fetch, totals[index + 1])),
-            );
+        let fetch = std::iter::once(transfer::fetch_track(&video, totals[0])).chain(
+            audio_fetches
+                .iter()
+                .enumerate()
+                .map(|(index, fetch)| transfer::fetch_track(fetch, totals[index + 1])),
+        );
         for result in futures_util::future::join_all(fetch).await {
             result?;
         }
@@ -333,12 +333,7 @@ async fn run_pair(
         audios: audio_paths
             .iter()
             .zip(audio_sources.iter())
-            .map(|(path, source)| {
-                (
-                    path.clone(),
-                    container_from_mime(&source.mime_type),
-                )
-            })
+            .map(|(path, source)| (path.clone(), container_from_mime(&source.mime_type)))
             .collect(),
     };
     mux_pair(job, source, &tracks, &prepared, emitter).await?;

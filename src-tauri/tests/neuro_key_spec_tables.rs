@@ -4,9 +4,9 @@
 
 use std::collections::{HashMap, HashSet};
 
+use serde_json::Value;
 use youglidetube_desktop_lib::data_model::keyspec::tables::{format_of, tables};
 use youglidetube_desktop_lib::data_model::keyspec::{VERSION, stemmer};
-use serde_json::Value;
 
 const FIXTURE: &str = include_str!("fixtures/neuro/key_spec_tables.json");
 const RESOURCE: &str = include_str!("../resources/neuro/key_spec_tables.json");

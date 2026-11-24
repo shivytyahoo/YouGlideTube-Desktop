@@ -7,12 +7,12 @@
 
 use std::path::PathBuf;
 
+use serde_json::{Value, json};
 use youglidetube_desktop_lib::api::innertube::InnertubeClient;
 use youglidetube_desktop_lib::api::innertube::core::{clients, locale};
 use youglidetube_desktop_lib::api::innertube::json::continuation::{
     continuation_item_lists, last_continuation_token,
 };
-use serde_json::{Value, json};
 
 const LTT: &str = "UCXuqSBlHAE6Xw-yeJA0Tunw";
 const WAN_SHOW: &str = "VLPL8mG-RkN2uTw7PhlnAr4pZZz2QubIbujH";
@@ -156,9 +156,10 @@ async fn capture_innertube_fixtures() {
         .await
         .expect("next");
     let next = save("next_related", next);
-    let token = youglidetube_desktop_lib::api::innertube::extractors::watch_next::related_page(&next)
-        .continuation
-        .expect("related page 2 token");
+    let token =
+        youglidetube_desktop_lib::api::innertube::extractors::watch_next::related_page(&next)
+            .continuation
+            .expect("related page 2 token");
     let mut page2 = json!({ "continuation": token });
     let page2 = client
         .post_innertube("next", &clients::WEB, &mut page2)
@@ -271,7 +272,8 @@ async fn capture_innertube_fixtures() {
         if tab.kind != "videos" {
             continue;
         }
-        let tab = youglidetube_desktop_lib::api::innertube::extractors::channel::parse_tab(&page, LTT);
+        let tab =
+            youglidetube_desktop_lib::api::innertube::extractors::channel::parse_tab(&page, LTT);
         let popular = tab
             .filters
             .iter()

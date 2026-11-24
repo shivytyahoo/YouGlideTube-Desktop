@@ -198,7 +198,6 @@ mod tests {
         }
     }
 
-
     async fn pool() -> SqlitePool {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
             .max_connections(1)
@@ -251,7 +250,4 @@ mod tests {
         let gone: Option<Vec<SongItem>> = get_cached(&pool, "album", "album-1", 10).await.unwrap();
         assert!(gone.is_none());
     }
-
-
-
 }

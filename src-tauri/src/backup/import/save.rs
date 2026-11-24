@@ -10,11 +10,11 @@ use sqlx::SqlitePool;
 
 use super::{Found, ImportError, TakenLike, TakenPlaylist, Watch};
 use crate::commands::backup::{SUBSCRIPTION_CHANNELS_KEY, get_setting_value, import_backup};
-use crate::db::watch_history;
 use crate::data_model::canonical::{
     Hlc, Like, LikeKind, LikeState, Playlist, PlaylistItem, PlaylistOrigin, WatchHistoryRecord,
 };
 use crate::data_model::mapping::{self, WATCH_LATER_SYNC_ID, video_thumbnail};
+use crate::db::watch_history;
 
 const IMPORT_DEVICE: &str = "import";
 
@@ -161,7 +161,8 @@ fn playlist_record(
 }
 
 async fn local_playlists(pool: &SqlitePool, device_id: &str) -> Result<Vec<Playlist>, ImportError> {
-    let failed = |error: crate::data_model::error::DataError| ImportError::Failed(error.to_string());
+    let failed =
+        |error: crate::data_model::error::DataError| ImportError::Failed(error.to_string());
     let mut playlists = get_setting_value(pool, mapping::PLAYLISTS_SETTING_KEY)
         .await
         .map_err(failed)?
@@ -188,7 +189,6 @@ async fn liked_ids(pool: &SqlitePool) -> Result<HashSet<String>, ImportError> {
         .map(|like| like.id)
         .collect())
 }
-
 
 /// An earlier import, before ads were told apart, saved them as watched. Rows for the ads this
 /// export lists go, unless they were played here since or the export also lists the video as a

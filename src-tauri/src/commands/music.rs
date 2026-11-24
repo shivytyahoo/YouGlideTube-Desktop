@@ -16,8 +16,7 @@ use crate::api::innertube::music::clients::WEB_REMIX;
 use crate::db::music_home;
 use crate::errors::{AppError, ErrorResponse};
 use crate::models::music::{
-    AlbumItem, ArtistPage, ChartsPage, ExplorePage, MoodAndGenreGroup,
-    MoodAndGenreItem, SongItem,
+    AlbumItem, ArtistPage, ChartsPage, ExplorePage, MoodAndGenreGroup, MoodAndGenreItem, SongItem,
 };
 use crate::models::music_pages::{
     AlbumPage, CachedMusicHomePage, MoodGenrePage, MusicHomePage, MusicLibraryPage,
@@ -278,7 +277,10 @@ pub async fn get_music_library(
     continuation: Option<String>,
     music: State<'_, MusicService>,
 ) -> CmdResult<MusicLibraryPage> {
-    music.library(continuation.as_deref()).await.map_err(ErrorResponse::from)
+    music
+        .library(continuation.as_deref())
+        .await
+        .map_err(ErrorResponse::from)
 }
 
 #[tauri::command]
@@ -293,7 +295,10 @@ pub async fn set_music_liked(
     music: State<'_, MusicService>,
 ) -> CmdResult<bool> {
     validate_video_id(&video_id).map_err(ErrorResponse::from)?;
-    music.set_liked(&video_id, liked).await.map_err(ErrorResponse::from)?;
+    music
+        .set_liked(&video_id, liked)
+        .await
+        .map_err(ErrorResponse::from)?;
     Ok(true)
 }
 

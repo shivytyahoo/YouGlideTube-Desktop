@@ -152,8 +152,7 @@ pub fn authorization_header(
 /// usable SAPISID.
 #[must_use]
 pub fn auth_headers(cookie_header: &str) -> Option<AuthHeaders> {
-    let authorization =
-        authorization_header(cookie_header, YOUTUBE_ORIGIN, now_epoch_seconds())?;
+    let authorization = authorization_header(cookie_header, YOUTUBE_ORIGIN, now_epoch_seconds())?;
     Some(AuthHeaders {
         authorization,
         cookie: cookie_header.to_string(),
@@ -171,10 +170,7 @@ mod tests {
     #[test]
     fn sha1_known_vector() {
         // FIPS 180-1 test vector (ported from the CMP SapisidAuthTest).
-        assert_eq!(
-            sha1_hex("abc"),
-            "a9993e364706816aba3e25717850c26c9cd0d89d"
-        );
+        assert_eq!(sha1_hex("abc"), "a9993e364706816aba3e25717850c26c9cd0d89d");
     }
 
     #[test]
@@ -191,12 +187,8 @@ mod tests {
 
     #[test]
     fn header_prefers_secure_3p_sapisid() {
-        let header = authorization_header(
-            "__Secure-3PSAPISID=secure1",
-            YOUTUBE_ORIGIN,
-            2000,
-        )
-        .unwrap();
+        let header =
+            authorization_header("__Secure-3PSAPISID=secure1", YOUTUBE_ORIGIN, 2000).unwrap();
         let expected_hash = sha1_hex("2000 secure1 https://www.youtube.com");
         assert_eq!(header, format!("SAPISIDHASH 2000_{expected_hash}"));
     }
@@ -235,9 +227,7 @@ mod tests {
 
     #[test]
     fn header_is_none_without_sapisid() {
-        assert!(
-            authorization_header("LOGIN_INFO=xyz; other=1", YOUTUBE_ORIGIN, 1000).is_none()
-        );
+        assert!(authorization_header("LOGIN_INFO=xyz; other=1", YOUTUBE_ORIGIN, 1000).is_none());
     }
 
     #[test]

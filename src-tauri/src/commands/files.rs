@@ -178,22 +178,26 @@ mod tests {
     fn a_log_export_lands_in_a_log_file() {
         let dir = std::env::temp_dir();
         let log_path = dir.join("youglidetube_logs_2026-11-21.log");
-        assert!(checked_save_path(
-            log_path.to_str().unwrap(),
-            "logs",
-            &["json", "txt", "log"],
-            MAX_BACKUP_BYTES,
-            "Export"
-        )
-        .is_ok());
+        assert!(
+            checked_save_path(
+                log_path.to_str().unwrap(),
+                "logs",
+                &["json", "txt", "log"],
+                MAX_BACKUP_BYTES,
+                "Export"
+            )
+            .is_ok()
+        );
         let exe_path = dir.join("youglidetube_logs_2026-11-21.exe");
-        assert!(checked_save_path(
-            exe_path.to_str().unwrap(),
-            "logs",
-            &["json", "txt", "log"],
-            MAX_BACKUP_BYTES,
-            "Export"
-        )
-        .is_err());
+        assert!(
+            checked_save_path(
+                exe_path.to_str().unwrap(),
+                "logs",
+                &["json", "txt", "log"],
+                MAX_BACKUP_BYTES,
+                "Export"
+            )
+            .is_err()
+        );
     }
 }

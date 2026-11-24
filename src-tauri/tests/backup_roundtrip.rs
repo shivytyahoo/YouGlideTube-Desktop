@@ -334,9 +334,7 @@ async fn restore_through_a_zip(source: &SqlitePool, target: &SqlitePool) -> Vec<
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("master.zip");
     let archive = Archive {
-        root: build_slice(source, "MASTER", &[], 1_000)
-            .await
-            .unwrap(),
+        root: build_slice(source, "MASTER", &[], 1_000).await.unwrap(),
         manifest: None,
         profiles: Vec::new(),
         avatars: Vec::new(),

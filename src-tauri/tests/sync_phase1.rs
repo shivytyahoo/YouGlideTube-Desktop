@@ -31,4 +31,3 @@ fn hlc_uses_the_short_device_id_form() {
         "ids shorter than 8 are kept as-is"
     );
 }
-

@@ -190,7 +190,8 @@ mod tests {
 
     #[test]
     fn a_stored_frame_becomes_the_cover_of_a_video_without_one() {
-        let dir = std::env::temp_dir().join(format!("youglidetube-frames-{}", uuid::Uuid::new_v4()));
+        let dir =
+            std::env::temp_dir().join(format!("youglidetube-frames-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let file = file_row("b", MediaKind::Video);
         let (_, missing) = cover_paths(&dir, &file);
@@ -262,7 +263,8 @@ mod tests {
 
     #[test]
     fn a_song_takes_its_folders_cover_and_a_video_doesnt_and_the_answer_is_kept() {
-        let dir = std::env::temp_dir().join(format!("youglidetube-covers-{}", uuid::Uuid::new_v4()));
+        let dir =
+            std::env::temp_dir().join(format!("youglidetube-covers-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let dir = std::fs::canonicalize(dir).unwrap();
         let cache = dir.join("cache");

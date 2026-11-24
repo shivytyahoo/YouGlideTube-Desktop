@@ -361,14 +361,8 @@ mod tests {
         ];
         // "a" and "b" share a channel, so the spread takes the stronger one, then a new channel.
         candidates[1].channel_id = candidates[0].channel_id.clone();
-        let picked = select_with_long_term(
-            &candidates,
-            2,
-            &[],
-            2_000,
-            &HashSet::new(),
-            &HashSet::new(),
-        );
+        let picked =
+            select_with_long_term(&candidates, 2, &[], 2_000, &HashSet::new(), &HashSet::new());
         assert_eq!(picked.len(), 2);
         assert!(picked.contains(&"b".to_string()), "{picked:?}");
         assert!(picked.contains(&"c".to_string()), "{picked:?}");

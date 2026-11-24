@@ -173,11 +173,7 @@ impl HomeFeedService {
 
     /// Whether a video id came from the server home feed.
     fn is_server_video(&self, video_id: &str) -> bool {
-        self.inner
-            .server_ids
-            .lock()
-            .unwrap()
-            .contains(video_id)
+        self.inner.server_ids.lock().unwrap().contains(video_id)
     }
 
     /// Changes the feed if `generation` is still the current one, then tells the page.

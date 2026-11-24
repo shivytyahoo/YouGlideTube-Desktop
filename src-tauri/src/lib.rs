@@ -12,6 +12,7 @@ mod cache_usage;
 mod codec_probe;
 pub mod commands;
 mod config;
+pub mod data_model;
 mod db;
 mod errors;
 #[cfg(any(target_os = "linux", test))]
@@ -31,7 +32,6 @@ mod scrobble;
 mod security;
 mod services;
 mod streaming;
-pub mod data_model;
 mod update_support;
 #[cfg(any(target_os = "linux", test))]
 mod web_process;
@@ -43,10 +43,6 @@ use std::sync::Arc;
 use tauri::Manager;
 
 use api::innertube::InnertubeClient;
-use commands::auth::{
-    add_account, cancel_google_sign_in, get_account_info, get_auth_status, list_accounts,
-    remove_account, sign_out, start_google_sign_in, switch_account,
-};
 use commands::account::{
     add_video_to_server_playlist, add_videos_to_server_playlist, clear_server_history,
     create_server_playlist, delete_server_playlist, get_liked_videos, get_server_history,
@@ -56,14 +52,17 @@ use commands::account::{
     set_video_watch_later,
 };
 use commands::app_window::{AppWindowSession, AppWindowState, app_window_session, open_app_window};
+use commands::auth::{
+    add_account, cancel_google_sign_in, get_account_info, get_auth_status, list_accounts,
+    remove_account, sign_out, start_google_sign_in, switch_account,
+};
 use commands::backup::{export_backup_data, import_backup_data};
 use commands::db::{
     add_watch_record, add_watch_records_bulk, block_channel, clear_watch_history,
     delete_short_watch_records, delete_watch_record, get_music_history, get_setting,
     get_watch_history, get_watch_history_count, get_watch_history_years, get_watch_progress,
-    get_watch_records,
-    record_seen_videos, reset_app_data, restore_watch_record, seen_video_ids_among, set_setting,
-    unblock_channel,
+    get_watch_records, record_seen_videos, reset_app_data, restore_watch_record,
+    seen_video_ids_among, set_setting, unblock_channel,
 };
 use commands::diagnostics::{
     clear_logs, crash_report_delete, crash_report_dismiss, crash_report_read, get_graphics_mode,
@@ -122,7 +121,6 @@ use commands::pip::{
 };
 use commands::process::relaunch_app;
 use commands::recognition::recognize_song;
-use commands::voice_search::{voice_search_cancel, voice_search_listen};
 use commands::scrobble::{
     scrobble_flush, scrobble_listened, scrobble_love, scrobble_now_playing,
     scrobble_retry_keychain, scrobble_set_own_key, scrobble_sign_in, scrobble_sign_out,
@@ -135,21 +133,21 @@ use commands::tray::{
     music_tray_hide, music_tray_supported, music_tray_update, set_download_progress,
     set_shell_pages, take_launch_link, take_launch_page,
 };
+use commands::voice_search::{voice_search_cancel, voice_search_listen};
 use commands::window::{PlayerFullscreenState, set_player_fullscreen};
 use commands::youtube::{
     create_comment, create_comment_reply, delete_comment, delete_live_chat_message,
-    fetch_subtitles, get_channel_about,
-    get_channel_details, get_channel_page, get_channel_tab, get_comments,
-    get_dearrow_override, get_explore_destination, get_explore_grid, get_explore_page,
-    get_live_chat, get_mix_playlist, get_more_related_videos, get_non_music_segments,
-    get_original_title, get_paid_promotion, get_playlist_details, get_post_comments,
-    get_related_videos, get_return_youtube_dislike, get_sabr_debug_state,
-    get_search_suggestions, get_sponsorblock_segments, get_stream_info, like_comment,
-    like_post,
+    fetch_subtitles, get_channel_about, get_channel_details, get_channel_page, get_channel_tab,
+    get_comments, get_dearrow_override, get_explore_destination, get_explore_grid,
+    get_explore_page, get_live_chat, get_mix_playlist, get_more_related_videos,
+    get_non_music_segments, get_original_title, get_paid_promotion, get_playlist_details,
+    get_post_comments, get_related_videos, get_return_youtube_dislike, get_sabr_debug_state,
+    get_search_suggestions, get_sponsorblock_segments, get_stream_info,
     get_subscription_rotation_feed, get_subscription_rss_feed, get_unplayable_video_ids,
-    get_video_category, get_video_details, get_video_metadata, get_video_storyboard,
-    parse_subscription_export, resolve_channel_id, scan_subscription_collaborations, search_videos,
-    send_live_chat_message, stream_subscription_rss_feed, submit_sponsorblock_segment,
+    get_video_category, get_video_details, get_video_metadata, get_video_storyboard, like_comment,
+    like_post, parse_subscription_export, resolve_channel_id, scan_subscription_collaborations,
+    search_videos, send_live_chat_message, stream_subscription_rss_feed,
+    submit_sponsorblock_segment,
 };
 use services::discord_presence::DiscordPresence;
 use services::music_service::MusicService;
@@ -354,9 +352,7 @@ pub fn run() {
         // frontend (the Google sign-in window never asks for the mic), so
         // allowing the request here only ever serves that one user action.
         .on_permission_request(|_, kind| match kind {
-            tauri::webview::PermissionKind::Microphone => {
-                tauri::webview::PermissionResponse::Allow
-            }
+            tauri::webview::PermissionKind::Microphone => tauri::webview::PermissionResponse::Allow,
             _ => tauri::webview::PermissionResponse::Default,
         })
         .setup(move |app| {
@@ -450,15 +446,14 @@ pub fn run() {
             });
 
             // Initialize SQLite database
-            let pool = tauri::async_runtime::block_on(db::initialize_database(
-                app_data_dir.clone(),
-            ))
-            .map_err(|error| {
-                Box::new(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    error.to_string(),
-                ))
-            })?;
+            let pool =
+                tauri::async_runtime::block_on(db::initialize_database(app_data_dir.clone()))
+                    .map_err(|error| {
+                        Box::new(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            error.to_string(),
+                        ))
+                    })?;
 
             for key in commands::db::BACKEND_SETTINGS {
                 let value = tauri::async_runtime::block_on(db::settings::get_setting(&pool, key))
@@ -491,7 +486,6 @@ pub fn run() {
                     tracing::error!("Failed to cleanup DeArrow cache: {}", e);
                 }
             });
-
 
             // Manage the Shorts feed service (prefetch buffer + session de-dup)
             app.manage(ShortsService::new());
@@ -907,6 +901,5 @@ pub fn run() {
             if let tauri::RunEvent::Exit = event {
                 relaunch::on_exit(&app_handle.env());
             }
-
         });
 }

@@ -43,8 +43,8 @@ mod imp {
     use windows::Foundation::TimeSpan;
     use windows::Globalization::Language;
     use windows::Media::SpeechRecognition::{
-        ISpeechRecognitionConstraint, SpeechRecognitionResultStatus,
-        SpeechRecognitionScenario, SpeechRecognitionTopicConstraint, SpeechRecognizer,
+        ISpeechRecognitionConstraint, SpeechRecognitionResultStatus, SpeechRecognitionScenario,
+        SpeechRecognitionTopicConstraint, SpeechRecognizer,
     };
     use windows::Win32::Foundation::E_ACCESSDENIED;
     use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx};
@@ -75,9 +75,7 @@ mod imp {
         }
     }
 
-    pub(super) async fn listen_windows(
-        lang: Option<String>,
-    ) -> Result<Option<String>, AppError> {
+    pub(super) async fn listen_windows(lang: Option<String>) -> Result<Option<String>, AppError> {
         let started = tokio::task::spawn_blocking(move || listen_blocking(lang));
         match tokio::time::timeout(LISTEN_TIMEOUT, started).await {
             Ok(joined) => joined.map_err(|error| {
@@ -121,7 +119,9 @@ mod imp {
             .map_err(|error| map_winrt_error(error, "set up the speech recognizer"))?;
         let compiled = await_operation(&compile)
             .map_err(|error| map_winrt_error(error, "set up the speech recognizer"))?;
-        if compiled.Status().map_err(|error| map_winrt_error(error, "set up the speech recognizer"))?
+        if compiled
+            .Status()
+            .map_err(|error| map_winrt_error(error, "set up the speech recognizer"))?
             != SpeechRecognitionResultStatus::Success
         {
             return Err(AppError::VoiceSearchUnavailable(
@@ -160,9 +160,7 @@ mod imp {
         let status = loop {
             match operation.Status() {
                 Ok(
-                    status @ (AsyncStatus::Completed
-                    | AsyncStatus::Canceled
-                    | AsyncStatus::Error),
+                    status @ (AsyncStatus::Completed | AsyncStatus::Canceled | AsyncStatus::Error),
                 ) => break status,
                 Ok(_) => {}
                 Err(error) => return Err(map_winrt_error(error, "listen")),
@@ -204,11 +202,9 @@ mod imp {
             }
             SpeechRecognitionResultStatus::UserCanceled => Ok(None),
             SpeechRecognitionResultStatus::TimeoutExceeded
-            | SpeechRecognitionResultStatus::PauseLimitExceeded => {
-                Err(AppError::VoiceSearchNoSpeech(
-                    "no speech was recognised".to_string(),
-                ))
-            }
+            | SpeechRecognitionResultStatus::PauseLimitExceeded => Err(
+                AppError::VoiceSearchNoSpeech("no speech was recognised".to_string()),
+            ),
             SpeechRecognitionResultStatus::MicrophoneUnavailable => {
                 Err(AppError::VoiceSearchUnavailable(
                     "no microphone is available for speech recognition".to_string(),
@@ -223,15 +219,17 @@ mod imp {
     /// Blocks until a WinRT async operation finishes and returns its
     /// result. `GetResults` on an unfinished operation fails, so the
     /// status is polled first; the caller bounds the wait.
-    fn await_operation<T>(operation: &windows_future::IAsyncOperation<T>) -> windows::core::Result<T>
+    fn await_operation<T>(
+        operation: &windows_future::IAsyncOperation<T>,
+    ) -> windows::core::Result<T>
     where
         T: windows::core::RuntimeType + 'static,
     {
         loop {
             match operation.Status() {
-                Ok(AsyncStatus::Completed)
-                | Ok(AsyncStatus::Canceled)
-                | Ok(AsyncStatus::Error) => return operation.GetResults(),
+                Ok(AsyncStatus::Completed) | Ok(AsyncStatus::Canceled) | Ok(AsyncStatus::Error) => {
+                    return operation.GetResults();
+                }
                 Ok(_) => std::thread::sleep(std::time::Duration::from_millis(10)),
                 Err(error) => return Err(error),
             }

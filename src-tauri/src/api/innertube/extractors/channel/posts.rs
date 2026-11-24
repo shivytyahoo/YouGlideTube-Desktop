@@ -21,9 +21,7 @@ pub(crate) fn post(renderer: &Value) -> Option<PostSummary> {
     let reply =
         &renderer["actionButtons"]["commentActionButtonsRenderer"]["replyButton"]["buttonRenderer"];
     let comment_endpoint = &reply["navigationEndpoint"];
-    let like_toggle =
-        &renderer["actionButtons"]["commentActionButtonsRenderer"]["likeButton"]
-            ["toggleButtonRenderer"];
+    let like_toggle = &renderer["actionButtons"]["commentActionButtonsRenderer"]["likeButton"]["toggleButtonRenderer"];
     Some(PostSummary {
         id: id.to_string(),
         author_name: text_of(&renderer["authorText"]).unwrap_or_default(),
@@ -195,14 +193,16 @@ mod tests {
         } } } });
         let post = post(post_renderer(&thread).expect("renderer")).expect("post");
         assert!(post.is_liked);
-        assert!(post
-            .like_action
-            .as_deref()
-            .is_some_and(|action| action.contains("performCommentActionEndpoint")));
-        assert!(post
-            .unlike_action
-            .as_deref()
-            .is_some_and(|action| action.contains("performCommentActionEndpoint")));
+        assert!(
+            post.like_action
+                .as_deref()
+                .is_some_and(|action| action.contains("performCommentActionEndpoint"))
+        );
+        assert!(
+            post.unlike_action
+                .as_deref()
+                .is_some_and(|action| action.contains("performCommentActionEndpoint"))
+        );
     }
 
     #[test]

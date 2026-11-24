@@ -528,10 +528,7 @@ pub async fn start_download(
             if matches!(
                 request.media_kind,
                 DownloadMediaKind::Music | DownloadMediaKind::Audio
-            ) && !request
-                .music
-                .as_ref()
-                .is_some_and(|music| music.prefer_aac)
+            ) && !request.music.as_ref().is_some_and(|music| music.prefer_aac)
             {
                 return Err(ErrorResponse::from(AppError::Validation(
                     "Only an AAC song can be clipped".into(),
@@ -1131,10 +1128,13 @@ pub async fn create_download_collection(
         }
     };
 
-    if let Some(existing) =
-        crate::db::download_collections::find_collection(&pool, &request.collection_id, &request.kind)
-            .await
-            .map_err(ErrorResponse::from)?
+    if let Some(existing) = crate::db::download_collections::find_collection(
+        &pool,
+        &request.collection_id,
+        &request.kind,
+    )
+    .await
+    .map_err(ErrorResponse::from)?
     {
         let id = existing.id.unwrap_or_default();
         crate::db::download_collections::set_total_count(&pool, id, request.total_count)
@@ -1359,7 +1359,9 @@ fn offline_captions(
 
 #[cfg(test)]
 mod tests {
-    use super::{ClipRange, DownloadMediaKind, VideoSelection, is_orphaned_partial, offline_content_type};
+    use super::{
+        ClipRange, DownloadMediaKind, VideoSelection, is_orphaned_partial, offline_content_type,
+    };
     use crate::api::innertube::download::DownloadContainer;
     use std::collections::HashSet;
 
@@ -1391,11 +1393,11 @@ mod tests {
 
     #[test]
     fn a_single_audio_track_still_resolves_on_its_own() {
+        assert_eq!(selection(Some("hi"), None).audio_keys(), vec!["hi"]);
         assert_eq!(
-            selection(Some("hi"), None).audio_keys(),
-            vec!["hi"]
+            selection(None, Some(vec![])).audio_keys(),
+            Vec::<String>::new()
         );
-        assert_eq!(selection(None, Some(vec![])).audio_keys(), Vec::<String>::new());
         assert!(selection(None, None).audio_keys().is_empty());
     }
 

@@ -117,7 +117,10 @@ async fn handle_connection(mut socket: TcpStream, app: &AppHandle) -> std::io::R
             );
             write_response(&mut socket, 200, "OK", cors, &body).await
         }
-        "/youglidetube/watch" | "/youglidetube/download" | "/youglidetube/music" | "/youglidetube/music-download" => {
+        "/youglidetube/watch"
+        | "/youglidetube/download"
+        | "/youglidetube/music"
+        | "/youglidetube/music-download" => {
             let action = &req.path["/youglidetube/".len()..];
             match build_handoff_url(action, &req.query) {
                 Some(url) => {
@@ -310,7 +313,10 @@ mod tests {
     #[test]
     fn builds_watch_url_with_optional_params() {
         let url = build_handoff_url("watch", "v=dQw4w9WgXcQ&t=42&list=PLabcdefghij").unwrap();
-        assert_eq!(url, "youglidetube://watch?v=dQw4w9WgXcQ&t=42&list=PLabcdefghij");
+        assert_eq!(
+            url,
+            "youglidetube://watch?v=dQw4w9WgXcQ&t=42&list=PLabcdefghij"
+        );
     }
 
     #[test]

@@ -199,4 +199,3 @@ fn subscription_group_members_fixture_locks_its_bytes() {
         r#"{"channelIds":["UCabc"],"deleted":false,"hlc":"1781000000500:0:deviceaa","members":[{"channelId":"UCabc","deleted":false,"hlc":"1781000000000:0:deviceaa"},{"channelId":"UCdef","deleted":true,"hlc":"1781000000500:0:deviceaa"}],"name":"Tech","sortOrder":0}"#
     );
 }
-

@@ -138,10 +138,7 @@ pub async fn run_now(app: &AppHandle, pool: &SqlitePool) -> Option<Result<(), St
     Some(outcome)
 }
 
-async fn write_to_folder(
-    pool: &SqlitePool,
-    state: &AutoBackupState,
-) -> Result<(), String> {
+async fn write_to_folder(pool: &SqlitePool, state: &AutoBackupState) -> Result<(), String> {
     let folder = setting(pool, FOLDER_KEY)
         .await
         .and_then(|folder| usable_folder(&folder))
@@ -152,12 +149,12 @@ async fn write_to_folder(
         .unwrap_or_else(|| "APP_DATA".into());
 
     write_backup(pool, &kind, &keys, &folder.join(file_name(&kind)))
-    .await
-    .map_err(|error| {
-        // The message can hold the folder's path, so it stays in the log.
-        tracing::warn!(%error, "[backup] automatic backup failed");
-        ERROR_FAILED.to_string()
-    })
+        .await
+        .map_err(|error| {
+            // The message can hold the folder's path, so it stays in the log.
+            tracing::warn!(%error, "[backup] automatic backup failed");
+            ERROR_FAILED.to_string()
+        })
 }
 
 fn notify_failure(app: &AppHandle) {

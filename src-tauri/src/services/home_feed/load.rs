@@ -27,7 +27,8 @@ use crate::services::youtube_service::YoutubeService;
 const WAVE1_QUERIES: usize = 3;
 /// The discovery searches, in order: the fallback when the server home feed answers with
 /// nothing (the engine's own empty-brain fallback before it).
-pub(super) const STARTER_QUERIES: [&str; 5] = ["Music", "Science", "Technology", "Education", "Nature"];
+pub(super) const STARTER_QUERIES: [&str; 5] =
+    ["Music", "Science", "Technology", "Education", "Nature"];
 const MAX_RELATED_SEEDS: usize = 4;
 const MAX_SAVED_SEEDS: usize = 5;
 const SAVED_RELATED_SLOTS: usize = 8;
@@ -324,12 +325,7 @@ impl HomeFeedService {
         excluded.extend(inputs.suppressed_channels.keys().map(String::as_str));
         excluded.extend(remembered.iter().map(|r| r.channel_id.as_str()));
         excluded.extend(neighbour_store.keys().map(String::as_str));
-        let seeds = neighbours::pick_new_neighbours(
-            server_home.as_ref(),
-            related,
-            &excluded,
-            now,
-        );
+        let seeds = neighbours::pick_new_neighbours(server_home.as_ref(), related, &excluded, now);
         for (channel_id, name, uploads) in seeds {
             let _ = neighbours::save_uploads(pool, &channel_id, &name, &uploads, now).await;
         }
@@ -528,14 +524,8 @@ impl HomeFeedService {
                 .await;
         }
         if current() {
-            self.channel_memory_refresh(
-                app,
-                &yt,
-                &pool,
-                &after,
-                &after.inputs.subscriptions.ids(),
-            )
-            .await;
+            self.channel_memory_refresh(app, &yt, &pool, &after, &after.inputs.subscriptions.ids())
+                .await;
         }
         if current() {
             self.neighbour_refresh(&yt, &pool, &after).await;
@@ -564,7 +554,8 @@ impl HomeFeedService {
             .into_iter()
             .filter(|s| !cooled.contains(&s.id))
             .collect();
-        let ids = select_with_long_term(&seeds, MAX_SAVED_SEEDS, &long_term, now, &cooled, &disliked);
+        let ids =
+            select_with_long_term(&seeds, MAX_SAVED_SEEDS, &long_term, now, &cooled, &disliked);
         if ids.is_empty() {
             return;
         }
@@ -662,10 +653,7 @@ impl HomeFeedService {
         if valid.is_empty() {
             return;
         }
-        let ranked = lanes::share(
-            after.taste.demote(lanes::rank(valid, followed)),
-            followed,
-        );
+        let ranked = lanes::share(after.taste.demote(lanes::rank(valid, followed)), followed);
         let picks: Vec<Card> = ranked.into_iter().take(WAVE2_LIMIT).collect();
         let query_of = queries_by_id(&searches);
         let origins = picks
@@ -889,9 +877,8 @@ impl HomeFeedService {
             let _ = channel_memory::save_uploads(pool, &channel, &name, &kept, now).await;
             fresh.extend(kept);
         }
-        let hidden = |c: &Card| {
-            after.inputs.exclusions.hides(c) || after.inputs.seen.contains(c.id())
-        };
+        let hidden =
+            |c: &Card| after.inputs.exclusions.hides(c) || after.inputs.seen.contains(c.id());
         let showable: Vec<Card> =
             super::filters::keep_showable(fresh, &after.inputs.watched, &hidden, now, false)
                 .collect();
@@ -932,12 +919,7 @@ impl HomeFeedService {
         );
     }
 
-    async fn neighbour_refresh(
-        &self,
-        yt: &YoutubeService,
-        pool: &SqlitePool,
-        after: &AfterPaint,
-    ) {
+    async fn neighbour_refresh(&self, yt: &YoutubeService, pool: &SqlitePool, after: &AfterPaint) {
         let now = now_ms();
         let queue = neighbours::refresh_queue(&after.neighbours, &after.neighbour_store, now);
         let queue: Vec<neighbours::Neighbour> = queue.into_iter().cloned().collect();

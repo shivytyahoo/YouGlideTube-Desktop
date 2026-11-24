@@ -1138,19 +1138,18 @@ async fn stamp_streaming_pot(res: &mut Value, visitor_data: Option<&str>) {
         return;
     };
     let binding = gvs_binding(visitor_data);
-    let token = match tokio::time::timeout(STREAM_POT_ATTACH_GRACE, generate_po_token(&binding))
-        .await
-    {
-        Ok(Some(token)) => token,
-        Ok(None) => {
-            warn!("Streaming poToken unavailable; direct URLs ship pot-less");
-            return;
-        }
-        Err(_) => {
-            warn!("Streaming poToken mint not ready in 2.5s; direct URLs ship pot-less");
-            return;
-        }
-    };
+    let token =
+        match tokio::time::timeout(STREAM_POT_ATTACH_GRACE, generate_po_token(&binding)).await {
+            Ok(Some(token)) => token,
+            Ok(None) => {
+                warn!("Streaming poToken unavailable; direct URLs ship pot-less");
+                return;
+            }
+            Err(_) => {
+                warn!("Streaming poToken mint not ready in 2.5s; direct URLs ship pot-less");
+                return;
+            }
+        };
     let stamped = stamp_pot_on_formats(res, &token);
     debug!(
         formats_stamped = stamped,
@@ -1956,11 +1955,8 @@ impl InnertubeClient {
         } else {
             PER_CLIENT_TIMEOUT
         };
-        match tokio::time::timeout(
-            budget,
-            self.post_player_raw(client, &mut payload, referer),
-        )
-        .await
+        match tokio::time::timeout(budget, self.post_player_raw(client, &mut payload, referer))
+            .await
         {
             Ok(Ok(value)) => Ok(value),
             Ok(Err(error)) => {
@@ -2660,7 +2656,10 @@ mod sabr_client_probe {
         // Allow injecting an externally-minted pot+visitor (e.g. from bgutils-js)
         // to test whether a *fresh, valid* pot sustains where the stale sidecar's
         // does not: YOUGLIDETUBE_VISITOR=… YOUGLIDETUBE_POT=… cargo test … sabr_client_probe …
-        let (visitor_data, pot) = match (std::env::var("YOUGLIDETUBE_VISITOR"), std::env::var("YOUGLIDETUBE_POT")) {
+        let (visitor_data, pot) = match (
+            std::env::var("YOUGLIDETUBE_VISITOR"),
+            std::env::var("YOUGLIDETUBE_POT"),
+        ) {
             (Ok(v), Ok(p)) if !v.is_empty() && !p.is_empty() => {
                 println!("USING injected visitor+pot (bgutils-js)");
                 (Some(v), Some(p))
@@ -3408,10 +3407,7 @@ mod video_channel_tests {
         // A URL that already carries a pot is left alone, and a ciphered
         // format (no plain url) is untouched.
         assert!(
-            adaptive[1]["url"]
-                .as_str()
-                .unwrap()
-                .ends_with("pot=old"),
+            adaptive[1]["url"].as_str().unwrap().ends_with("pot=old"),
             "{}",
             adaptive[1]["url"]
         );
@@ -3435,7 +3431,10 @@ mod video_channel_tests {
     #[test]
     fn pot_is_appended_after_the_query_without_reparsing() {
         assert_eq!(
-            append_pot_param("https://rr1.googlevideo.com/videoplayback?expire=1&n=abc", "a-b_c.1~2"),
+            append_pot_param(
+                "https://rr1.googlevideo.com/videoplayback?expire=1&n=abc",
+                "a-b_c.1~2"
+            ),
             "https://rr1.googlevideo.com/videoplayback?expire=1&n=abc&pot=a-b_c.1~2"
         );
         assert_eq!(

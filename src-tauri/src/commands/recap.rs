@@ -1,8 +1,8 @@
 //! The recap ledger's commands. Nothing here uses the network.
 
-use std::collections::HashMap;
 use serde::Serialize;
 use sqlx::SqlitePool;
+use std::collections::HashMap;
 use tauri::State;
 
 use crate::errors::{AppError, ErrorResponse};
@@ -44,9 +44,7 @@ const HISTORY_CHANNELS: i64 = 10;
 
 /// What a recap page needs before it shows a period, starting the ledger if this is the first time.
 #[tauri::command]
-pub async fn recap_index(
-    pool: State<'_, SqlitePool>,
-) -> Result<RecapIndex, ErrorResponse> {
+pub async fn recap_index(pool: State<'_, SqlitePool>) -> Result<RecapIndex, ErrorResponse> {
     let seen: &[String] = &[];
     let started_at = store::ensure_started(&pool, &seen, now_ms()).await?;
     Ok(RecapIndex {
@@ -82,9 +80,7 @@ const WEEK_DAYS: u32 = 7;
 
 /// The last week of watching and listening, for the Wellbeing chart in Settings.
 #[tauri::command]
-pub async fn recap_week(
-    pool: State<'_, SqlitePool>,
-) -> Result<RecapWeek, ErrorResponse> {
+pub async fn recap_week(pool: State<'_, SqlitePool>) -> Result<RecapWeek, ErrorResponse> {
     let seen: &[String] = &[];
     let started_at = store::ensure_started(&pool, &seen, now_ms()).await?;
     let video = store::read_months::<VideoMonth>(&pool, true).await?;

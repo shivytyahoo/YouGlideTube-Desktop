@@ -8,16 +8,16 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use crate::data_model::key_migration::{link_ends, respelled, to_key_spec_2, to_key_spec_3};
-use crate::data_model::keyspec::{self, KeySpec};
-use crate::data_model::language::system_language;
 use crate::data_model::brain::UserBrain;
-use crate::data_model::signals::make_affinity_key;
 use crate::data_model::brain_attrib::NeuroBaseline;
 use crate::data_model::canonical::{
     BrainVectors, ContentVectorWire, FlowNeuroBrainSnapshot, GCounter, Lww,
 };
+use crate::data_model::key_migration::{link_ends, respelled, to_key_spec_2, to_key_spec_3};
+use crate::data_model::keyspec::{self, KeySpec};
+use crate::data_model::language::system_language;
 use crate::data_model::merge::MergedFlowNeuroBrain;
+use crate::data_model::signals::make_affinity_key;
 
 /// Reads the local brain, the merged state and the baseline by one key spec before they meet: the
 /// stored brain converts to the current key spec if no load has converted it yet, and the merged state and

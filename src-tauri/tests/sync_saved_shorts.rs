@@ -1,18 +1,18 @@
 //! Android's `saved_shorts` playlist and the desktop's Saved Shorts library are one list on the
 //! wire, so they merge track by track in both directions.
 
+use serde_json::{Value, json};
+use sqlx::SqlitePool;
+use sqlx::sqlite::SqlitePoolOptions;
 use youglidetube_desktop_lib::data_model::apply::{BACKUP_RESTORE_PEER_PREFIX, apply_payload};
 use youglidetube_desktop_lib::data_model::canonical::{Collection, Playlist};
+use youglidetube_desktop_lib::data_model::collection::StagedCollection;
 use youglidetube_desktop_lib::data_model::collection::sha256_hex;
 use youglidetube_desktop_lib::data_model::export::{export_collections, export_for_backup};
-use youglidetube_desktop_lib::data_model::collection::StagedCollection;
 use youglidetube_desktop_lib::data_model::saved_shorts::{
     PEER_KEEPS_LIST_SETTING_KEY, SAVED_SHORTS_SETTING_KEY, adopt_synced_playlist, library_blob,
     parse_library,
 };
-use serde_json::{Value, json};
-use sqlx::SqlitePool;
-use sqlx::sqlite::SqlitePoolOptions;
 
 const OUR: &str = "desktopdevice";
 
@@ -339,7 +339,6 @@ async fn a_merge_keeps_what_android_does_not_carry() {
     assert_eq!(entries[0]["channelAvatarUrl"], "https://x/a.jpg");
 }
 
-
 #[test]
 fn reading_and_writing_the_library_round_trips() {
     let raw = r#"[{"type":"short","id":"a","title":"A","channelName":"C","channelId":"UC","thumbnailUrl":"t","addedAtInPlaylist":5,"durationSeconds":9},{"type":"short","id":"b","title":"B"}]"#;
@@ -398,4 +397,3 @@ async fn a_playlist_an_earlier_sync_brought_in_moves_to_the_library_once() {
     adopt_synced_playlist(&pool).await.unwrap();
     assert_eq!(setting(&pool, SAVED_SHORTS_SETTING_KEY).await, before);
 }
-

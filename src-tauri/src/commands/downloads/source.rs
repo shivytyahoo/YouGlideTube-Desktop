@@ -125,10 +125,15 @@ fn source_for(resolved: &Resolved, role: Role) -> StreamSource {
         }
         (
             Resolved::Pair {
-                extra_audios, audio, ..
+                extra_audios,
+                audio,
+                ..
             },
             Role::ExtraAudio(index),
-        ) => extra_audios.get(index).cloned().unwrap_or_else(|| audio.clone()),
+        ) => extra_audios
+            .get(index)
+            .cloned()
+            .unwrap_or_else(|| audio.clone()),
         (Resolved::Pair { audio, .. }, Role::Audio | Role::Single) => audio.clone(),
     }
 }

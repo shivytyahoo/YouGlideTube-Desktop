@@ -97,7 +97,12 @@ fn like_count_text(primary: &Value) -> Option<String> {
 /// call the server refuses.
 fn like_dislike_button_params(
     primary: &Value,
-) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
+) -> (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+) {
     let Some(segmented) = primary["videoActions"]["menuRenderer"]["topLevelButtons"]
         .as_array()
         .into_iter()
@@ -108,8 +113,8 @@ fn like_dislike_button_params(
     };
     let like_toggle = &segmented["likeButtonViewModel"]["likeButtonViewModel"]["toggleButtonViewModel"]
         ["toggleButtonViewModel"];
-    let dislike_toggle = &segmented["dislikeButtonViewModel"]["dislikeButtonViewModel"]
-        ["toggleButtonViewModel"]["toggleButtonViewModel"];
+    let dislike_toggle = &segmented["dislikeButtonViewModel"]["dislikeButtonViewModel"]["toggleButtonViewModel"]
+        ["toggleButtonViewModel"];
     (
         find_like_endpoint_param(like_toggle, "likeParams"),
         find_like_endpoint_param(like_toggle, "removeLikeParams"),
@@ -265,25 +270,25 @@ mod tests {
         // Signed-out answers hide the like endpoint behind a sign-in modal;
         // the harvest must still find it.
         let next = next_with(&json!({
-            "videoActions": { "menuRenderer": { "topLevelButtons": [
-                { "segmentedLikeDislikeButtonViewModel": {
-                    "likeButtonViewModel": { "likeButtonViewModel": { "toggleButtonViewModel": { "toggleButtonViewModel": {
-                        "defaultButtonViewModel": { "buttonViewModel": {
-                            "title": "19M",
-                            "onTap": { "serialCommand": { "commands": [
-                                { "logGestureCommand": {} },
-                                { "innertubeCommand": { "modalEndpoint": { "modal": { "modalWithTitleAndButtonRenderer": {
-                                    "button": { "buttonRenderer": { "navigationEndpoint": { "signInEndpoint": {
-                                        "nextEndpoint": { "likeEndpoint": {
-                                            "status": "LIKE", "target": { "videoId": "vid" }, "likeParams": "MODAL_LIKE_PARAMS"
-                                        } }
-                                    } } } }
-                                } } } } }
-                    ] } } }
-                } } } }
-            } } }
-        ] } }
-    }));
+                "videoActions": { "menuRenderer": { "topLevelButtons": [
+                    { "segmentedLikeDislikeButtonViewModel": {
+                        "likeButtonViewModel": { "likeButtonViewModel": { "toggleButtonViewModel": { "toggleButtonViewModel": {
+                            "defaultButtonViewModel": { "buttonViewModel": {
+                                "title": "19M",
+                                "onTap": { "serialCommand": { "commands": [
+                                    { "logGestureCommand": {} },
+                                    { "innertubeCommand": { "modalEndpoint": { "modal": { "modalWithTitleAndButtonRenderer": {
+                                        "button": { "buttonRenderer": { "navigationEndpoint": { "signInEndpoint": {
+                                            "nextEndpoint": { "likeEndpoint": {
+                                                "status": "LIKE", "target": { "videoId": "vid" }, "likeParams": "MODAL_LIKE_PARAMS"
+                                            } }
+                                        } } } }
+                                    } } } } }
+                        ] } } }
+                    } } } }
+                } } }
+            ] } }
+        }));
         let primary = primary(&next);
         assert_eq!(primary.like_params.as_deref(), Some("MODAL_LIKE_PARAMS"));
         assert_eq!(primary.remove_like_params, None);

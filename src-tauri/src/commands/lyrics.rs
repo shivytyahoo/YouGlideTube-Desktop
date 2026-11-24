@@ -216,9 +216,9 @@ fn shift_lrc(lrc: &str, clip_start_ms: i64, clip_end_ms: i64) -> Option<String> 
 fn lrc_time_ms(content: &str) -> Option<i64> {
     let parts: Vec<&str> = content.split(':').collect();
     match parts.as_slice() {
-        [minutes, seconds] => Some(
-            minutes.parse::<i64>().ok()? * 60_000 + parse_lrc_seconds(seconds)?,
-        ),
+        [minutes, seconds] => {
+            Some(minutes.parse::<i64>().ok()? * 60_000 + parse_lrc_seconds(seconds)?)
+        }
         [hours, minutes, seconds] => Some(
             hours.parse::<i64>().ok()? * 3_600_000
                 + minutes.parse::<i64>().ok()? * 60_000
@@ -281,7 +281,8 @@ mod tests {
 
     #[tokio::test]
     async fn the_cache_size_counts_every_file() {
-        let dir = std::env::temp_dir().join(format!("youglidetube-lyrics-test-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("youglidetube-lyrics-test-{}", std::process::id()));
         let _ = tokio::fs::remove_dir_all(&dir).await;
         assert_eq!(dir_size(&dir).await, 0);
         write_atomically(&dir.join("aaaaaaaaaaa.json"), "[1]")

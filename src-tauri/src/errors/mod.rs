@@ -267,10 +267,7 @@ mod tests {
                 AppError::VoiceSearchNoSpeech("s".into()),
                 "voiceSearchNoSpeech",
             ),
-            (
-                AppError::VoiceSearchDenied("d".into()),
-                "voiceSearchDenied",
-            ),
+            (AppError::VoiceSearchDenied("d".into()), "voiceSearchDenied"),
             (
                 AppError::VoiceSearchUnavailable("u".into()),
                 "voiceSearchUnavailable",

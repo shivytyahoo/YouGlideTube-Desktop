@@ -362,10 +362,7 @@ impl MusicService {
     // --- Library (account) ------------------------------------------------
     /// One page of the account's YouTube Music library. The library is the
     /// account's own, so it is never served from the public graph cache.
-    pub async fn library(
-        &self,
-        continuation: Option<&str>,
-    ) -> AppResult<MusicLibraryPage> {
+    pub async fn library(&self, continuation: Option<&str>) -> AppResult<MusicLibraryPage> {
         self.client.music_library_page(continuation).await
     }
 
@@ -382,11 +379,7 @@ impl MusicService {
     }
 
     /// Saves or unsaves a playlist in the account library.
-    pub async fn set_playlist_saved(
-        &self,
-        playlist_id: &str,
-        saved: bool,
-    ) -> AppResult<()> {
+    pub async fn set_playlist_saved(&self, playlist_id: &str, saved: bool) -> AppResult<()> {
         self.client
             .set_music_playlist_saved(playlist_id, saved)
             .await

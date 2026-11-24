@@ -35,9 +35,9 @@ async fn recognize_song_inner(
             "sample_rate {sample_rate} is outside 8000..=192000"
         )));
     }
-    let pcm_bytes = STANDARD.decode(pcm_base64.as_str()).map_err(|_| {
-        AppError::Validation("pcm_base64 is not valid base64".to_string())
-    })?;
+    let pcm_bytes = STANDARD
+        .decode(pcm_base64.as_str())
+        .map_err(|_| AppError::Validation("pcm_base64 is not valid base64".to_string()))?;
     if pcm_bytes.is_empty() || pcm_bytes.len() % 2 != 0 || pcm_bytes.len() > MAX_PCM_BYTES {
         return Err(AppError::Validation(
             "pcm must be non-empty, even-length 16-bit PCM".to_string(),
@@ -52,14 +52,13 @@ async fn recognize_song_inner(
             pcm[i] = i16::from_le_bytes([chunk[0], chunk[1]]);
         }
         let resampled = resample::resample(&pcm, sample_rate);
-        let sample_duration_ms =
-            (resampled.len() as u64 * 1000) / REQUIRED_SAMPLE_RATE as u64;
+        let sample_duration_ms = (resampled.len() as u64 * 1000) / REQUIRED_SAMPLE_RATE as u64;
         let mut bytes = Vec::with_capacity(resampled.len() * 2);
         for sample in &resampled {
             bytes.extend_from_slice(&sample.to_le_bytes());
         }
-        let signature = signature::from_i16(&bytes)
-            .map_err(|message| AppError::Validation(message))?;
+        let signature =
+            signature::from_i16(&bytes).map_err(|message| AppError::Validation(message))?;
         Ok::<(String, u64), AppError>((signature, sample_duration_ms))
     })
     .await

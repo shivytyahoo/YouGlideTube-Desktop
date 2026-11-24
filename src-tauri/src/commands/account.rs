@@ -144,8 +144,7 @@ async fn update_local_subscriptions_cache(
     let mut channels: Vec<serde_json::Value> = stored
         .and_then(|text| serde_json::from_str(&text).ok())
         .unwrap_or_default();
-    let as_strings =
-        !channels.is_empty() && channels.iter().all(|entry| entry.as_str().is_some());
+    let as_strings = !channels.is_empty() && channels.iter().all(|entry| entry.as_str().is_some());
     let matches = |entry: &serde_json::Value| {
         entry
             .get("id")

@@ -76,7 +76,9 @@ enum Chip {
     Live,
     Watched,
     /// A server home-feed chip, by label; its browse params come from the stored chip row.
-    Server { label: String },
+    Server {
+        label: String,
+    },
 }
 
 impl Chip {
@@ -290,10 +292,7 @@ impl HomeFeedService {
             .find(|chip| chip.label == label)
             .and_then(|chip| chip.params.clone());
         let yt = app.state::<YoutubeService>();
-        let page = yt
-            .browse_home_feed(None, params.as_deref())
-            .await
-            .ok()?;
+        let page = yt.browse_home_feed(None, params.as_deref()).await.ok()?;
         self.store_server_page(&page);
         let pool = app.state::<SqlitePool>();
         let known = known(&pool, now).await?;
@@ -435,7 +434,12 @@ impl HomeFeedService {
         )
     }
 
-    async fn recent_videos(&self, yt: &YoutubeService, known: &Known, now: u64) -> Option<Vec<Card>> {
+    async fn recent_videos(
+        &self,
+        yt: &YoutubeService,
+        known: &Known,
+        now: u64,
+    ) -> Option<Vec<Card>> {
         let queries: Vec<String> = STARTER_QUERIES
             .iter()
             .take(2)

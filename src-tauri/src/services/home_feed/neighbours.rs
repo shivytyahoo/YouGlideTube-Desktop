@@ -167,7 +167,14 @@ pub fn pick_new_neighbours(
         }
     }
     for candidate in related {
-        offer_neighbour(&mut order, &mut at, &candidate.card, &names, excluded, now_ms);
+        offer_neighbour(
+            &mut order,
+            &mut at,
+            &candidate.card,
+            &names,
+            excluded,
+            now_ms,
+        );
     }
     order
 }
@@ -187,10 +194,7 @@ fn offer_neighbour(
     if channel_id.is_empty() || excluded.contains(channel_id) {
         return;
     }
-    if card
-        .age_ms(now_ms)
-        .is_none_or(|age| age > UPLOAD_WINDOW_MS)
-    {
+    if card.age_ms(now_ms).is_none_or(|age| age > UPLOAD_WINDOW_MS) {
         return;
     }
     let name = if card.video.channel_name.is_empty() {
@@ -204,9 +208,7 @@ fn offer_neighbour(
     match at.get(channel_id) {
         Some(&index) => {
             let uploads = &mut order[index].2;
-            if uploads.len() < UPLOADS_PER_CHANNEL
-                && !uploads.iter().any(|c| c.id() == card.id())
-            {
+            if uploads.len() < UPLOADS_PER_CHANNEL && !uploads.iter().any(|c| c.id() == card.id()) {
                 uploads.push(card.clone());
             }
         }
@@ -325,11 +327,7 @@ mod tests {
         stale.published_text = Some("30 days ago".to_string());
         let mut nameless = video("v8", "UCnameless", "");
         nameless.channel_name = String::new();
-        let page = page(vec![
-            video("v7", "UCblocked", "Blocked"),
-            stale,
-            nameless,
-        ]);
+        let page = page(vec![video("v7", "UCblocked", "Blocked"), stale, nameless]);
         let excluded: HashSet<&str> = ["UCblocked".into()].into_iter().collect();
         assert!(pick_new_neighbours(Some(&page), &[], &excluded, NOW).is_empty());
     }
@@ -347,12 +345,7 @@ mod tests {
                 ))
             })
             .collect::<Vec<_>>();
-        let seeded = pick_new_neighbours(
-            Some(&page(server)),
-            &related,
-            &HashSet::new(),
-            NOW,
-        );
+        let seeded = pick_new_neighbours(Some(&page(server)), &related, &HashSet::new(), NOW);
         assert_eq!(seeded.len(), SEED_PER_LOAD);
         assert_eq!(seeded[7].0, "UCrel0");
     }

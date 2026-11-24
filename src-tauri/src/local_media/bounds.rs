@@ -59,7 +59,8 @@ mod tests {
 
     #[test]
     fn a_sidecar_that_links_out_of_the_folder_doesnt_exist() {
-        let dir = std::env::temp_dir().join(format!("youglidetube-bounds-{}", uuid::Uuid::new_v4()));
+        let dir =
+            std::env::temp_dir().join(format!("youglidetube-bounds-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(dir.join("music")).unwrap();
         std::fs::create_dir_all(dir.join("private")).unwrap();
         let dir = std::fs::canonicalize(dir).unwrap();

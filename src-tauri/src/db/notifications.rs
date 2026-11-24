@@ -228,11 +228,18 @@ mod tests {
     async fn insert_trims_the_inbox_to_one_hundred_entries() {
         let pool = pool().await;
         for index in 0..MAX_INBOX_ENTRIES + 5 {
-            insert_notification(&pool, &notification(&format!("v{index}"), index)).await.unwrap();
+            insert_notification(&pool, &notification(&format!("v{index}"), index))
+                .await
+                .unwrap();
         }
-        let kept = list_notifications(&pool, MAX_INBOX_ENTRIES + 10).await.unwrap();
+        let kept = list_notifications(&pool, MAX_INBOX_ENTRIES + 10)
+            .await
+            .unwrap();
         assert_eq!(kept.len() as i64, MAX_INBOX_ENTRIES);
-        assert_eq!(kept.first().map(|record| record.video_id.as_str()), Some("v104"));
+        assert_eq!(
+            kept.first().map(|record| record.video_id.as_str()),
+            Some("v104")
+        );
         assert!(!kept.iter().any(|record| record.video_id == "v0"));
     }
 }

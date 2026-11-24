@@ -152,9 +152,8 @@ impl SignatureGeneratorState {
     }
 
     fn do_peak_recognition(&mut self) {
-        let fft_minus_46 =
-            self.fft_outputs[(self.fft_pos as i32 - 46 + RING_BUF_SIZE as i32 * 2)
-                .rem_euclid(RING_BUF_SIZE as i32) as usize];
+        let fft_minus_46 = self.fft_outputs[(self.fft_pos as i32 - 46 + RING_BUF_SIZE as i32 * 2)
+            .rem_euclid(RING_BUF_SIZE as i32) as usize];
         let spread_minus_49 =
             self.spread_ffts[(self.spread_pos as i32 - 49 + RING_BUF_SIZE as i32 * 2)
                 .rem_euclid(RING_BUF_SIZE as i32) as usize];
@@ -262,7 +261,8 @@ impl SignatureGeneratorState {
         }
 
         let size_minus_header = contents.len() + 8;
-        let samples_and_offset = (self.num_samples + REQUIRED_SAMPLE_RATE as usize * 24 / 100) as u32;
+        let samples_and_offset =
+            (self.num_samples + REQUIRED_SAMPLE_RATE as usize * 24 / 100) as u32;
 
         let mut header = Vec::with_capacity(48);
         write_le32(&mut header, 0xcafe2580);
@@ -407,7 +407,9 @@ mod tests {
         let b64 = signature
             .strip_prefix("data:audio/vnd.shazam.sig;base64,")
             .expect("signature must carry the Shazam data URI prefix");
-        STANDARD.decode(b64).expect("signature must be valid base64")
+        STANDARD
+            .decode(b64)
+            .expect("signature must be valid base64")
     }
 
     fn sine_pcm(freq_hz: f64, seconds: f64) -> Vec<u8> {
@@ -468,7 +470,10 @@ mod tests {
         let signature = from_i16(&pcm).expect("chirp input must sign");
         let bytes = decode_signature(&signature);
         assert!(bytes.len() > 56);
-        assert_eq!(u32::from_le_bytes(bytes[0..4].try_into().unwrap()), 0xcafe2580);
+        assert_eq!(
+            u32::from_le_bytes(bytes[0..4].try_into().unwrap()),
+            0xcafe2580
+        );
         // CRC32 stored at bytes 4..8 covers everything from byte 8 on.
         let stored = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
         assert_eq!(stored, crc32_ieee(&bytes[8..]));
@@ -481,8 +486,7 @@ mod tests {
             0x94119c00
         );
         // 12s of audio: 192000 samples + 16000 * 0.24 offset.
-        let samples_and_offset =
-            u32::from_le_bytes(bytes[40..44].try_into().unwrap());
+        let samples_and_offset = u32::from_le_bytes(bytes[40..44].try_into().unwrap());
         assert_eq!(samples_and_offset, 192000 + 3840);
     }
 
@@ -528,8 +532,8 @@ mod tests {
         let mut seen = [false; 4];
         while offset + 8 <= bytes.len() {
             let tag = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-            let size = u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap())
-                as usize;
+            let size =
+                u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap()) as usize;
             for band in 0..4 {
                 if tag == 0x60030040 + band as u32 {
                     seen[band] = true;
@@ -548,8 +552,7 @@ mod tests {
         // the generator stops at the first check past 12s — 192000 samples.
         let pcm = noise_pcm(30.0);
         let bytes = decode_signature(&from_i16(&pcm).unwrap());
-        let samples_and_offset =
-            u32::from_le_bytes(bytes[40..44].try_into().unwrap());
+        let samples_and_offset = u32::from_le_bytes(bytes[40..44].try_into().unwrap());
         assert_eq!(samples_and_offset, 192000 + 3840);
     }
 
@@ -574,5 +577,4 @@ mod tests {
             .unwrap();
         assert!((53..=59).contains(&peak_bin), "peak bin {peak_bin}");
     }
-
 }

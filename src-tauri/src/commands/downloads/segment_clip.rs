@@ -129,9 +129,7 @@ pub async fn fetch_clip_segments<'a>(
             })?;
         let init_len = plan.init_bytes.len() as u64;
         counted += init_len;
-        emitter
-            .downloaded
-            .fetch_add(init_len, Ordering::Relaxed);
+        emitter.downloaded.fetch_add(init_len, Ordering::Relaxed);
     }
     for plan in &plans {
         let (outcome, plan_counted) = fetch_segments(plan).await?;
@@ -187,13 +185,12 @@ async fn plan_stream<'a>(
     clip_start_us: u64,
     clip_end_us: u64,
 ) -> Result<PlanOutcome<'a>, String> {
-    let init_bytes = match fetch_range_bytes(track.fetch, track.init_range.0, track.init_range.1)
-        .await?
-    {
-        RangeFetch::Fetched(bytes) => bytes,
-        RangeFetch::Denied => return Ok(PlanOutcome::Denied),
-        RangeFetch::BadSegment => return Ok(PlanOutcome::NotSegmented),
-    };
+    let init_bytes =
+        match fetch_range_bytes(track.fetch, track.init_range.0, track.init_range.1).await? {
+            RangeFetch::Fetched(bytes) => bytes,
+            RangeFetch::Denied => return Ok(PlanOutcome::Denied),
+            RangeFetch::BadSegment => return Ok(PlanOutcome::NotSegmented),
+        };
     let index_bytes =
         match fetch_range_bytes(track.fetch, track.index_range.0, track.index_range.1).await? {
             RangeFetch::Fetched(bytes) => bytes,
@@ -237,9 +234,7 @@ async fn plan_stream<'a>(
 /// job's thread count, like the full download), so a long clip does not open
 /// hundreds of requests at once. Returns the outcome and the bytes counted,
 /// so the caller can take them back out when the attempt falls back.
-async fn fetch_segments<'a>(
-    plan: &'a StreamPlan<'a>,
-) -> Result<(SegmentOutcome, u64), String> {
+async fn fetch_segments<'a>(plan: &'a StreamPlan<'a>) -> Result<(SegmentOutcome, u64), String> {
     let magic = if plan.is_webm {
         SegmentMagic::Webm
     } else {
@@ -460,9 +455,7 @@ pub fn parse_webm_cues(
         }
         if index + 1 < distinct.len() {
             let (next_time, next_pos) = distinct[index + 1];
-            let byte_end = segment_data_start
-                .checked_add(next_pos)?
-                .checked_sub(1)?;
+            let byte_end = segment_data_start.checked_add(next_pos)?.checked_sub(1)?;
             if byte_end < byte_start {
                 return None;
             }
@@ -589,17 +582,13 @@ fn cue_points(index_bytes: &[u8]) -> Option<Vec<(u64, u64)>> {
                     ID_CUE_TRACK_POSITIONS => {
                         let mut nested = inner;
                         while nested < field_end {
-                            let (nested_id, nested_id_len) =
-                                read_elem_id(index_bytes, nested)?;
+                            let (nested_id, nested_id_len) = read_elem_id(index_bytes, nested)?;
                             nested += nested_id_len;
-                            let (nested_size, nested_size_len) =
-                                read_vint(index_bytes, nested)?;
+                            let (nested_size, nested_size_len) = read_vint(index_bytes, nested)?;
                             nested += nested_size_len;
-                            let nested_end =
-                                (nested + nested_size as usize).min(field_end);
+                            let nested_end = (nested + nested_size as usize).min(field_end);
                             if nested_id == ID_CUE_CLUSTER_POSITION {
-                                cluster_pos =
-                                    read_uint(index_bytes, nested, nested_size as usize);
+                                cluster_pos = read_uint(index_bytes, nested, nested_size as usize);
                             }
                             nested = nested_end;
                         }
@@ -677,15 +666,21 @@ fn is_vint_unknown(value: u64, width: usize) -> bool {
 }
 
 fn be16(bytes: &[u8], pos: usize) -> Option<u16> {
-    Some(u16::from_be_bytes(bytes.get(pos..pos + 2)?.try_into().ok()?))
+    Some(u16::from_be_bytes(
+        bytes.get(pos..pos + 2)?.try_into().ok()?,
+    ))
 }
 
 fn be32(bytes: &[u8], pos: usize) -> Option<u32> {
-    Some(u32::from_be_bytes(bytes.get(pos..pos + 4)?.try_into().ok()?))
+    Some(u32::from_be_bytes(
+        bytes.get(pos..pos + 4)?.try_into().ok()?,
+    ))
 }
 
 fn be64(bytes: &[u8], pos: usize) -> Option<u64> {
-    Some(u64::from_be_bytes(bytes.get(pos..pos + 8)?.try_into().ok()?))
+    Some(u64::from_be_bytes(
+        bytes.get(pos..pos + 8)?.try_into().ok()?,
+    ))
 }
 
 /// Ticks at `timescale` per second, in microseconds (saturating).
@@ -833,11 +828,7 @@ mod tests {
                 &[0xBB],
                 &[
                     elem(&[0xB3], &uint_bytes(time)).as_slice(),
-                    elem(
-                        &[0xB7],
-                        &elem(&[0xF1], &uint_bytes(position)).as_slice(),
-                    )
-                    .as_slice(),
+                    elem(&[0xB7], &elem(&[0xF1], &uint_bytes(position)).as_slice()).as_slice(),
                 ]
                 .concat(),
             )

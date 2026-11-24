@@ -394,7 +394,8 @@ struct TempDir(PathBuf);
 
 impl TempDir {
     fn new() -> Self {
-        let dir = std::env::temp_dir().join(format!("youglidetube-cross-app-{}", uuid::Uuid::new_v4()));
+        let dir =
+            std::env::temp_dir().join(format!("youglidetube-cross-app-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         Self(dir)
     }
@@ -485,9 +486,7 @@ async fn desktop_master(dir: &TempDir, keys: &[String]) -> PathBuf {
     seed_desktop(&pool).await;
     let path = dir.file("master.zip");
     let archive = Archive {
-        root: build_slice(&pool, "MASTER", keys, 1_000)
-            .await
-            .unwrap(),
+        root: build_slice(&pool, "MASTER", keys, 1_000).await.unwrap(),
         manifest: None,
         profiles: Vec::new(),
         avatars: Vec::new(),
@@ -1060,9 +1059,7 @@ async fn a_desktop_master_gives_android_its_notes_and_its_ledger() {
 
     let path = dir.file("master.zip");
     let archive = Archive {
-        root: build_slice(&pool, "MASTER", &[], 1_000)
-            .await
-            .unwrap(),
+        root: build_slice(&pool, "MASTER", &[], 1_000).await.unwrap(),
         manifest: None,
         profiles: Vec::new(),
         avatars: Vec::new(),

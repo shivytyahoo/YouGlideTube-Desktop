@@ -10,8 +10,8 @@ use youglidetube_desktop_lib::data_model::brain_attrib::legacy_own_count;
 use youglidetube_desktop_lib::data_model::canonical::{
     AffinityWire, Collection, FlowNeuroBrainSnapshot, GCounter, Hlc, MusicBrainSnapshot, OrSet,
 };
-use youglidetube_desktop_lib::data_model::export::export_collections;
 use youglidetube_desktop_lib::data_model::collection::StagedCollection;
+use youglidetube_desktop_lib::data_model::export::export_collections;
 
 const OUR: &str = "dlocal";
 const PEER: &str = "dpeer";

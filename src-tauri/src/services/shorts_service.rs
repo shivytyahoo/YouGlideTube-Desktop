@@ -12,8 +12,8 @@ use crate::models::channel::ChannelItem;
 use crate::models::search::SearchVideosRequest;
 use crate::models::shorts::{ShortItem, ShortsFeed};
 use crate::models::video::VideoSummary;
-use sqlx::SqlitePool;
 use crate::services::youtube_service::YoutubeService;
+use sqlx::SqlitePool;
 
 const YOUGLIDETUBE_DISCOVERY_CONTINUATION: &str = "youglidetube:shorts:discovery";
 
@@ -187,11 +187,7 @@ fn rank_shorts(
         })
         .collect();
     // Subscribed first, then most-liked, then gathered order (stable).
-    scored.sort_by(|a, b| {
-        b.1.cmp(&a.1)
-            .then(b.2.cmp(&a.2))
-            .then(a.0.cmp(&b.0))
-    });
+    scored.sort_by(|a, b| b.1.cmp(&a.1).then(b.2.cmp(&a.2)).then(a.0.cmp(&b.0)));
     scored.into_iter().map(|(_, _, _, video)| video).collect()
 }
 
@@ -593,7 +589,11 @@ async fn short_seeds(pool: &SqlitePool, count: usize, cooled: &HashSet<String>) 
         seeds.push(id.to_string());
     };
     if let Ok(history) = crate::db::watch_history::get_watch_history(pool, 200, 0).await {
-        for record in history.iter().filter(|r| !r.is_music).filter(|r| r.is_short_video()) {
+        for record in history
+            .iter()
+            .filter(|r| !r.is_music)
+            .filter(|r| r.is_short_video())
+        {
             push(&record.video_id, record.channel_id.as_deref());
         }
     }

@@ -123,6 +123,3 @@ fn lww_keeps_the_higher_stamp_and_is_idempotent() {
     reg.merge(&Lww::new(3u64, Hlc::new(110, 0, "d2")));
     assert_eq!(reg, before, "re-applying the same write is a no-op");
 }
-
-
-

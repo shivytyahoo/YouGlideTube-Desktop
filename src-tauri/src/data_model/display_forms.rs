@@ -7,10 +7,10 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use unicode_normalization::UnicodeNormalization;
 
+use crate::data_model::brain::strip_domain_tag;
 use crate::data_model::keyspec::KeySpec;
 use crate::data_model::keyspec::tables::tables;
 use crate::data_model::keyspec::text::is_word_char;
-use crate::data_model::brain::strip_domain_tag;
 
 pub const MAX_ENTRIES: usize = 2_000;
 const MAX_VOTES: u32 = 20;
@@ -288,7 +288,6 @@ mod tests {
         assert_eq!(label(&filled, "googl pixel"), "Google Pixel");
         assert_eq!(label(&filled, "lofi"), "Lo-fi");
     }
-
 
     #[test]
     fn a_pick_is_written_as_chosen() {

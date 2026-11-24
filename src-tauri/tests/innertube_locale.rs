@@ -5,6 +5,7 @@
 
 use std::path::PathBuf;
 
+use serde_json::Value;
 use youglidetube_desktop_lib::api::innertube::core::locale;
 use youglidetube_desktop_lib::api::innertube::extractors::channel::parse_header;
 use youglidetube_desktop_lib::api::innertube::extractors::search::parse_innertube_search;
@@ -13,7 +14,6 @@ use youglidetube_desktop_lib::api::innertube::json::age::relative_age;
 use youglidetube_desktop_lib::api::innertube::music::search::parse_summary;
 use youglidetube_desktop_lib::api::innertube::renderers::lockup::related_to_video;
 use youglidetube_desktop_lib::models::music::YTItem;
-use serde_json::Value;
 
 const LANGUAGES: [&str; 6] = ["de", "fr", "ja", "es", "ru", "pt-BR"];
 

@@ -31,9 +31,7 @@ pub async fn get_music_history(
 
 /// The real number of history records, for the Data tab's count.
 #[tauri::command]
-pub async fn get_watch_history_count(
-    pool: State<'_, SqlitePool>,
-) -> Result<i64, ErrorResponse> {
+pub async fn get_watch_history_count(pool: State<'_, SqlitePool>) -> Result<i64, ErrorResponse> {
     watch_history::count_watch_history(&pool)
         .await
         .map_err(ErrorResponse::from)
@@ -132,18 +130,14 @@ pub async fn get_watch_history_years(
 }
 
 #[tauri::command]
-pub async fn delete_short_watch_records(
-    pool: State<'_, SqlitePool>,
-) -> Result<(), ErrorResponse> {
+pub async fn delete_short_watch_records(pool: State<'_, SqlitePool>) -> Result<(), ErrorResponse> {
     watch_history::delete_short_watch_records(&pool)
         .await
         .map_err(ErrorResponse::from)
 }
 
 #[tauri::command]
-pub async fn clear_watch_history(
-    pool: State<'_, SqlitePool>,
-) -> Result<(), ErrorResponse> {
+pub async fn clear_watch_history(pool: State<'_, SqlitePool>) -> Result<(), ErrorResponse> {
     watch_history::clear_watch_history(&pool)
         .await
         .map_err(ErrorResponse::from)
@@ -151,7 +145,9 @@ pub async fn clear_watch_history(
 
 #[tauri::command]
 pub async fn reset_app_data(pool: State<'_, SqlitePool>) -> Result<(), ErrorResponse> {
-    crate::recap::store::clear(&pool).await.map_err(ErrorResponse::from)?;
+    crate::recap::store::clear(&pool)
+        .await
+        .map_err(ErrorResponse::from)?;
     watch_history::clear_watch_history(&pool)
         .await
         .map_err(ErrorResponse::from)?;

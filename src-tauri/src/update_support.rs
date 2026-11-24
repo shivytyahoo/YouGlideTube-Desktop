@@ -205,7 +205,9 @@ mod tests {
     #[test]
     fn finds_the_app_bundle_around_the_executable() {
         assert_eq!(
-            app_bundle(Path::new("/Volumes/YouGlideTube/YouGlideTube.app/Contents/MacOS/youglidetube")),
+            app_bundle(Path::new(
+                "/Volumes/YouGlideTube/YouGlideTube.app/Contents/MacOS/youglidetube"
+            )),
             Some(Path::new("/Volumes/YouGlideTube/YouGlideTube.app"))
         );
         assert_eq!(app_bundle(Path::new("/usr/bin/youglidetube")), None);
@@ -221,7 +223,10 @@ mod tests {
 
     #[test]
     fn marker_is_read_from_the_resource_dir() {
-        let dir = std::env::temp_dir().join(format!("youglidetube-update-support-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!(
+            "youglidetube-update-support-{}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&dir).unwrap();
         let before = has_marker(Some(&dir));
         std::fs::write(dir.join(DISTRO_MANAGED_MARKER), b"").unwrap();
@@ -255,11 +260,12 @@ mod tests {
 
     #[test]
     fn serializes_for_the_frontend() {
-        let json =
-            serde_json::to_string(&decide(false, true, Some(&BundleType::Deb), false, true)).unwrap();
+        let json = serde_json::to_string(&decide(false, true, Some(&BundleType::Deb), false, true))
+            .unwrap();
         assert_eq!(json, r#"{"supported":false,"reason":"package-manager"}"#);
         let json =
-            serde_json::to_string(&decide(false, false, Some(&BundleType::Deb), false, true)).unwrap();
+            serde_json::to_string(&decide(false, false, Some(&BundleType::Deb), false, true))
+                .unwrap();
         assert_eq!(json, r#"{"supported":true,"reason":null}"#);
     }
 }

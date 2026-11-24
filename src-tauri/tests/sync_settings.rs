@@ -7,8 +7,8 @@ use sqlx::sqlite::SqlitePoolOptions;
 
 use youglidetube_desktop_lib::data_model::apply::apply_payload;
 use youglidetube_desktop_lib::data_model::canonical::{Collection, Hlc, SettingEntry};
-use youglidetube_desktop_lib::data_model::export::export_collections;
 use youglidetube_desktop_lib::data_model::collection::StagedCollection;
+use youglidetube_desktop_lib::data_model::export::export_collections;
 
 const OUR: &str = "dlocal";
 const PEER: &str = "dpeer";

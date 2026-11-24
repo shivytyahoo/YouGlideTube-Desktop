@@ -330,7 +330,8 @@ mod tests {
 
     impl Library {
         fn new() -> Self {
-            let dir = std::env::temp_dir().join(format!("youglidetube-lib-{}", uuid::Uuid::new_v4()));
+            let dir =
+                std::env::temp_dir().join(format!("youglidetube-lib-{}", uuid::Uuid::new_v4()));
             std::fs::create_dir_all(dir.join("music")).unwrap();
             let resolved = std::fs::canonicalize(dir).unwrap();
             let root = resolved.join("music");

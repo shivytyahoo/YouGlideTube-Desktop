@@ -433,7 +433,10 @@ fn tags_element(metadata: &EmbeddedMetadata) -> MatroskaSpec {
     push("LYRICS", tags.lyrics.clone());
     push("ENCODER", Some("YouGlideTube".to_string()));
     for (name, value) in tags.youglidetube_fields() {
-        push(&format!("YOUGLIDETUBE_{}", name.to_ascii_uppercase()), Some(value));
+        push(
+            &format!("YOUGLIDETUBE_{}", name.to_ascii_uppercase()),
+            Some(value),
+        );
     }
     let mut children = vec![MatroskaSpec::Targets(Master::Full(vec![
         MatroskaSpec::TargetTypeValue(50),
@@ -523,7 +526,9 @@ fn collect_youglidetube_tags(mut bytes: &[u8], fields: &mut HashMap<String, Stri
         bytes = rest;
     }
     if let (Some(name), Some(value)) = (name, value)
-        && let Some(key) = name.strip_prefix("YOUGLIDETUBE_").or_else(|| name.strip_prefix("FLOW_"))
+        && let Some(key) = name
+            .strip_prefix("YOUGLIDETUBE_")
+            .or_else(|| name.strip_prefix("FLOW_"))
     {
         fields.insert(key.to_ascii_lowercase(), value);
     }
@@ -543,7 +548,7 @@ fn attachments_element(cover: &[u8]) -> MatroskaSpec {
 
 #[cfg(test)]
 mod tests {
-    use super::{EmbeddedMetadata, TAGS_ID, encode, youglidetube_tags_in_tail, tags_element};
+    use super::{EmbeddedMetadata, TAGS_ID, encode, tags_element, youglidetube_tags_in_tail};
     use super::{HEAD_BYTES, sized_header, void_element};
 
     #[test]

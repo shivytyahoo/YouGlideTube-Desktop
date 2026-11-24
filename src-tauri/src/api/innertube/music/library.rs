@@ -51,7 +51,11 @@ impl InnertubeClient {
     pub async fn set_music_liked(&self, video_id: &str, liked: bool) -> AppResult<()> {
         self.require_signed_in()?;
         validate_video_id(video_id)?;
-        let endpoint = if liked { "like/like" } else { "like/removelike" };
+        let endpoint = if liked {
+            "like/like"
+        } else {
+            "like/removelike"
+        };
         let mut payload = like_payload(LikeTarget::Video(video_id));
         self.post_music_raw(endpoint, &clients::WEB_REMIX, &mut payload)
             .await
@@ -65,14 +69,14 @@ impl InnertubeClient {
     /// the main site owns answers the music host with 4xx, so only a 4xx is
     /// retried on the main site, where the like carries the session; a 5xx or
     /// transport failure is returned — the like may have applied.
-    pub async fn set_music_playlist_saved(
-        &self,
-        playlist_id: &str,
-        saved: bool,
-    ) -> AppResult<()> {
+    pub async fn set_music_playlist_saved(&self, playlist_id: &str, saved: bool) -> AppResult<()> {
         self.require_signed_in()?;
         validate_playlist_id(playlist_id)?;
-        let endpoint = if saved { "like/like" } else { "like/removelike" };
+        let endpoint = if saved {
+            "like/like"
+        } else {
+            "like/removelike"
+        };
         let mut payload = like_payload(LikeTarget::Playlist(playlist_id));
         match self
             .post_music_raw(endpoint, &clients::WEB_REMIX, &mut payload)
@@ -139,14 +143,16 @@ fn parse_library_page(res: &Value) -> MusicLibraryPage {
             items.extend(shelf.items);
         }
     }
-    let section_list =
-        &res["contents"]["singleColumnBrowseResultsRenderer"]["tabs"][0]["tabRenderer"]
-            ["content"]["sectionListRenderer"];
+    let section_list = &res["contents"]["singleColumnBrowseResultsRenderer"]["tabs"][0]["tabRenderer"]
+        ["content"]["sectionListRenderer"];
     let continuation = continuation
         .or_else(|| continuation::from_continuations(section_list))
         .or_else(|| continuation::from_items(&section_list["contents"]))
         .or_else(|| continuation::from_items(&res["contents"]["sectionListRenderer"]["contents"]));
-    MusicLibraryPage { items, continuation }
+    MusicLibraryPage {
+        items,
+        continuation,
+    }
 }
 
 /// A continuation answer: `gridContinuation` items, else
@@ -157,12 +163,18 @@ fn parse_library_continuation(res: &Value) -> MusicLibraryPage {
     if let Some(grid) = contents.get("gridContinuation") {
         let items = shelves::collect_items(&grid["items"]);
         let continuation = continuation::any(grid, &grid["items"]);
-        return MusicLibraryPage { items, continuation };
+        return MusicLibraryPage {
+            items,
+            continuation,
+        };
     }
     if let Some(shelf) = contents.get("musicShelfContinuation") {
         let items = shelves::collect_items(&shelf["contents"]);
         let continuation = continuation::any(shelf, &shelf["contents"]);
-        return MusicLibraryPage { items, continuation };
+        return MusicLibraryPage {
+            items,
+            continuation,
+        };
     }
     if let Some(list) = contents.get("sectionListContinuation") {
         let mut items: Vec<YTItem> = Vec::new();
@@ -174,9 +186,15 @@ fn parse_library_continuation(res: &Value) -> MusicLibraryPage {
             }
         }
         let continuation = continuation::any(list, &list["contents"]);
-        return MusicLibraryPage { items, continuation };
+        return MusicLibraryPage {
+            items,
+            continuation,
+        };
     }
-    MusicLibraryPage { items: Vec::new(), continuation: None }
+    MusicLibraryPage {
+        items: Vec::new(),
+        continuation: None,
+    }
 }
 
 #[cfg(test)]

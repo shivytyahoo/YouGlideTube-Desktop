@@ -2,9 +2,9 @@
 //! differently-keyed `meta`. `likes_to_blob` must still emit the desktop frontend's shape
 //! (`{kind,id,likedAt, song|video:{…}}`) so `useLikes` never crashes on a missing nested object.
 
+use serde_json::Value;
 use youglidetube_desktop_lib::data_model::canonical::{Hlc, Like, LikeKind, LikeState};
 use youglidetube_desktop_lib::data_model::mapping::{likes_to_blob, parse_likes_blob};
-use serde_json::Value;
 
 fn like(kind: LikeKind, id: &str, meta: Value) -> Like {
     Like {

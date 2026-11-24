@@ -281,13 +281,7 @@ fn parse_metadata(file: &mut File, kind: TrackKind) -> Result<TrackMeta, String>
                     .as_ref()
                     .ok_or_else(|| format!("A {label} fragment preceded its moov header"))?;
                 let payload = read_at(file, pos + header_len, total - header_len, label)?;
-                parse_moof(
-                    pos,
-                    &payload,
-                    parsed,
-                    &mut first_decode_time,
-                    &mut samples,
-                )?;
+                parse_moof(pos, &payload, parsed, &mut first_decode_time, &mut samples)?;
             }
             _ => {}
         }

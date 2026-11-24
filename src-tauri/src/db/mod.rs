@@ -35,7 +35,6 @@ pub async fn initialize_database(dir: PathBuf) -> AppResult<SqlitePool> {
         tracing::warn!(%error, "PRAGMA optimize after migrations failed");
     }
 
-
     if let Err(error) = crate::data_model::saved_shorts::adopt_synced_playlist(&pool).await {
         tracing::warn!(%error, "Failed to move synced Saved Shorts into the library");
     }

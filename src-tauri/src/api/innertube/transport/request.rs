@@ -268,10 +268,7 @@ mod tests {
             headers.iter().filter(|(name, _)| *name == "Cookie").count(),
             1
         );
-        assert_eq!(
-            header(&headers, "Cookie"),
-            Some("SAPISID=abc; SID=def")
-        );
+        assert_eq!(header(&headers, "Cookie"), Some("SAPISID=abc; SID=def"));
         assert_eq!(
             header(&headers, "Authorization"),
             Some("SAPISIDHASH 1000_deadbeef")

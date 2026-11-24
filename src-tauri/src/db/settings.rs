@@ -60,10 +60,15 @@ mod tests {
     #[tokio::test]
     async fn settings_round_trip_in_the_single_database() {
         let pool = memory().await;
-        set_setting(&pool, "download_location", "/media").await.unwrap();
+        set_setting(&pool, "download_location", "/media")
+            .await
+            .unwrap();
         set_setting(&pool, "theme_id", "ocean").await.unwrap();
         assert_eq!(
-            get_setting(&pool, "download_location").await.unwrap().as_deref(),
+            get_setting(&pool, "download_location")
+                .await
+                .unwrap()
+                .as_deref(),
             Some("/media")
         );
         assert_eq!(

@@ -80,7 +80,9 @@ mod tests {
     fn finds_the_app_bundle_only_inside_one() {
         use std::path::Path;
         assert_eq!(
-            super::macos_bundle(Path::new("/Applications/YouGlideTube.app/Contents/MacOS/youglidetube")),
+            super::macos_bundle(Path::new(
+                "/Applications/YouGlideTube.app/Contents/MacOS/youglidetube"
+            )),
             Some(Path::new("/Applications/YouGlideTube.app"))
         );
         assert_eq!(

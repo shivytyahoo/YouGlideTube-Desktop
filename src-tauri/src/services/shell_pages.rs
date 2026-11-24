@@ -155,8 +155,11 @@ mod tests {
 
     #[test]
     fn what_a_launch_asked_for_is_taken_once() {
-        let request =
-            LaunchRequest::from_args(["youglidetube", "--open-page=music", "https://youtu.be/dQw4w9WgXcQ"]);
+        let request = LaunchRequest::from_args([
+            "youglidetube",
+            "--open-page=music",
+            "https://youtu.be/dQw4w9WgXcQ",
+        ]);
         assert_eq!(request.take_page(), Some("/music"));
         assert_eq!(request.take_page(), None);
         assert!(request.take_link().is_some());
@@ -204,7 +207,10 @@ mod tests {
 
     #[test]
     fn links_to_anywhere_else_are_ignored() {
-        assert_eq!(link_from_args(["youglidetube", "https://evil.example/watch"]), None);
+        assert_eq!(
+            link_from_args(["youglidetube", "https://evil.example/watch"]),
+            None
+        );
         assert_eq!(link_from_args(["youglidetube", "/tmp/file.mp4"]), None);
     }
 }

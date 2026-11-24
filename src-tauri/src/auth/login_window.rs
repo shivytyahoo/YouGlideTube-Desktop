@@ -80,12 +80,15 @@ pub fn open_login_window(app: &tauri::AppHandle) -> Result<bool, String> {
         // directory with different arguments (see `webview2`).
         #[cfg(windows)]
         let builder = builder.additional_browser_args(crate::webview2::BROWSER_ARGS);
-        let _ = tx.send(builder.build().map(|_| ()).map_err(|error| error.to_string()));
+        let _ = tx.send(
+            builder
+                .build()
+                .map(|_| ())
+                .map_err(|error| error.to_string()),
+        );
     })
     .map_err(|error| error.to_string())?;
-    rx.recv()
-        .map_err(|error| error.to_string())?
-        .map(|()| true)
+    rx.recv().map_err(|error| error.to_string())?.map(|()| true)
 }
 
 /// Closes the sign-in window if it is open. The poll task notices the

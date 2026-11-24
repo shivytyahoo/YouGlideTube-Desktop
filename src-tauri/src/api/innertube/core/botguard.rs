@@ -355,7 +355,9 @@ mod tests {
         );
         assert_eq!(
             candidates.first(),
-            Some(&PathBuf::from("/usr/lib/YouGlideTube Beta/sidecar/nsig.cjs"))
+            Some(&PathBuf::from(
+                "/usr/lib/YouGlideTube Beta/sidecar/nsig.cjs"
+            ))
         );
     }
 
@@ -367,7 +369,9 @@ mod tests {
             None,
             Some(Path::new("/app/bin/youglidetube")),
         );
-        assert!(candidates.contains(&PathBuf::from("/app/lib/YouGlideTube/sidecar/integrity.cjs")));
+        assert!(candidates.contains(&PathBuf::from(
+            "/app/lib/YouGlideTube/sidecar/integrity.cjs"
+        )));
     }
 
     #[test]
@@ -408,10 +412,7 @@ mod tests {
             extract_visitor_id(&visitor_data_for("dDVKxQaQeTg")).as_deref(),
             Some("dDVKxQaQeTg")
         );
-        assert_eq!(
-            gvs_binding(&visitor_data_for("dDVKxQaQeTg")),
-            "dDVKxQaQeTg"
-        );
+        assert_eq!(gvs_binding(&visitor_data_for("dDVKxQaQeTg")), "dDVKxQaQeTg");
     }
 
     #[test]
@@ -432,6 +433,9 @@ mod tests {
         assert!(!is_low_trust_po_token(&"a".repeat(120)));
         assert!(!is_low_trust_po_token(&format!("{}==", "a".repeat(116))));
         assert!(is_low_trust_po_token(&"a".repeat(109)));
-        assert_eq!(po_token_length_chars(&format!("{}==", "a".repeat(116))), 116);
+        assert_eq!(
+            po_token_length_chars(&format!("{}==", "a".repeat(116))),
+            116
+        );
     }
 }

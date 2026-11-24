@@ -188,8 +188,7 @@ enum FeedItem {
 
 /// One array element as a feed item, whatever renderer carries it.
 fn feed_item(node: &Value) -> Option<FeedItem> {
-    feed_item_direct(node)
-        .or_else(|| find_feed_renderer(node, 1).and_then(feed_item_direct))
+    feed_item_direct(node).or_else(|| find_feed_renderer(node, 1).and_then(feed_item_direct))
 }
 
 /// The renderer keys this page can model, for the subtree search below.
@@ -218,9 +217,7 @@ fn find_feed_renderer(node: &Value, depth: u8) -> Option<&Value> {
         return None;
     }
     if let Some(map) = node.as_object()
-        && FEED_RENDERER_KEYS
-            .iter()
-            .any(|key| map.contains_key(*key))
+        && FEED_RENDERER_KEYS.iter().any(|key| map.contains_key(*key))
     {
         return Some(node);
     }
@@ -254,8 +251,10 @@ fn feed_item_direct(node: &Value) -> Option<FeedItem> {
                 let item = lockup_item(lockup)?;
                 (item.item_type == "video").then(|| FeedItem::Video(related_to_video(item)))
             }
-            "LOCKUP_CONTENT_TYPE_PLAYLIST" | "LOCKUP_CONTENT_TYPE_PODCAST"
-            | "LOCKUP_CONTENT_TYPE_ALBUM" | "LOCKUP_CONTENT_TYPE_COURSE" => {
+            "LOCKUP_CONTENT_TYPE_PLAYLIST"
+            | "LOCKUP_CONTENT_TYPE_PODCAST"
+            | "LOCKUP_CONTENT_TYPE_ALBUM"
+            | "LOCKUP_CONTENT_TYPE_COURSE" => {
                 let item = lockup_item(lockup)?;
                 Some(FeedItem::Playlist(PlaylistSummary {
                     id: item.playlist_id.clone().unwrap_or(item.id),
@@ -264,9 +263,7 @@ fn feed_item_direct(node: &Value) -> Option<FeedItem> {
                     video_count_text: item.view_count_text,
                 }))
             }
-            "LOCKUP_CONTENT_TYPE_CHANNEL" => {
-                channel_from_lockup(lockup).map(FeedItem::Channel)
-            }
+            "LOCKUP_CONTENT_TYPE_CHANNEL" => channel_from_lockup(lockup).map(FeedItem::Channel),
             _ => None,
         };
     }
@@ -284,7 +281,8 @@ fn feed_item_direct(node: &Value) -> Option<FeedItem> {
     {
         return Some(FeedItem::Playlist(playlist));
     }
-    short_video_summary_from_item(node).map(|short| FeedItem::Short(video_summary_from_short(short)))
+    short_video_summary_from_item(node)
+        .map(|short| FeedItem::Short(video_summary_from_short(short)))
 }
 
 /// A channel lockup: id and name from the lockup itself, avatar from its
@@ -333,7 +331,12 @@ fn endpoint_object(node: &Value) -> Option<&Value> {
 /// confirm dialog youtubei.js unwraps for the history controls.
 fn feedback_token_from_endpoint(endpoint: &Value) -> Option<String> {
     let obj = endpoint.as_object()?;
-    for key in ["innertubeCommand", "command", "performOnceCommand", "serviceEndpoint"] {
+    for key in [
+        "innertubeCommand",
+        "command",
+        "performOnceCommand",
+        "serviceEndpoint",
+    ] {
         if let Some(inner) = obj.get(key) {
             return feedback_token_from_endpoint(inner);
         }
@@ -385,9 +388,13 @@ fn history_remove_token(node: &Value) -> Option<String> {
                 let first_image = leading["thumbnails"]
                     .as_array()
                     .and_then(|images| images.first())
-                    .or_else(|| leading["sources"].as_array().and_then(|images| images.first()));
-                let image_name = first_image
-                    .and_then(|image| image["clientResource"]["imageName"].as_str());
+                    .or_else(|| {
+                        leading["sources"]
+                            .as_array()
+                            .and_then(|images| images.first())
+                    });
+                let image_name =
+                    first_image.and_then(|image| image["clientResource"]["imageName"].as_str());
                 if image_name == Some("DELETE") {
                     // The whole on-tap endpoint, not just its command: the
                     // feedback endpoint can sit directly on the tap object.
@@ -752,7 +759,10 @@ pub fn merge_history_entries(
             remove_feedback_token: entry.remove_feedback_token,
         });
     }
-    for record in local.iter().filter(|record| !server_ids.contains(record.video_id.as_str())) {
+    for record in local
+        .iter()
+        .filter(|record| !server_ids.contains(record.video_id.as_str()))
+    {
         let timestamp_ms = effective
             .get(&record.video_id)
             .copied()
@@ -816,8 +826,7 @@ impl InnertubeClient {
             .is_none_or(|session| !session.is_signed_in())
         {
             return Err(AppError::Validation(
-                "Not signed in — sign in with Google first to see the account's feed."
-                    .to_string(),
+                "Not signed in — sign in with Google first to see the account's feed.".to_string(),
             ));
         }
         Ok(())
@@ -886,7 +895,11 @@ impl InnertubeClient {
     ) -> AppResult<()> {
         self.require_signed_in()?;
         validate_video_id(video_id)?;
-        let endpoint = if liked { "like/like" } else { "like/removelike" };
+        let endpoint = if liked {
+            "like/like"
+        } else {
+            "like/removelike"
+        };
         let mut payload = json!({ "target": { "videoId": video_id } });
         let params = if liked {
             params.filter(|params| !params.is_empty())
@@ -917,11 +930,7 @@ impl InnertubeClient {
     /// like button's token) left nothing on the server, and on a
     /// never-liked video there is nothing to remove, so the server refuses
     /// it outright.
-    pub async fn set_video_disliked(
-        &self,
-        video_id: &str,
-        params: Option<&str>,
-    ) -> AppResult<()> {
+    pub async fn set_video_disliked(&self, video_id: &str, params: Option<&str>) -> AppResult<()> {
         self.require_signed_in()?;
         validate_video_id(video_id)?;
         let mut payload = json!({ "target": { "videoId": video_id } });
@@ -959,8 +968,12 @@ impl InnertubeClient {
         self.require_signed_in()?;
         validate_channel_id(channel_id)?;
         let mut payload = json!({ "channelIds": [channel_id] });
-        self.post_innertube("subscription/unsubscribe", &clients::WEB_REMIX, &mut payload)
-            .await?;
+        self.post_innertube(
+            "subscription/unsubscribe",
+            &clients::WEB_REMIX,
+            &mut payload,
+        )
+        .await?;
         Ok(())
     }
 
@@ -1095,11 +1108,7 @@ impl InnertubeClient {
     /// main site; Watch Later edits go to the main site directly (the
     /// music host answers them with 401). 5xx and transport failures are
     /// not retried — the edit may have applied.
-    pub async fn edit_playlist(
-        &self,
-        playlist_id: &str,
-        actions: Vec<Value>,
-    ) -> AppResult<()> {
+    pub async fn edit_playlist(&self, playlist_id: &str, actions: Vec<Value>) -> AppResult<()> {
         self.require_signed_in()?;
         validate_server_playlist_id(playlist_id)?;
         if actions.is_empty() {
@@ -1313,9 +1322,9 @@ fn validate_server_playlist_id(playlist_id: &str) -> AppResult<()> {
     let trimmed = playlist_id.trim();
     if trimmed.is_empty()
         || trimmed.len() > 64
-        || !trimmed
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || character == '_' || character == '-')
+        || !trimmed.chars().all(|character| {
+            character.is_ascii_alphanumeric() || character == '_' || character == '-'
+        })
     {
         return Err(AppError::Validation("Invalid playlist ID".into()));
     }
@@ -1384,7 +1393,10 @@ mod tests {
         assert_eq!(parsed.videos[1].channel_id.as_deref(), Some("UCchan"));
         assert_eq!(parsed.channels.len(), 1);
         assert_eq!(parsed.channels[0].channel_id, "UCrail");
-        assert_eq!(parsed.channels[0].subscriber_count_text.as_deref(), Some("1.2M subscribers"));
+        assert_eq!(
+            parsed.channels[0].subscriber_count_text.as_deref(),
+            Some("1.2M subscribers")
+        );
         assert_eq!(parsed.continuation.as_deref(), Some("NEXT_PAGE"));
         assert_eq!(parsed.chips.len(), 1);
         assert_eq!(parsed.chips[0].label, "All");
@@ -1507,10 +1519,7 @@ mod tests {
             local_row("d", "2026-11-21T09:00:00.000Z", 3, 30),
         ];
         let merged = merge_history_entries(server, &local);
-        let ids: Vec<&str> = merged
-            .iter()
-            .map(|entry| entry.video_id.as_str())
-            .collect();
+        let ids: Vec<&str> = merged.iter().map(|entry| entry.video_id.as_str()).collect();
         // The just-watched local play heads the list; the server-only row
         // sits one second below the local time that brackets it.
         assert_eq!(ids, ["c", "a", "b", "d"]);
@@ -1536,10 +1545,7 @@ mod tests {
             local_row("b", "2026-11-21T08:00:00.000Z", 0, 100),
         ];
         let merged = merge_history_entries(server, &local);
-        let ids: Vec<&str> = merged
-            .iter()
-            .map(|entry| entry.video_id.as_str())
-            .collect();
+        let ids: Vec<&str> = merged.iter().map(|entry| entry.video_id.as_str()).collect();
         // Above the first known play, between the two known plays, below
         // the last one — the server order survives, anchored to local time.
         assert_eq!(ids, ["x", "a", "y", "b", "z"]);
@@ -1556,10 +1562,7 @@ mod tests {
             local_row("l2", "2026-11-21T09:00:00.000Z", 3, 30),
         ];
         let merged = merge_history_entries(server, &local);
-        let ids: Vec<&str> = merged
-            .iter()
-            .map(|entry| entry.video_id.as_str())
-            .collect();
+        let ids: Vec<&str> = merged.iter().map(|entry| entry.video_id.as_str()).collect();
         assert_eq!(ids, ["s1", "s2", "l1", "l2"]);
     }
 
@@ -1662,16 +1665,14 @@ mod tests {
         // Some surfaces nest the item inside a list/sheet node instead of
         // offering it as a bare array element; the bounded subtree search
         // (Android's findFeedRenderer) must still find it.
-        let page = feed_page(vec![section(vec![
-            json!({ "listRenderer": { "contents": [
+        let page = feed_page(vec![section(vec![json!({ "listRenderer": { "contents": [
                 { "sheetRenderer": { "content": { "videoRenderer": {
                     "videoId": "vid00000021",
                     "title": { "runs": [{ "text": "Nested" }] },
                     "shortBylineText": { "runs": [{ "text": "Chan" }] },
                     "lengthText": { "simpleText": "2:00" }
                 } } } }
-            ] } }),
-        ])]);
+            ] } })])]);
         let parsed = parse_server_feed_page(&page);
         assert_eq!(parsed.videos.len(), 1);
         assert_eq!(parsed.videos[0].id, "vid00000021");

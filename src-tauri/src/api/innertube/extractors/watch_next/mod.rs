@@ -297,7 +297,11 @@ mod tests {
         assert_eq!(page.items.len(), 2);
         assert_eq!(page.items[0].video_id.as_deref(), Some("dQw4w9WgXcQ"));
         assert_eq!(page.items[1].video_id.as_deref(), Some("9bZkp7q19f0"));
-        assert!(page.items.iter().all(|item| item.title != "Try YouTube Premium free"));
+        assert!(
+            page.items
+                .iter()
+                .all(|item| item.title != "Try YouTube Premium free")
+        );
     }
 
     #[test]

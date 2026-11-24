@@ -762,7 +762,8 @@ mod tests {
 
     #[test]
     fn the_old_sentinel_becomes_failed_boots_and_is_removed() {
-        let dir = std::env::temp_dir().join(format!("youglidetube-startup-test-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("youglidetube-startup-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join(super::LEGACY_SENTINEL_FILE), "2").unwrap();
 
@@ -778,7 +779,8 @@ mod tests {
 
     #[test]
     fn only_the_first_instance_holds_the_launch_lock() {
-        let dir = std::env::temp_dir().join(format!("youglidetube-launch-lock-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("youglidetube-launch-lock-{}", std::process::id()));
         let LaunchLock::Held(first) = try_launch_lock(&dir) else {
             panic!("the first instance should take the lock");
         };

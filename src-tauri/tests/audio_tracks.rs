@@ -7,10 +7,10 @@
 //! produce these shapes also serve no muxed format, so playback falls back to a
 //! video-only URL and the video plays silently.
 
+use serde_json::{Value, json};
 use youglidetube_desktop_lib::api::innertube::extractors::player::{
     collect_audio_tracks, collect_audio_tracks_preferring,
 };
-use serde_json::{Value, json};
 
 const UA: &str = "test-agent";
 

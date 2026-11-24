@@ -583,7 +583,15 @@ async fn handle_connection(
                 )
                 .await
             }
-            None => write_status_only(&mut socket, 404, "Not Found", "No homepage challenge cached").await,
+            None => {
+                write_status_only(
+                    &mut socket,
+                    404,
+                    "Not Found",
+                    "No homepage challenge cached",
+                )
+                .await
+            }
         };
     }
     if path == "/nsolve/player.js" {

@@ -7,6 +7,7 @@
 
 use std::path::PathBuf;
 
+use serde_json::Value;
 use youglidetube_desktop_lib::api::innertube::extractors::channel::{
     SHORTS_TAB_PARAMS, VIDEOS_TAB_PARAMS, parse_about, parse_header, parse_tab,
 };
@@ -26,7 +27,6 @@ use youglidetube_desktop_lib::api::innertube::music::search::parse_summary;
 use youglidetube_desktop_lib::api::innertube::renderers::lockup::lockup_item;
 use youglidetube_desktop_lib::models::channel::{ChannelItem, PostAttachment};
 use youglidetube_desktop_lib::models::music::{ArtistSectionKind, YTItem};
-use serde_json::Value;
 
 fn fixture(name: &str) -> Option<Value> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

@@ -295,13 +295,11 @@ impl HomeFeedService {
             .iter()
             .map(|c| c.channel_id().to_string())
             .collect();
-        let pick = lanes::rank(candidates, followed)
-            .into_iter()
-            .find(|c| {
-                !attempt.page.used_ids.contains(c.id())
-                    && !c.channel_id().is_empty()
-                    && !on_page.contains(c.channel_id())
-            });
+        let pick = lanes::rank(candidates, followed).into_iter().find(|c| {
+            !attempt.page.used_ids.contains(c.id())
+                && !c.channel_id().is_empty()
+                && !on_page.contains(c.channel_id())
+        });
         if let Some(card) = pick
             && attempt.page.add(&card, 1)
         {
@@ -388,7 +386,14 @@ impl HomeFeedService {
             .filter(|s| seen.insert(s.id.clone()))
             .collect();
         let long_term = inputs.long_term_seeds(&disliked);
-        let ids = select_with_long_term(&seeds, max_seeds, &long_term, now, &HashSet::new(), &disliked);
+        let ids = select_with_long_term(
+            &seeds,
+            max_seeds,
+            &long_term,
+            now,
+            &HashSet::new(),
+            &disliked,
+        );
         if ids.is_empty() {
             return;
         }

@@ -132,7 +132,11 @@ pub fn set_window_background(
 /// still shows the desktop, unblurred. `set_effects` swallows the platform
 /// error itself, so this only fails if the window itself is gone.
 #[tauri::command]
-pub fn set_glass_theme(window: WebviewWindow, enabled: bool, dark: bool) -> Result<(), ErrorResponse> {
+pub fn set_glass_theme(
+    window: WebviewWindow,
+    enabled: bool,
+    dark: bool,
+) -> Result<(), ErrorResponse> {
     #[cfg(target_os = "windows")]
     {
         use tauri::window::{Effect, EffectsBuilder};
@@ -140,19 +144,31 @@ pub fn set_glass_theme(window: WebviewWindow, enabled: bool, dark: bool) -> Resu
         // dark app never gets a light backdrop (and vice versa).
         let effects = enabled.then(|| {
             EffectsBuilder::new()
-                .effect(if dark { Effect::MicaDark } else { Effect::MicaLight })
+                .effect(if dark {
+                    Effect::MicaDark
+                } else {
+                    Effect::MicaLight
+                })
                 .build()
         });
         window.set_effects(effects).map_err(|error| {
-            ErrorResponse::from(AppError::Internal(format!("Native glass theme failed: {error}")))
+            ErrorResponse::from(AppError::Internal(format!(
+                "Native glass theme failed: {error}"
+            )))
         })?;
     }
     #[cfg(target_os = "macos")]
     {
         use tauri::window::{Effect, EffectsBuilder};
-        let effects = enabled.then(|| EffectsBuilder::new().effect(Effect::AppearanceBased).build());
+        let effects = enabled.then(|| {
+            EffectsBuilder::new()
+                .effect(Effect::AppearanceBased)
+                .build()
+        });
         window.set_effects(effects).map_err(|error| {
-            ErrorResponse::from(AppError::Internal(format!("Native glass theme failed: {error}")))
+            ErrorResponse::from(AppError::Internal(format!(
+                "Native glass theme failed: {error}"
+            )))
         })?;
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]

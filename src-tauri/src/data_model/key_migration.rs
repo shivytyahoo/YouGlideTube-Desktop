@@ -7,15 +7,15 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::data_model::brain::{
+    ContentVector, IdfSnapshot, RejectionSignal, TopicEvidence, UserBrain, strip_domain_tag,
+};
 use crate::data_model::display_forms::{
     DisplayForm, DisplayForms, capitalized, fill_gaps, record, spellings_in, with_pick_spellings,
 };
 use crate::data_model::keyed_lists::keyed_lists;
 use crate::data_model::keyspec::phrases::{self, MIN_COUNT};
 use crate::data_model::keyspec::{self, KeySpec, normalize_lemma};
-use crate::data_model::brain::{
-    ContentVector, IdfSnapshot, RejectionSignal, TopicEvidence, UserBrain, strip_domain_tag,
-};
 use crate::data_model::signals::make_affinity_key;
 
 /// A pair the viewer engaged with beyond one chance title weighs at least this much.

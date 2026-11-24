@@ -520,9 +520,7 @@ fn plain_comment_path(api_url: Option<&str>) -> Option<String> {
 }
 
 fn named_comment_path(value: &Value) -> Option<String> {
-    plain_comment_path(
-        value["commandMetadata"]["webCommandMetadata"]["apiUrl"].as_str(),
-    )
+    plain_comment_path(value["commandMetadata"]["webCommandMetadata"]["apiUrl"].as_str())
 }
 
 /// One server-issued write: the params token and the path it posts to.
@@ -584,11 +582,10 @@ fn reply_write(surface: &Value) -> Option<WriteOffer> {
 /// replayed like a vote. The endpoint JSON is returned whole.
 fn delete_action_of(nav: &Value) -> Option<String> {
     let service = button_command(
-        &unwrap_command(nav)?["confirmDialogEndpoint"]["content"]["confirmDialogRenderer"]
-            ["confirmButton"]["buttonRenderer"],
+        &unwrap_command(nav)?["confirmDialogEndpoint"]["content"]["confirmDialogRenderer"]["confirmButton"]
+            ["buttonRenderer"],
     )?;
-    let endpoint = unwrap_command(service)?["performCommentActionEndpoint"]
-        .as_object()?;
+    let endpoint = unwrap_command(service)?["performCommentActionEndpoint"].as_object()?;
     let has_token = endpoint
         .get("action")
         .and_then(|action| action.as_str())
@@ -930,9 +927,7 @@ impl InnertubeClient {
         match self.post_create_comment(params, text, false).await {
             Ok(()) => Ok(()),
             Err(TransportError::Status { code: 404, .. }) => {
-                tracing::info!(
-                    "comment create answered 404; retrying with X-Goog-AuthUser"
-                );
+                tracing::info!("comment create answered 404; retrying with X-Goog-AuthUser");
                 self.post_create_comment(params, text, true)
                     .await
                     .map_err(|error| to_app_error("comment/create_comment", &error))?;
@@ -980,8 +975,7 @@ impl InnertubeClient {
         let params = reply_params.trim();
         if params.is_empty() {
             return Err(AppError::Validation(
-                "This comment has no reply to post with — open the comments again."
-                    .to_string(),
+                "This comment has no reply to post with — open the comments again.".to_string(),
             ));
         }
         let text = comment_text.trim();
@@ -1009,9 +1003,7 @@ impl InnertubeClient {
         let response = match self.post_comment_reply(path, params, text, false).await {
             Ok(response) => response,
             Err(TransportError::Status { code: 404, .. }) => {
-                tracing::info!(
-                    "comment reply answered 404; retrying with X-Goog-AuthUser"
-                );
+                tracing::info!("comment reply answered 404; retrying with X-Goog-AuthUser");
                 self.post_comment_reply(path, params, text, true)
                     .await
                     .map_err(|error| to_app_error(path, &error))?
@@ -1130,9 +1122,7 @@ impl InnertubeClient {
 /// wrapped the way Android's `performCommentAction` wraps it.
 fn comment_action_list(endpoint_json: &str) -> Option<Value> {
     let outer: Value = serde_json::from_str(endpoint_json).ok()?;
-    let inner = outer
-        .get("performCommentActionEndpoint")
-        .unwrap_or(&outer);
+    let inner = outer.get("performCommentActionEndpoint").unwrap_or(&outer);
     // Android's `performCommentAction` reads `actions` only as an array and
     // falls back to a single `action` otherwise — a non-array `actions`
     // value must not be replayed as the action list.
@@ -1177,8 +1167,8 @@ fn parse_posted_reply(response: &Value, posted_text: &str) -> Option<Comment> {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_comment_from_view_model, parse_comments_json, parse_posted_reply,
-        plain_comment_path, comment_action_list,
+        build_comment_from_view_model, comment_action_list, parse_comments_json,
+        parse_posted_reply, plain_comment_path,
     };
     use std::collections::HashMap;
 
@@ -1372,10 +1362,9 @@ mod tests {
         .expect("actions");
         assert_eq!(actions, serde_json::json!([{"type":"like"}]));
         // A lone action is wrapped the way Android wraps it.
-        let single = comment_action_list(
-            r#"{"performCommentActionEndpoint":{"action":{"type":"like"}}}"#,
-        )
-        .expect("single action");
+        let single =
+            comment_action_list(r#"{"performCommentActionEndpoint":{"action":{"type":"like"}}}"#)
+                .expect("single action");
         assert_eq!(single, serde_json::json!([{"type":"like"}]));
         // The comment delete and vote paths store the bare endpoint object
         // itself, as Android's `performCommentAction` consumes it — that form
@@ -1389,10 +1378,8 @@ mod tests {
         assert!(comment_action_list("not json").is_none());
         // A non-array `actions` is not an action list: Android falls back to
         // the single `action`, and without one there is nothing to replay.
-        let non_array = comment_action_list(
-            r#"{"actions":"like","action":{"type":"like"}}"#,
-        )
-        .expect("single action fallback");
+        let non_array = comment_action_list(r#"{"actions":"like","action":{"type":"like"}}"#)
+            .expect("single action fallback");
         assert_eq!(non_array, serde_json::json!([{"type":"like"}]));
         assert!(comment_action_list(r#"{"actions":"like"}"#).is_none());
     }
@@ -1439,14 +1426,9 @@ mod tests {
     fn an_own_comment_carries_its_reply_token_and_delete_action() {
         let mut view_model = view_model();
         view_model["toolbarSurfaceKey"] = serde_json::json!("surface-1");
-        let comment = build_comment_from_view_model(
-            &view_model,
-            None,
-            &surface_mutations(),
-            None,
-            false,
-        )
-        .expect("comment");
+        let comment =
+            build_comment_from_view_model(&view_model, None, &surface_mutations(), None, false)
+                .expect("comment");
         assert!(comment.is_own);
         assert_eq!(comment.reply_params.as_deref(), Some("REPLY_TOKEN"));
         assert_eq!(
@@ -1486,14 +1468,8 @@ mod tests {
                 "likeState": "TOOLBAR_LIKE_STATE_LIKED",
             } }),
         );
-        let comment = build_comment_from_view_model(
-            &view_model(),
-            None,
-            &mutations,
-            None,
-            false,
-        )
-        .expect("comment");
+        let comment = build_comment_from_view_model(&view_model(), None, &mutations, None, false)
+            .expect("comment");
         assert!(comment.is_liked);
         assert!(!comment.is_disliked);
     }
@@ -1515,9 +1491,8 @@ mod tests {
         );
         let mut view_model = view_model();
         view_model["toolbarSurfaceKey"] = serde_json::json!("surface-1");
-        let comment =
-            build_comment_from_view_model(&view_model, None, &mutations, None, false)
-                .expect("comment");
+        let comment = build_comment_from_view_model(&view_model, None, &mutations, None, false)
+            .expect("comment");
         assert!(!comment.is_own);
         assert_eq!(comment.reply_params.as_deref(), Some("REPLY_TOKEN"));
         assert_eq!(comment.delete_action, None);
@@ -1534,7 +1509,10 @@ mod tests {
             plain_comment_path(Some("/youtubei/v1/comment/../browse")),
             None
         );
-        assert_eq!(plain_comment_path(Some("comment/create_comment_reply")), None);
+        assert_eq!(
+            plain_comment_path(Some("comment/create_comment_reply")),
+            None
+        );
         assert_eq!(plain_comment_path(None), None);
     }
 

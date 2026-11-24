@@ -33,8 +33,7 @@ const MINT_TIMEOUT: Duration = Duration::from_secs(15);
 /// (~12h); six hours here leaves margin against a rotated program.
 const CHALLENGE_TTL: Duration = Duration::from_secs(6 * 3600);
 
-static CHALLENGE_CACHE: OnceLock<Mutex<Option<(HomepageChallengeData, Instant)>>> =
-    OnceLock::new();
+static CHALLENGE_CACHE: OnceLock<Mutex<Option<(HomepageChallengeData, Instant)>>> = OnceLock::new();
 
 fn challenge_cache() -> &'static Mutex<Option<(HomepageChallengeData, Instant)>> {
     CHALLENGE_CACHE.get_or_init(|| Mutex::new(None))
@@ -50,8 +49,7 @@ pub(crate) fn cached_challenge_json() -> Option<String> {
     if fetched_at.elapsed() > CHALLENGE_TTL {
         return None;
     }
-    let challenge: serde_json::Value =
-        serde_json::from_str(&data.challenge_json).ok()?;
+    let challenge: serde_json::Value = serde_json::from_str(&data.challenge_json).ok()?;
     serde_json::to_string(&serde_json::json!({
         "challenge": challenge,
         "ytcfg": data.ytcfg,

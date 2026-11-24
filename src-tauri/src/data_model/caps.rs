@@ -39,11 +39,7 @@ fn pick_keys(brain: &UserBrain) -> HashSet<String> {
 }
 
 /// Past the cap, the strongest topics stay (protected keys always stay).
-fn cap_topics(
-    vector: &ContentVector,
-    max: usize,
-    protected: &HashSet<String>,
-) -> ContentVector {
+fn cap_topics(vector: &ContentVector, max: usize, protected: &HashSet<String>) -> ContentVector {
     if vector.topics.len() <= max {
         return vector.clone();
     }

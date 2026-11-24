@@ -13,8 +13,8 @@ use youglidetube_desktop_lib::data_model::apply::apply_payload;
 use youglidetube_desktop_lib::data_model::canonical::{
     Collection, Hlc, Like, LikeKind, LikeState, Playlist, SubscriptionGroup, WatchHistoryRecord,
 };
-use youglidetube_desktop_lib::data_model::export::export_collections;
 use youglidetube_desktop_lib::data_model::collection::StagedCollection;
+use youglidetube_desktop_lib::data_model::export::export_collections;
 
 const DESK: &str = "ddesk";
 const PEER: &str = "dpeer";

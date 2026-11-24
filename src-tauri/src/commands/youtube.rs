@@ -914,7 +914,6 @@ pub async fn like_post(
         .map_err(ErrorResponse::from)
 }
 
-
 #[tauri::command]
 pub async fn get_live_chat(
     video_id: String,
@@ -1387,8 +1386,8 @@ pub async fn get_subscription_rotation_feed(
 /// videos shuffled, the cursor advancing so the next load shows other channels.
 /// Server data only — no local recommendation engine involved.
 pub async fn subscription_rotation_feed(
-pool: &SqlitePool,
-youtube_service: &YoutubeService,
+    pool: &SqlitePool,
+    youtube_service: &YoutubeService,
 ) -> AppResult<Vec<VideoSummary>> {
     #[derive(serde::Deserialize)]
     struct SubscribedChannel {
@@ -1480,12 +1479,8 @@ youtube_service: &YoutubeService,
     }
 
     let next_cursor = (cursor + batch_channels.len()) % total_subs;
-    crate::db::settings::set_setting(
-        pool,
-        "homeSubsRotationCursor",
-        &next_cursor.to_string(),
-    )
-    .await?;
+    crate::db::settings::set_setting(pool, "homeSubsRotationCursor", &next_cursor.to_string())
+        .await?;
 
     Ok(candidates)
 }

@@ -6,8 +6,8 @@
 
 use std::path::PathBuf;
 
-use youglidetube_desktop_lib::data_model::canonical::to_canonical_json;
 use serde_json::Value;
+use youglidetube_desktop_lib::data_model::canonical::to_canonical_json;
 
 fn fixture(name: &str) -> Value {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -24,9 +24,6 @@ fn s<'a>(v: &'a Value, k: &str) -> &'a str {
         .unwrap_or_else(|| panic!("fixture missing string `{k}`"))
 }
 
-
-
-
 #[test]
 fn canonical_json_matches_the_golden_vector() {
     let f = fixture("canonical_json.json");
@@ -39,6 +36,7 @@ fn canonical_json_matches_the_golden_vector() {
 #[test]
 fn a_note_matches_android_s_canonical_bytes() {
     let line = r#"{"channelAvatarUrl":null,"channelHandle":null,"channelId":"UCx","channelName":"A channel","deleted":false,"durationSeconds":754,"id":"video:abc123def45","kind":"Video","subscriberCountText":null,"targetId":"abc123def45","text":"12:34 the good part","thumbnailUrl":null,"title":"A video","updatedAt":1700000000000}"#;
-    let note: youglidetube_desktop_lib::data_model::canonical::Note = serde_json::from_str(line).unwrap();
+    let note: youglidetube_desktop_lib::data_model::canonical::Note =
+        serde_json::from_str(line).unwrap();
     assert_eq!(String::from_utf8(to_canonical_json(&note)).unwrap(), line);
 }

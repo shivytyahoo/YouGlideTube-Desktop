@@ -8,7 +8,9 @@
 //! They live in an integration test for the same reason as `sync_crdt.rs`: the in-crate unit-test
 //! harness fails to launch on Windows against Tauri's cdylib.
 
-use youglidetube_desktop_lib::data_model::canonical::{FlowNeuroBrainSnapshot, GCounter, Hlc, Lww, OrSet};
+use youglidetube_desktop_lib::data_model::canonical::{
+    FlowNeuroBrainSnapshot, GCounter, Hlc, Lww, OrSet,
+};
 use youglidetube_desktop_lib::data_model::merge::merge_flow_neuro;
 
 const ANDROID_DEVICE: &str = "d68ec770-8084-4f42-9914-132eca886f13";
@@ -257,4 +259,3 @@ fn the_canonical_grouped_envelope_still_round_trips_byte_for_byte() {
     assert!(canonical.contains(r#""lwwMaps":"#));
     assert!(!canonical.contains("perDevice"));
 }
-

@@ -16,12 +16,12 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use serde::{Deserialize, Serialize};
 
 use crate::data_model::brain::UserBrain;
-use crate::data_model::music_brain::MusicBrain;
 use crate::data_model::brainmap;
 use crate::data_model::canonical::{
     FlowNeuroBrainSnapshot, GCounter, Hlc, Lww, MusicBrainSnapshot, OrSet,
 };
 use crate::data_model::merge::{MergedFlowNeuroBrain, MergedMusicBrain};
+use crate::data_model::music_brain::MusicBrain;
 
 /// Settings key holding the `FlowNeuro` counters as they stood right after the last merge.
 pub const NEURO_BASELINE_KEY: &str = "sync_neuro_baseline";

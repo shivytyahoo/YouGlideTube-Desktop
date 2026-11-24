@@ -17,13 +17,7 @@ pub async fn get_shorts_feed(
     pool: State<'_, sqlx::SqlitePool>,
 ) -> Result<ShortsFeed, ErrorResponse> {
     let feed = shorts_service
-        .get_feed(
-            &youtube_service,
-            &pool,
-            seed_id,
-            user_subs,
-            region,
-        )
+        .get_feed(&youtube_service, &pool, seed_id, user_subs, region)
         .await
         .map_err(ErrorResponse::from)?;
     remember_shorts(&pool, &feed).await;
@@ -41,13 +35,7 @@ pub async fn load_more_shorts(
     pool: State<'_, sqlx::SqlitePool>,
 ) -> Result<ShortsFeed, ErrorResponse> {
     let feed = shorts_service
-        .load_more(
-            &youtube_service,
-            &pool,
-            continuation,
-            user_subs,
-            region,
-        )
+        .load_more(&youtube_service, &pool, continuation, user_subs, region)
         .await
         .map_err(ErrorResponse::from)?;
     remember_shorts(&pool, &feed).await;

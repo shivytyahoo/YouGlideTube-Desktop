@@ -157,7 +157,10 @@ mod tests {
 
     #[test]
     fn the_last_window_to_play_gets_the_command() {
-        assert_eq!(target_window(Some("youglidetube-2"), |_| true), "youglidetube-2");
+        assert_eq!(
+            target_window(Some("youglidetube-2"), |_| true),
+            "youglidetube-2"
+        );
     }
 
     #[test]

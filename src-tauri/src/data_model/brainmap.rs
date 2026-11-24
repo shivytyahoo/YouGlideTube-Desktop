@@ -19,7 +19,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use crate::data_model::brain::{
     ChannelStrike, ContentVector, FeedEntry, RejectionSignal, TimeBucket, TopicEvidence, UserBrain,
 };
-use crate::data_model::music_brain::{Affinity, MusicBrain, TrackMeta};
 use crate::data_model::canonical::{
     AffinityWire, BrainCounters, BrainFlags, BrainLwwMaps, BrainPerVideo, BrainSets, BrainVectors,
     ChannelStrikeWire, ContentVectorWire, FeedEntryWire, FlowNeuroBrainSnapshot, GCounter, Hlc,
@@ -27,6 +26,7 @@ use crate::data_model::canonical::{
 };
 use crate::data_model::merge::DeviceVectors;
 use crate::data_model::merge::{MergedFlowNeuroBrain, MergedMusicBrain};
+use crate::data_model::music_brain::{Affinity, MusicBrain, TrackMeta};
 
 // ---- small generic helpers -------------------------------------------------------------------
 

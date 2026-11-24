@@ -208,7 +208,11 @@ fn parse_cue_header(line: &str) -> Option<(u64, u64, &str)> {
     let end = rest.split_whitespace().next().unwrap_or_default();
     let start_ms = vtt_time_ms(start.trim())?;
     let end_ms = vtt_time_ms(end)?;
-    let settings = rest.trim_start().strip_prefix(end).unwrap_or("").trim_start();
+    let settings = rest
+        .trim_start()
+        .strip_prefix(end)
+        .unwrap_or("")
+        .trim_start();
     Some((start_ms, end_ms, settings))
 }
 
@@ -320,8 +324,8 @@ fn strip_tags(line: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{SubtitleChoice, pick_track, shift_vtt, srt_path, vtt_to_srt};
     use super::super::ClipRange;
+    use super::{SubtitleChoice, pick_track, shift_vtt, srt_path, vtt_to_srt};
     use crate::models::video::CaptionTrack;
     use std::path::Path;
 

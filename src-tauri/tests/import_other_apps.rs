@@ -6,7 +6,9 @@ use sqlx::SqlitePool;
 use sqlx::sqlite::SqlitePoolOptions;
 
 use youglidetube_desktop_lib::backup::import::save::save_found;
-use youglidetube_desktop_lib::backup::import::{Channel, Found, TakenLike, TakenPlaylist, Track, Watch};
+use youglidetube_desktop_lib::backup::import::{
+    Channel, Found, TakenLike, TakenPlaylist, Track, Watch,
+};
 
 const NOW: u64 = 1_800_000_000_000;
 const YEAR_MS: u64 = 365 * 24 * 60 * 60 * 1000;
@@ -295,4 +297,3 @@ async fn a_held_like_stays_and_old_likes_are_kept() {
         "an old like is kept, it just teaches nothing"
     );
 }
-

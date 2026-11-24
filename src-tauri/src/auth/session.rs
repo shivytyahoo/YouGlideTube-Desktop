@@ -189,9 +189,7 @@ impl AuthSession {
         };
         if !Self::is_valid_cookie(&cookie) {
             let _ = std::fs::remove_dir_all(self.account_dir(id));
-            return Err(
-                "That account's session has expired. Sign in again to use it.".to_string(),
-            );
+            return Err("That account's session has expired. Sign in again to use it.".to_string());
         }
         let identity = self.read_identity(id);
         self.activate(id, cookie, identity);
@@ -291,7 +289,10 @@ impl AuthSession {
                 let _ = std::fs::remove_dir_all(self.account_dir(&other));
             }
         }
-        *self.identity.write().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(info);
+        *self
+            .identity
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(info);
     }
 
     /// The cached account identity, if one was fetched (or restored).
@@ -368,7 +369,10 @@ impl AuthSession {
             .filter(|entry| entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false))
             .map(|entry| {
                 let id = entry.file_name().to_string_lossy().into_owned();
-                let added_at = self.read_stored(&id).map(|stored| stored.added_at).unwrap_or(0);
+                let added_at = self
+                    .read_stored(&id)
+                    .map(|stored| stored.added_at)
+                    .unwrap_or(0);
                 (id, added_at)
             })
             .collect();
@@ -381,7 +385,10 @@ impl AuthSession {
         if !self.session_path(id).is_file() {
             return None;
         }
-        let info = self.read_stored(id).map(|stored| stored.info).unwrap_or_default();
+        let info = self
+            .read_stored(id)
+            .map(|stored| stored.info)
+            .unwrap_or_default();
         Some(AccountSummary {
             id: id.to_string(),
             name: info.name,
@@ -470,17 +477,34 @@ impl AuthSession {
     /// Applies one account's session in memory and on disk (the pointer).
     fn activate(&self, id: &str, cookie: String, identity: Option<AccountInfo>) {
         self.write_active_pointer(Some(id));
-        *self.active_id.write().unwrap_or_else(std::sync::PoisonError::into_inner) =
-            Some(id.to_string());
-        *self.cookie.write().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(cookie);
-        *self.identity.write().unwrap_or_else(std::sync::PoisonError::into_inner) = identity;
+        *self
+            .active_id
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(id.to_string());
+        *self
+            .cookie
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(cookie);
+        *self
+            .identity
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = identity;
     }
 
     fn clear_active(&self) {
         self.write_active_pointer(None);
-        *self.active_id.write().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
-        *self.cookie.write().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
-        *self.identity.write().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+        *self
+            .active_id
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+        *self
+            .cookie
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+        *self
+            .identity
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
     }
 
     /// Loads the stored account when its cookie still proves a session;
@@ -586,7 +610,8 @@ impl AuthSession {
         now_ms().max(latest + 1)
     }
 
-    fn read_legacy_cookie(&self) -> Option<String> {        std::fs::read_to_string(&self.legacy_file)
+    fn read_legacy_cookie(&self) -> Option<String> {
+        std::fs::read_to_string(&self.legacy_file)
             .ok()
             .map(|text| text.trim().to_string())
             .filter(|text| !text.is_empty())
@@ -644,7 +669,8 @@ mod tests {
         // directory mid-run.
         static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!("youglide-auth-test-{}-{}", std::process::id(), n));
+        let dir =
+            std::env::temp_dir().join(format!("youglide-auth-test-{}-{}", std::process::id(), n));
         std::fs::create_dir_all(&dir).unwrap();
         (AuthSession::new(&dir), dir)
     }
@@ -816,7 +842,10 @@ mod tests {
         let first = session.sign_in(COOKIE_A).unwrap();
         let second = session.sign_in(COOKIE_B).unwrap();
         assert_ne!(first, second);
-        assert_eq!(session.active_account_id().as_deref(), Some(second.as_str()));
+        assert_eq!(
+            session.active_account_id().as_deref(),
+            Some(second.as_str())
+        );
         assert_eq!(session.cookie_header().as_deref(), Some(COOKIE_B));
 
         let accounts = session.list_accounts();
@@ -851,7 +880,12 @@ mod tests {
         assert!(switched.is_active);
         assert_eq!(session.cookie_header().as_deref(), Some(COOKIE_A));
         assert_eq!(
-            session.identity().as_ref().unwrap().channel_handle.as_deref(),
+            session
+                .identity()
+                .as_ref()
+                .unwrap()
+                .channel_handle
+                .as_deref(),
             Some("@a")
         );
 
@@ -951,7 +985,10 @@ mod tests {
         let (session, dir) = temp_session();
         let first = session.sign_in(COOKIE_A).unwrap();
         let second = session.sign_in(COOKIE_B).unwrap();
-        assert_eq!(session.active_account_id().as_deref(), Some(second.as_str()));
+        assert_eq!(
+            session.active_account_id().as_deref(),
+            Some(second.as_str())
+        );
 
         std::fs::write(
             dir.join(SESSIONS_DIR).join(&second).join(SESSION_FILE),
@@ -962,7 +999,10 @@ mod tests {
         let restored = AuthSession::new(&dir);
         restored.restore();
         assert!(restored.is_signed_in());
-        assert_eq!(restored.active_account_id().as_deref(), Some(first.as_str()));
+        assert_eq!(
+            restored.active_account_id().as_deref(),
+            Some(first.as_str())
+        );
         assert_eq!(restored.cookie_header().as_deref(), Some(COOKIE_A));
         assert!(!dir.join(SESSIONS_DIR).join(&second).exists());
         std::fs::remove_dir_all(&dir).unwrap();

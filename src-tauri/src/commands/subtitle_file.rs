@@ -104,7 +104,8 @@ mod tests {
 
     #[tokio::test]
     async fn refuses_a_file_too_large_to_be_subtitles() {
-        let dir = std::env::temp_dir().join(format!("youglidetube-subs-big-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("youglidetube-subs-big-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let big = dir.join("big.vtt");
         let file = std::fs::File::create(&big).unwrap();

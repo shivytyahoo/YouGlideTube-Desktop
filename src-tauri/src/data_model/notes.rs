@@ -5,7 +5,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 
-use crate::db::notes as table;
 use crate::data_model::apply::ApplyStats;
 use crate::data_model::canonical::{Collection, Note};
 use crate::data_model::changes;
@@ -13,6 +12,7 @@ use crate::data_model::clock;
 use crate::data_model::error::DataError;
 use crate::data_model::merge;
 use crate::data_model::tombstones;
+use crate::db::notes as table;
 
 fn now_ms() -> u64 {
     u64::try_from(chrono::Utc::now().timestamp_millis()).unwrap_or(0)

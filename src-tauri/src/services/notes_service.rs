@@ -5,11 +5,11 @@
 use serde::Deserialize;
 use sqlx::SqlitePool;
 
-use crate::db::notes::{self, NoteRow};
 use crate::data_model::canonical::Note;
 use crate::data_model::changes::{self, Change};
 use crate::data_model::clock;
 use crate::data_model::error::DataError;
+use crate::db::notes::{self, NoteRow};
 
 /// What a note is about, stored with it so the Notes page lists notes without a network call.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]

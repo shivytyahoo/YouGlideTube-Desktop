@@ -293,7 +293,6 @@ pub async fn watch_history_years(pool: &SqlitePool) -> AppResult<Vec<i64>> {
     .map_err(AppError::from)
 }
 
-
 pub async fn delete_short_watch_records(pool: &SqlitePool) -> AppResult<()> {
     sqlx::query("DELETE FROM watch_history WHERE is_short")
         .execute(pool)

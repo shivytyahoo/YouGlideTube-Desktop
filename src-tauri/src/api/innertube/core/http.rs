@@ -123,7 +123,9 @@ impl InnertubeClient {
         if !client.login_supported {
             return None;
         }
-        self.auth.as_ref().and_then(|session| session.auth_headers())
+        self.auth
+            .as_ref()
+            .and_then(|session| session.auth_headers())
     }
 
     /// Send one request through the shared transport.
@@ -143,9 +145,18 @@ impl InnertubeClient {
         referer: Option<&str>,
         extra_query: Option<&str>,
     ) -> AppResult<Value> {
-        self.post_via_raw(http, host, endpoint, client, payload, referer, extra_query, &[])
-            .await
-            .map_err(|error| to_app_error(endpoint, &error))
+        self.post_via_raw(
+            http,
+            host,
+            endpoint,
+            client,
+            payload,
+            referer,
+            extra_query,
+            &[],
+        )
+        .await
+        .map_err(|error| to_app_error(endpoint, &error))
     }
 
     /// [`Self::post_innertube`] carrying extra headers for this one call
@@ -251,7 +262,8 @@ mod tests {
     fn signed_in_client() -> (InnertubeClient, std::path::PathBuf) {
         static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!("youglide-http-test-{}-{n}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("youglide-http-test-{}-{n}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let session = AuthSession::new(&dir);
         session

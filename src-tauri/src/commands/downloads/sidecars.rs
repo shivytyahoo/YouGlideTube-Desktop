@@ -193,8 +193,8 @@ async fn embed_cover(media_path: PathBuf, jpeg: Vec<u8>) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::shift_segments_for_clip;
     use super::super::ClipRange;
+    use super::shift_segments_for_clip;
 
     fn segments() -> String {
         r#"[{"segment":[10.0,20.0],"category":"sponsor","UUID":"a"},{"segment":[65.0,75.0],"category":"intro","UUID":"b"},{"segment":[130.0,140.0],"category":"outro","UUID":"c"}]"#

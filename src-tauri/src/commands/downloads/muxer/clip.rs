@@ -12,9 +12,9 @@
 //! before an in-range frame in decode order; the file then runs up to one frame
 //! past the clip end, which the 5 s validation tolerance accepts.
 
+use super::super::ClipRange;
 use super::mp4_writer::WriterSample;
 use super::{MatroskaPacket, PacketSource};
-use super::super::ClipRange;
 
 /// Which samples of a track survive a clip, and the edit-list start of the
 /// trimmed track, in the track's own ticks.
@@ -168,9 +168,9 @@ impl ClipPackets {
 
 #[cfg(test)]
 mod tests {
-    use super::{select_range, trim_samples};
     use super::super::ClipRange;
     use super::super::mp4_writer::WriterSample;
+    use super::{select_range, trim_samples};
 
     fn sample(duration: u32, composition_offset: i32, is_sync: bool) -> WriterSample {
         WriterSample {
@@ -193,8 +193,14 @@ mod tests {
         // 3 s of video; the clip [1.0 s, 2.0 s) starts mid-GOP (frame 30 is the
         // keyframe at 1.0 s, so frame 30 itself is the first kept sample).
         let samples = video_samples(90);
-        let trimmed = trim_samples(&samples, 90_000, true, 0, ClipRange::new(1000, 2000).unwrap())
-            .expect("trims");
+        let trimmed = trim_samples(
+            &samples,
+            90_000,
+            true,
+            0,
+            ClipRange::new(1000, 2000).unwrap(),
+        )
+        .expect("trims");
         assert_eq!(trimmed.indices, (30..60).collect::<Vec<_>>());
         // The first kept frame decodes at 1.0 s and the clip starts there.
         assert_eq!(trimmed.media_time, 0);
@@ -204,8 +210,14 @@ mod tests {
     fn video_keeps_the_keyframe_before_a_mid_gop_start() {
         // The clip starts at 1.1 s, inside the GOP that began at 1.0 s.
         let samples = video_samples(90);
-        let trimmed = trim_samples(&samples, 90_000, true, 0, ClipRange::new(1100, 2000).unwrap())
-            .expect("trims");
+        let trimmed = trim_samples(
+            &samples,
+            90_000,
+            true,
+            0,
+            ClipRange::new(1100, 2000).unwrap(),
+        )
+        .expect("trims");
         assert_eq!(trimmed.indices, (30..60).collect::<Vec<_>>());
         // The keyframe decodes at 1.0 s; the edit list skips the first 100 ms.
         assert_eq!(trimmed.media_time, 9000);
@@ -215,8 +227,14 @@ mod tests {
     fn audio_starts_on_its_first_sample_in_range() {
         // 1024-sample AAC frames at 44.1 kHz: a frame every ~23.2 ms.
         let samples: Vec<WriterSample> = (0..130).map(|_| sample(1024, 0, true)).collect();
-        let trimmed = trim_samples(&samples, 44_100, false, 0, ClipRange::new(100, 500).unwrap())
-            .expect("trims");
+        let trimmed = trim_samples(
+            &samples,
+            44_100,
+            false,
+            0,
+            ClipRange::new(100, 500).unwrap(),
+        )
+        .expect("trims");
         // The first frame presenting at or after 100 ms is frame 5 (116 ms).
         assert_eq!(trimmed.indices[0], 5);
         assert_eq!(trimmed.indices.last(), Some(&21));
@@ -230,8 +248,8 @@ mod tests {
         let decode = [0, 3000, 6000, 9000];
         let presentations = [0, 9000, 3000, 6000];
         let is_sync = [true, false, false, false];
-        let trimmed = select_range(&decode, &presentations, &is_sync, true, 4500, 9900)
-            .expect("trims");
+        let trimmed =
+            select_range(&decode, &presentations, &is_sync, true, 4500, 9900).expect("trims");
         assert_eq!(trimmed.indices, vec![0, 1, 2, 3]);
         assert_eq!(trimmed.media_time, 4500);
     }
@@ -239,8 +257,14 @@ mod tests {
     #[test]
     fn a_clip_past_the_track_end_is_an_error() {
         let samples = video_samples(90);
-        let error = trim_samples(&samples, 90_000, true, 0, ClipRange::new(5000, 6000).unwrap())
-            .expect_err("too late");
+        let error = trim_samples(
+            &samples,
+            90_000,
+            true,
+            0,
+            ClipRange::new(5000, 6000).unwrap(),
+        )
+        .expect_err("too late");
         assert!(error.contains("after the end"), "{error}");
     }
 
@@ -268,8 +292,8 @@ mod tests {
         let timestamps: Vec<i64> = (0..90).map(|index| index * 3_000).collect();
         let decode = timestamps.clone();
         let is_sync: Vec<bool> = (0..90).map(|index| index % 30 == 0).collect();
-        let trimmed = select_range(&decode, &timestamps, &is_sync, true, 90_000, 180_000)
-            .expect("trims");
+        let trimmed =
+            select_range(&decode, &timestamps, &is_sync, true, 90_000, 180_000).expect("trims");
         assert_eq!(trimmed.indices, (30..60).collect::<Vec<_>>());
         assert_eq!(trimmed.media_time, 0);
     }

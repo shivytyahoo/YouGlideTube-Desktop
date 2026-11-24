@@ -280,8 +280,12 @@ fn read_archive<R: Read + Seek>(
         "collections": collections,
     });
 
-    let manifest = read_json(archive, MANIFEST_ENTRY, &mut budget)?
-        .filter(|manifest| matches!(manifest.get("format").and_then(Value::as_str), Some("youglidetube-master") | Some("flow-master")));
+    let manifest = read_json(archive, MANIFEST_ENTRY, &mut budget)?.filter(|manifest| {
+        matches!(
+            manifest.get("format").and_then(Value::as_str),
+            Some("youglidetube-master") | Some("flow-master")
+        )
+    });
     let Some(manifest) = manifest else {
         return Ok(BackupFile::Backup(backup));
     };

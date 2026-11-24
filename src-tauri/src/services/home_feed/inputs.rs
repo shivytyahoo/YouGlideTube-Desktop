@@ -436,9 +436,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let inputs = Inputs::load(&pool, 2_000)
-            .await
-            .unwrap();
+        let inputs = Inputs::load(&pool, 2_000).await.unwrap();
         let hidden: Vec<bool> = ["seen-in-rss", "swiped", "members", "video"]
             .iter()
             .map(|id| inputs.exclusions.hides(&card(id, "UC2", "1 day ago")))
@@ -456,16 +454,12 @@ mod tests {
         sqlx::migrate!("./migrations").run(&pool).await.unwrap();
         let day = 86_400_000;
         let now = 30 * day;
-        let off = Inputs::load(&pool, now)
-            .await
-            .unwrap();
+        let off = Inputs::load(&pool, now).await.unwrap();
         assert!(!off.exclusions.hides(&card("old", "UC1", "2 weeks ago")));
         crate::db::settings::set_setting(&pool, MAX_VIDEO_AGE_SETTING, "72")
             .await
             .unwrap();
-        let limited = Inputs::load(&pool, now)
-            .await
-            .unwrap();
+        let limited = Inputs::load(&pool, now).await.unwrap();
         assert_eq!(limited.max_video_age_ms, Some(3 * day));
         let hidden: Vec<bool> = ["2 days ago", "2 weeks ago", ""]
             .iter()
@@ -488,16 +482,12 @@ mod tests {
         let hides = |inputs: &Inputs| {
             ["shown", "new"].map(|id| inputs.exclusions.hides(&card(id, "UC1", "1 day ago")))
         };
-        let off = Inputs::load(&pool, 2_000)
-            .await
-            .unwrap();
+        let off = Inputs::load(&pool, 2_000).await.unwrap();
         assert_eq!(hides(&off), [false, false]);
         crate::db::settings::set_setting(&pool, HIDE_SEEN_SETTING, "true")
             .await
             .unwrap();
-        let on = Inputs::load(&pool, 2_000)
-            .await
-            .unwrap();
+        let on = Inputs::load(&pool, 2_000).await.unwrap();
         assert_eq!(hides(&on), [true, false]);
     }
 }

@@ -5,13 +5,13 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::{Map, Value, json};
 
-use crate::data_model::display_forms::DisplayForm;
-use crate::data_model::keyspec::VERSION as KEY_SPEC_VERSION;
 use crate::data_model::brain::{
     ContentVector, FeedEntry, RejectionSignal, SCHEMA_VERSION, TimeBucket, TopicEvidence, UserBrain,
 };
-use crate::data_model::music_brain::{Affinity, MUSIC_SCHEMA_VERSION, MusicBrain, TrackMeta};
 use crate::data_model::brainmap::canonical_bucket_key;
+use crate::data_model::display_forms::DisplayForm;
+use crate::data_model::keyspec::VERSION as KEY_SPEC_VERSION;
+use crate::data_model::music_brain::{Affinity, MUSIC_SCHEMA_VERSION, MusicBrain, TrackMeta};
 
 /// Android's brain schema that writes the desktop's current key spec (`NeuroMaintenance`).
 const ANDROID_KEY_SPEC_3_SCHEMA: i64 = 21;

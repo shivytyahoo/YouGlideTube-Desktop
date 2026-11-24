@@ -118,14 +118,13 @@ fn parse_renderer(renderer: &Value, message_type: &str) -> Option<LiveChatMessag
         super_chat_argb: renderer["bodyBackgroundColor"].as_i64(),
         super_chat_header_argb: renderer["headerBackgroundColor"].as_i64(),
         video_offset_ms: None,
-        menu_params: renderer["contextMenuEndpoint"]["liveChatItemContextMenuEndpoint"]
-            ["params"]
+        menu_params: renderer["contextMenuEndpoint"]["liveChatItemContextMenuEndpoint"]["params"]
             .as_str()
             .map(ToOwned::to_owned),
-        menu_api_url: renderer["contextMenuEndpoint"]["commandMetadata"]
-            ["webCommandMetadata"]["apiUrl"]
-            .as_str()
-            .map(ToOwned::to_owned),
+        menu_api_url:
+            renderer["contextMenuEndpoint"]["commandMetadata"]["webCommandMetadata"]["apiUrl"]
+                .as_str()
+                .map(ToOwned::to_owned),
     })
 }
 
@@ -306,9 +305,7 @@ impl InnertubeClient {
         {
             Ok(()) => Ok(()),
             Err(TransportError::Status { code: 404, .. }) => {
-                tracing::info!(
-                    "live chat send answered 404; retrying with X-Goog-AuthUser"
-                );
+                tracing::info!("live chat send answered 404; retrying with X-Goog-AuthUser");
                 self.post_send_live_chat_message(video_id, channel_id, text, true)
                     .await
                     .map_err(|error| to_app_error("live_chat/send_message", &error))?;
@@ -338,9 +335,7 @@ impl InnertubeClient {
         let res = self
             .post_innertube_extra("live_chat/send_message", &clients::WEB, &mut payload, extra)
             .await?;
-        if res.get("addChatItemAction").is_some()
-            || res.get("runAttestationCommand").is_some()
-        {
+        if res.get("addChatItemAction").is_some() || res.get("runAttestationCommand").is_some() {
             Ok(())
         } else {
             Err(TransportError::Status {
@@ -633,8 +628,17 @@ mod tests {
             plain_live_chat_path(Some("/youtubei/v1/live_chat/moderate")),
             Some("live_chat/moderate".to_string())
         );
-        assert_eq!(plain_live_chat_path(Some("/youtubei/v1/comment/create_comment")), None);
-        assert_eq!(plain_live_chat_path(Some("https://evil.example/live_chat/moderate")), None);
-        assert_eq!(plain_live_chat_path(Some("/youtubei/v1/live_chat/moderate/")), None);
+        assert_eq!(
+            plain_live_chat_path(Some("/youtubei/v1/comment/create_comment")),
+            None
+        );
+        assert_eq!(
+            plain_live_chat_path(Some("https://evil.example/live_chat/moderate")),
+            None
+        );
+        assert_eq!(
+            plain_live_chat_path(Some("/youtubei/v1/live_chat/moderate/")),
+            None
+        );
     }
 }

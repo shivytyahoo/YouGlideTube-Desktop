@@ -517,7 +517,12 @@ mod tests {
     #[test]
     fn tags_written_later_read_back_and_the_media_survives() {
         let path = untagged_song("youglidetube-retag");
-        assert!(read_mp4_youglidetube_tags(&path).expect("reads").fields.is_empty());
+        assert!(
+            read_mp4_youglidetube_tags(&path)
+                .expect("reads")
+                .fields
+                .is_empty()
+        );
         set_mp4_tags(&path, &metadata()).expect("retags");
 
         let read = read_mp4_youglidetube_tags(&path).expect("reads");

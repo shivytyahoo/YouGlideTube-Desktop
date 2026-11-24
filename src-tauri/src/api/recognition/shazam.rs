@@ -325,25 +325,21 @@ impl ShazamResponseJson {
                 .and_then(|section| section.text.clone())
         });
 
-        let hub_options = track
-            .hub
-            .as_ref()
-            .and_then(|hub| hub.options.as_ref());
-        let apple_music_url = hub_options
-            .and_then(|options| {
-                options
-                    .iter()
-                    .flatten()
-                    .filter(|option| {
-                        option
-                            .providername
-                            .as_deref()
-                            .is_some_and(|name| name.to_lowercase().contains("apple"))
-                    })
-                    .filter_map(|option| option.actions.as_ref()?.iter().flatten().next())
-                    .filter_map(|action| action.uri.clone())
-                    .next()
-            });
+        let hub_options = track.hub.as_ref().and_then(|hub| hub.options.as_ref());
+        let apple_music_url = hub_options.and_then(|options| {
+            options
+                .iter()
+                .flatten()
+                .filter(|option| {
+                    option
+                        .providername
+                        .as_deref()
+                        .is_some_and(|name| name.to_lowercase().contains("apple"))
+                })
+                .filter_map(|option| option.actions.as_ref()?.iter().flatten().next())
+                .filter_map(|action| action.uri.clone())
+                .next()
+        });
         let spotify_url = track
             .hub
             .as_ref()
@@ -375,21 +371,29 @@ impl ShazamResponseJson {
                 .filter_map(|action| action.uri.clone())
                 .next()
         });
-        let youtube_video_id = youtube_uri
-            .as_deref()
-            .and_then(youtube_video_id_from_uri);
+        let youtube_video_id = youtube_uri.as_deref().and_then(youtube_video_id_from_uri);
 
         Some(RecognitionResult {
-            track_id: track.key.clone().or_else(|| self.tagid.clone()).unwrap_or_default(),
+            track_id: track
+                .key
+                .clone()
+                .or_else(|| self.tagid.clone())
+                .unwrap_or_default(),
             title: track.title.clone().unwrap_or_default(),
             artist: track.subtitle.clone().unwrap_or_default(),
             album: find_meta("Album"),
-            cover_art_url: track.images.as_ref().and_then(|images| images.coverart.clone()),
+            cover_art_url: track
+                .images
+                .as_ref()
+                .and_then(|images| images.coverart.clone()),
             cover_art_hq_url: track
                 .images
                 .as_ref()
                 .and_then(|images| images.coverarthq.clone()),
-            genre: track.genres.as_ref().and_then(|genres| genres.primary.clone()),
+            genre: track
+                .genres
+                .as_ref()
+                .and_then(|genres| genres.primary.clone()),
             release_date: find_meta("Released"),
             label: find_meta("Label"),
             lyrics,
@@ -410,10 +414,7 @@ fn youtube_video_id_from_uri(uri: &str) -> Option<String> {
     if !after_v.is_empty() {
         return Some(after_v.to_string());
     }
-    let after_slash = uri
-        .rsplit_once('/')
-        .map(|(_, after)| after)
-        .unwrap_or("");
+    let after_slash = uri.rsplit_once('/').map(|(_, after)| after).unwrap_or("");
     if !after_slash.is_empty() && after_slash.len() == 11 {
         return Some(after_slash.to_string());
     }
@@ -480,15 +481,33 @@ mod tests {
         assert_eq!(result.title, "Test Song");
         assert_eq!(result.artist, "Test Artist");
         assert_eq!(result.album.as_deref(), Some("Test Album"));
-        assert_eq!(result.cover_art_url.as_deref(), Some("https://example.test/cover.jpg"));
-        assert_eq!(result.cover_art_hq_url.as_deref(), Some("https://example.test/cover-hq.jpg"));
+        assert_eq!(
+            result.cover_art_url.as_deref(),
+            Some("https://example.test/cover.jpg")
+        );
+        assert_eq!(
+            result.cover_art_hq_url.as_deref(),
+            Some("https://example.test/cover-hq.jpg")
+        );
         assert_eq!(result.genre.as_deref(), Some("Pop"));
         assert_eq!(result.release_date.as_deref(), Some("2020"));
         assert_eq!(result.label.as_deref(), Some("Test Label"));
-        assert_eq!(result.lyrics.as_deref(), Some(&["la".to_string(), "la".to_string()][..]));
-        assert_eq!(result.shazam_url.as_deref(), Some("https://www.shazam.com/track/12345"));
-        assert_eq!(result.apple_music_url.as_deref(), Some("https://music.apple.com/x"));
-        assert_eq!(result.spotify_url.as_deref(), Some("https://open.spotify.com/track/abc"));
+        assert_eq!(
+            result.lyrics.as_deref(),
+            Some(&["la".to_string(), "la".to_string()][..])
+        );
+        assert_eq!(
+            result.shazam_url.as_deref(),
+            Some("https://www.shazam.com/track/12345")
+        );
+        assert_eq!(
+            result.apple_music_url.as_deref(),
+            Some("https://music.apple.com/x")
+        );
+        assert_eq!(
+            result.spotify_url.as_deref(),
+            Some("https://open.spotify.com/track/abc")
+        );
         assert_eq!(result.isrc.as_deref(), Some("USXX12000001"));
         assert_eq!(result.youtube_video_id.as_deref(), Some("dQw4w9WgXcQ"));
     }

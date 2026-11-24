@@ -19,10 +19,10 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::api::innertube::InnertubeClient;
+use crate::auth::AuthSession;
 use crate::auth::identity::AccountInfo;
 use crate::auth::login_window;
 use crate::auth::session::{ACCOUNT_SWITCHED_EVENT, AccountSummary};
-use crate::auth::AuthSession;
 use crate::errors::{AppError, ErrorResponse};
 
 #[derive(Serialize)]

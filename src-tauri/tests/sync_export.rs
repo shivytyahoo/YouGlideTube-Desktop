@@ -12,9 +12,9 @@ use youglidetube_desktop_lib::data_model::canonical::{
     BrainVectors, ContentVectorWire, FlowNeuroBrainSnapshot, GCounter, Hlc, MusicBrainSnapshot,
 };
 use youglidetube_desktop_lib::data_model::collection::sha256_hex;
+use youglidetube_desktop_lib::data_model::collection::{OutgoingCollection, StagedCollection};
 use youglidetube_desktop_lib::data_model::export::export_collections;
 use youglidetube_desktop_lib::data_model::merge::{merge_flow_neuro, merge_music};
-use youglidetube_desktop_lib::data_model::collection::{OutgoingCollection, StagedCollection};
 
 async fn memory_pool() -> SqlitePool {
     let pool = SqlitePoolOptions::new()

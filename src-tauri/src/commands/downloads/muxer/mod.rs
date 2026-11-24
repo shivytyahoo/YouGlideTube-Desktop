@@ -62,27 +62,90 @@ pub struct TrackInput<'a> {
 /// packs: the primary subtag, so `es-US` and `es` both become `spa`.
 /// Unknown codes fall back to `und`, as the writer did for every track.
 fn iso639_2(code: &str) -> [u8; 3] {
-    let primary = code.split(['-', '_']).next().unwrap_or("").to_ascii_lowercase();
+    let primary = code
+        .split(['-', '_'])
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
     if primary.len() == 3 && primary.bytes().all(|byte| byte.is_ascii_lowercase()) {
-        return [primary.as_bytes()[0], primary.as_bytes()[1], primary.as_bytes()[2]];
+        return [
+            primary.as_bytes()[0],
+            primary.as_bytes()[1],
+            primary.as_bytes()[2],
+        ];
     }
     let three = match primary.as_str() {
-        "ar" => "ara", "as" => "asm", "az" => "aze", "bg" => "bul", "bn" => "ben",
-        "ca" => "cat", "cs" => "ces", "cy" => "cym", "da" => "dan", "de" => "deu",
-        "el" => "ell", "en" => "eng", "es" => "spa", "eu" => "eus", "fa" => "fas",
-        "fi" => "fin", "fr" => "fra", "gl" => "glg", "gu" => "guj", "he" => "heb",
-        "hi" => "hin", "hr" => "hrv", "hu" => "hun", "hy" => "hye", "id" => "ind",
-        "it" => "ita", "ja" => "jpn", "ka" => "kat", "kk" => "kaz", "km" => "khm",
-        "kn" => "kan", "ko" => "kor", "lo" => "lao", "ml" => "mal", "mn" => "mon",
-        "mr" => "mar", "ms" => "msa", "my" => "mya", "nb" => "nob", "ne" => "nep",
-        "nl" => "nld", "no" => "nor", "or" => "ori", "pa" => "pan", "pl" => "pol",
-        "pt" => "por", "ro" => "ron", "ru" => "rus", "si" => "sin", "sk" => "slk",
-        "sr" => "srp", "sv" => "swe", "sw" => "swa", "ta" => "tam", "te" => "tel",
-        "th" => "tha", "tl" => "tgl", "tr" => "tur", "uk" => "ukr", "ur" => "urd",
-        "uz" => "uzb", "vi" => "vie", "zh" => "zho", "am" => "amh",
+        "ar" => "ara",
+        "as" => "asm",
+        "az" => "aze",
+        "bg" => "bul",
+        "bn" => "ben",
+        "ca" => "cat",
+        "cs" => "ces",
+        "cy" => "cym",
+        "da" => "dan",
+        "de" => "deu",
+        "el" => "ell",
+        "en" => "eng",
+        "es" => "spa",
+        "eu" => "eus",
+        "fa" => "fas",
+        "fi" => "fin",
+        "fr" => "fra",
+        "gl" => "glg",
+        "gu" => "guj",
+        "he" => "heb",
+        "hi" => "hin",
+        "hr" => "hrv",
+        "hu" => "hun",
+        "hy" => "hye",
+        "id" => "ind",
+        "it" => "ita",
+        "ja" => "jpn",
+        "ka" => "kat",
+        "kk" => "kaz",
+        "km" => "khm",
+        "kn" => "kan",
+        "ko" => "kor",
+        "lo" => "lao",
+        "ml" => "mal",
+        "mn" => "mon",
+        "mr" => "mar",
+        "ms" => "msa",
+        "my" => "mya",
+        "nb" => "nob",
+        "ne" => "nep",
+        "nl" => "nld",
+        "no" => "nor",
+        "or" => "ori",
+        "pa" => "pan",
+        "pl" => "pol",
+        "pt" => "por",
+        "ro" => "ron",
+        "ru" => "rus",
+        "si" => "sin",
+        "sk" => "slk",
+        "sr" => "srp",
+        "sv" => "swe",
+        "sw" => "swa",
+        "ta" => "tam",
+        "te" => "tel",
+        "th" => "tha",
+        "tl" => "tgl",
+        "tr" => "tur",
+        "uk" => "ukr",
+        "ur" => "urd",
+        "uz" => "uzb",
+        "vi" => "vie",
+        "zh" => "zho",
+        "am" => "amh",
         _ => "und",
     };
-    [three.as_bytes()[0], three.as_bytes()[1], three.as_bytes()[2]]
+    [
+        three.as_bytes()[0],
+        three.as_bytes()[1],
+        three.as_bytes()[2],
+    ]
 }
 
 /// Muxes a downloaded video and audio track into a single output file.
@@ -152,7 +215,10 @@ fn mux_mp4(
                 return Err("VP8 video cannot be stored in MP4".to_string());
             }
             let codec = track.codec;
-            (fragmented_writer_track(track, TrackKind::Video, clip)?, codec)
+            (
+                fragmented_writer_track(track, TrackKind::Video, clip)?,
+                codec,
+            )
         }
         DownloadContainer::Mkv => (
             webm_vp9_writer_track(video.path, video.mime_type, clip)?,
@@ -365,8 +431,10 @@ fn webm_vp9_writer_track(
     let mut skip = 0_usize;
     let mut media_time = None;
     if let Some(clip) = clip {
-        let presentations: Vec<i64> =
-            frames.iter().map(|(timestamp, _, _)| ticks(*timestamp)).collect();
+        let presentations: Vec<i64> = frames
+            .iter()
+            .map(|(timestamp, _, _)| ticks(*timestamp))
+            .collect();
         let is_sync: Vec<bool> = frames.iter().map(|(_, _, keyframe)| *keyframe).collect();
         let trimmed = clip::select_range(
             &presentations,
@@ -379,11 +447,7 @@ fn webm_vp9_writer_track(
         .map_err(|error| format!("video track: {error}"))?;
         skip = trimmed.indices[0];
         media_time = Some(trimmed.media_time);
-        frames = trimmed
-            .indices
-            .iter()
-            .map(|index| frames[*index])
-            .collect();
+        frames = trimmed.indices.iter().map(|index| frames[*index]).collect();
     }
     let fallback = default_duration
         .map(|ns| ticks(i128::from(ns)))
@@ -663,7 +727,10 @@ pub(super) fn scratch_file(tag: &str, extension: &str) -> PathBuf {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|elapsed| elapsed.as_nanos())
         .unwrap_or_default();
-    let dir = std::env::temp_dir().join(format!("youglidetube-mux-{tag}-{}-{nanos}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!(
+        "youglidetube-mux-{tag}-{}-{nanos}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&dir).expect("scratch dir");
     dir.join(format!("out.{extension}"))
 }
@@ -683,10 +750,12 @@ pub(super) fn write_test_song(path: &Path) {
 
 #[cfg(test)]
 mod tests {
-    use super::{ClipRange, TrackKind, WriterSample, first_presentation_time, fragmented_writer_track};
     use super::mp4_demux::{Codec, ProgressiveSample, ProgressiveTrack};
     use super::mp4_writer::tests::{audio_track, options, samples, video_track};
     use super::validate::inspect_mp4_bytes;
+    use super::{
+        ClipRange, TrackKind, WriterSample, first_presentation_time, fragmented_writer_track,
+    };
     use super::{clip, mp4_writer};
     use std::sync::atomic::AtomicBool;
 

@@ -67,10 +67,7 @@ pub fn rank_related(
         .iter()
         .map(|c| (c.card.id().to_string(), c.clone()))
         .collect();
-    let ranked = rank(
-        candidates.iter().map(|c| c.card.clone()).collect(),
-        subs,
-    );
+    let ranked = rank(candidates.iter().map(|c| c.card.clone()).collect(), subs);
     share(taste.demote(apply_graph_boost(ranked, &metadata)), subs)
 }
 
@@ -244,10 +241,9 @@ pub fn build(
         .filter(|c| server_ids.contains(c.id()))
         .map(|c| c.id().to_string())
         .collect();
-    let best_memory = distinct_by(
-        taste.demote(rank(memory_pool, &subs)),
-        |c| c.channel_id().to_string(),
-    )
+    let best_memory = distinct_by(taste.demote(rank(memory_pool, &subs)), |c| {
+        c.channel_id().to_string()
+    })
     .into_iter()
     .take(BEST_MEMORY_LIMIT)
     .collect();

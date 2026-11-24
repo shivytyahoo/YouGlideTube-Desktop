@@ -4,9 +4,9 @@
 
 use std::collections::HashMap;
 
+use serde_json::Value;
 use youglidetube_desktop_lib::data_model::keyspec::phrases::{IdfSnapshot, is_phrase};
 use youglidetube_desktop_lib::data_model::keyspec::{KeySpec, VERSION};
-use serde_json::Value;
 
 const GOLDEN: &str = include_str!("fixtures/neuro/key_spec_golden.json");
 
