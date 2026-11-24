@@ -18,12 +18,16 @@ const DAY_MS: u64 = 24 * 60 * 60 * 1000;
 /// A file-backed database in `dir`, migrated, as the app opens it.
 async fn open_test_db(dir: &std::path::Path) -> SqlitePool {
     std::fs::create_dir_all(dir).unwrap();
+    // sqlx does NOT create a missing database file by default
+    // (`create_if_missing` is false), so opening a fresh path fails with
+    // SQLITE_CANTOPEN ("unable to open database file"). Pass the path
+    // directly and opt into creation, as the app itself does in db/mod.rs.
+    let options = sqlx::sqlite::SqliteConnectOptions::new()
+        .filename(dir.join("youglidetube.sqlite"))
+        .create_if_missing(true);
     let pool = sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(1)
-        .connect(&format!(
-            "sqlite://{}",
-            dir.join("youglidetube.sqlite").display()
-        ))
+        .connect_with(options)
         .await
         .unwrap();
     sqlx::migrate!("./migrations").run(&pool).await.unwrap();
