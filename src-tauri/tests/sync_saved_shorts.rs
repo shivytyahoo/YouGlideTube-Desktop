@@ -1,6 +1,10 @@
 //! Android's `saved_shorts` playlist and the desktop's Saved Shorts library are one list on the
 //! wire, so they merge track by track in both directions.
 
+#[path = "common/mod.rs"]
+mod common;
+
+use common::local_edits;
 use serde_json::{Value, json};
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqlitePoolOptions;
@@ -277,12 +281,13 @@ async fn removing_here_sends_a_tombstone_and_a_stale_copy_does_not_undo_it() {
         .into_iter()
         .filter(|e| e["id"] == "b")
         .collect();
-    write_like_the_app(
-        &pool,
-        SAVED_SHORTS_SETTING_KEY,
-        &Value::from(kept).to_string(),
-    )
-    .await;
+    // The frontend's write path records the removal before storing the blob, so the
+    // export can announce it as a tombstone (see `local_edits`).
+    let kept_blob = Value::from(kept).to_string();
+    local_edits::record_blob_write(&pool, SAVED_SHORTS_SETTING_KEY, &kept_blob)
+        .await
+        .unwrap();
+    write_like_the_app(&pool, SAVED_SHORTS_SETTING_KEY, &kept_blob).await;
 
     let list = exported(&pool).await;
     let gone = list[0].items.iter().find(|i| i.video_id == "a").unwrap();
@@ -300,6 +305,11 @@ async fn removing_here_sends_a_tombstone_and_a_stale_copy_does_not_undo_it() {
 async fn emptying_the_library_still_tells_the_phone() {
     let pool = pool().await;
     receive(&pool, &android_playlist(&[("a", 0, false)], now() - 60_000)).await;
+    // The frontend's write path records the removal before storing the blob, so the
+    // export can announce it as a tombstone (see `local_edits`).
+    local_edits::record_blob_write(&pool, SAVED_SHORTS_SETTING_KEY, "[]")
+        .await
+        .unwrap();
     write_like_the_app(&pool, SAVED_SHORTS_SETTING_KEY, "[]").await;
     let list = exported(&pool).await;
     assert_eq!(list[0].sync_id, "saved_shorts");
