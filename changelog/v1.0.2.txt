@@ -1,0 +1,11 @@
+YOUGLIDETUBE DESKTOP CHANGE LOG
+VERSION: 1.0.2
+DATE: 2026-11-26
+STATUS: RELEASE
+
+ABOUT
+YouGlideTube Desktop is the desktop version of the YouGlideTube Android app - the same fast, buttery-smooth YouTube client, with the same look, feel and features, rebuilt for the desktop. No ads, no analytics, no telemetry. Sign in with your Google account, or use it without one. This is a fixes-only release on top of 1.0.1.
+
+FIXES IN THIS BUILD
+- Videos that YouTube refuses on the fast clients now start faster: kids and label videos that say "This video is not available" used to wait through one slow web session after another before the TV fallback served them. The app now races the web playback session against the TV fallback, so a working web session still wins in about a second and a failing one no longer holds up the fallback. (Port of the Android app's fix.)
+- Diagnostics now log how many stream formats were dropped while solving signatures, so the next log names the cause instead of showing 0 formats with no reason.
