@@ -1,7 +1,7 @@
 {
   "name": "youglidetube",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "YouGlideTube Desktop — a YouTube and YouTube Music desktop client with Google sign-in and the YouGlideTube theme.",
   "author": "shivyt",
   "license": "GPL-3.0-only",

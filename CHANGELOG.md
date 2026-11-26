@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2 — 2026-11-26
+
+A fixes-only release on top of 1.0.1.
+
+- Videos that YouTube refuses on the fast clients now start faster: kids and label videos that say "This video is not available" used to wait through one slow web session after another before the TV fallback served them — the app now races the web playback session against the TV fallback, so a working web session still wins in about a second and a failing one no longer holds up the fallback (ported from the Android app)
+- Diagnostics now log how many stream formats were dropped while solving signatures, so the next log names the cause instead of showing 0 formats with no reason
+
 ## 1.0.1 — 2026-11-23
 
 A fixes-only release on top of 1.0.0.
