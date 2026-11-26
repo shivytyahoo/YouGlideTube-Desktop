@@ -198,17 +198,22 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
 
   const enrichedChannels = useMemo<SubscribedChannel[]>(() => {
     if (!signedIn) return enrichedLocal;
-    // Signed in, the rail is the server feed's channels (its own rail, else the channels of
-    // its videos) — but the feed only reloads on refresh, so a subscribe/unsubscribe here
-    // would not show until then. Android updates its one list at once; the desktop keeps
-    // two, so the local list is applied on top: locally subscribed channels the feed has
-    // not returned yet join, and channels unsubscribed here leave until the feed catches up.
-    const serverIds = new Set(serverFeed.channels.map((channel) => channel.id));
+    // Signed in, the rail is the guide's complete list — the feed only ever
+    // samples it — with the feed's channels as the fallback when the guide
+    // carries nothing. But the server lists only reload on refresh, so a
+    // subscribe/unsubscribe here would not show until then. Android updates
+    // its one list at once; the desktop keeps two, so the local list is
+    // applied on top: locally subscribed channels the server has not
+    // returned yet join, and channels unsubscribed here leave until the
+    // server lists catch up.
+    const serverChannels =
+      serverFeed.guideChannels.length > 0 ? serverFeed.guideChannels : serverFeed.channels;
+    const serverIds = new Set(serverChannels.map((channel) => channel.id));
     return [
-      ...serverFeed.channels.filter((channel) => !recentlyUnsubscribedIds.has(channel.id)),
+      ...serverChannels.filter((channel) => !recentlyUnsubscribedIds.has(channel.id)),
       ...enrichedLocal.filter((channel) => !serverIds.has(channel.id)),
     ];
-  }, [signedIn, serverFeed.channels, enrichedLocal, recentlyUnsubscribedIds]);
+  }, [signedIn, serverFeed.guideChannels, serverFeed.channels, enrichedLocal, recentlyUnsubscribedIds]);
 
   const selectedGroup = useMemo(() => {
     if (!selectedGroupName) return null;

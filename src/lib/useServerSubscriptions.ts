@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   getAccountSignedIn,
+  getGuideSubscriptions,
   getServerSubscriptions,
   isSignedOutError,
   type ServerChannelSummary,
@@ -63,13 +64,16 @@ function appendUnique<T extends { id: string }>(current: T[], fresh: T[]): T[] {
  * The account's subscriptions feed (`FEsubscriptions`) while signed in.
  * Continuation pages repeat videos, so every page is deduped by id.
  * A Validation error (signed out mid-session) drops back to the
- * signed-out state instead of failing the page.
+ * signed-out state instead of failing the page. The channel rail comes
+ * from the guide — the complete membership list the feed only ever
+ * samples — with the feed's own channels as the fallback.
  */
 export function useServerSubscriptions() {
   const [status, setStatus] = useState<ServerAccountStatus>("unknown");
   const [videos, setVideos] = useState<VideoSummary[]>([]);
   const [shorts, setShorts] = useState<VideoSummary[]>([]);
   const [feedChannels, setFeedChannels] = useState<ServerChannelSummary[]>([]);
+  const [guideChannels, setGuideChannels] = useState<SubscribedChannel[]>([]);
   const [continuation, setContinuation] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -77,11 +81,28 @@ export function useServerSubscriptions() {
   const [error, setError] = useState<string | null>(null);
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
   const requestRef = useRef(0);
+  const guideRequestRef = useRef(0);
 
   const channels = useMemo(
     () => serverFeedChannels(feedChannels, videos),
     [feedChannels, videos],
   );
+
+  /**
+   * The guide's channel list. A failed guide load leaves the rail to the
+   * feed's channels instead of failing the page.
+   */
+  const loadGuide = useCallback(async () => {
+    const request = ++guideRequestRef.current;
+    try {
+      const channels = await getGuideSubscriptions();
+      if (request !== guideRequestRef.current) return;
+      setGuideChannels(channels.map(toSubscribedChannel));
+    } catch {
+      if (request !== guideRequestRef.current) return;
+      setGuideChannels([]);
+    }
+  }, []);
 
   const loadPage = useCallback(async (token: string | null, append: boolean) => {
     const request = ++requestRef.current;
@@ -113,6 +134,7 @@ export function useServerSubscriptions() {
         setVideos([]);
         setShorts([]);
         setFeedChannels([]);
+        setGuideChannels([]);
         setContinuation(null);
         setError(null);
       } else if (append) {
@@ -128,7 +150,10 @@ export function useServerSubscriptions() {
     }
   }, []);
 
-  const refresh = useCallback(() => loadPage(null, false), [loadPage]);
+  const refresh = useCallback(() => {
+    void loadGuide();
+    void loadPage(null, false);
+  }, [loadGuide, loadPage]);
 
   const loadMore = useCallback(() => {
     if (continuation && !loadingMore) void loadPage(continuation, true);
@@ -145,6 +170,7 @@ export function useServerSubscriptions() {
         return;
       }
       setStatus("signed-in");
+      void loadGuide();
       void loadPage(null, false);
     })();
     let stop: (() => void) | undefined;
@@ -152,6 +178,7 @@ export function useServerSubscriptions() {
     listen(GOOGLE_SIGN_IN_COMPLETED_EVENT, () => {
       if (!active) return;
       setStatus("signed-in");
+      void loadGuide();
       void loadPage(null, false);
     })
       .then((unlisten) => {
@@ -164,6 +191,7 @@ export function useServerSubscriptions() {
     listen(GOOGLE_ACCOUNT_SWITCHED_EVENT, () => {
       if (!active) return;
       setStatus("signed-in");
+      void loadGuide();
       void loadPage(null, false);
     })
       .then((unlisten) => {
@@ -175,13 +203,14 @@ export function useServerSubscriptions() {
       stop?.();
       stopSwitched?.();
     };
-  }, [loadPage]);
+  }, [loadGuide, loadPage]);
 
   return {
     status,
     videos,
     shorts,
     channels,
+    guideChannels,
     continuation,
     hasMore: continuation !== null,
     loading,

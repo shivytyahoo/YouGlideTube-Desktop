@@ -130,6 +130,14 @@ export async function getServerSubscriptions(
 }
 
 /**
+ * Every channel the account follows, from the guide — the complete list,
+ * not the feed's sample. Empty when the guide carries nothing.
+ */
+export async function getGuideSubscriptions(): Promise<ServerChannelSummary[]> {
+  return invokeBackend<ServerChannelSummary[]>("get_guide_subscriptions");
+}
+
+/**
  * Subscribes or unsubscribes the account to a channel, on the server.
  * Returns whether the server confirmed it.
  */

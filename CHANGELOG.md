@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.3 — 2026-11-26
+
+A fixes-only release on top of 1.0.2.
+
+- Channel page crash fixed: opening any channel — for example from Subscriptions — no longer crashes with React error #310
+- Subscribed channels now appear in the Subscriptions list at once (and unsubscribing removes them at once) instead of waiting for a feed refresh
+- The subscription list is now complete: it comes from the guide (every channel the account follows) instead of the feed's sample; the feed's channels stay as the fallback
+
 ## 1.0.2 — 2026-11-26
 
 A fixes-only release on top of 1.0.1.

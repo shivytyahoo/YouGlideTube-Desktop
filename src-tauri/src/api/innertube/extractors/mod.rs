@@ -2,6 +2,7 @@ pub mod audio_preference;
 pub mod channel;
 pub mod comments;
 pub mod explore;
+pub mod guide;
 pub mod live_chat;
 pub mod mix;
 pub mod playability;

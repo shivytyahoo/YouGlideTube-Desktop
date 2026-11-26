@@ -24,12 +24,26 @@ use crate::api::innertube::extractors::server_feed::{
 };
 use crate::db::watch_history;
 use crate::errors::{AppResult, ErrorResponse};
+use crate::models::channel::ChannelSummary;
 
 fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_millis() as i64)
         .unwrap_or(0)
+}
+
+/// Every channel the account follows, from the guide — the complete list,
+/// not the feed's sample. Empty while signed out, or when the guide carries
+/// nothing (then the feed's channel rail is the fallback).
+#[tauri::command]
+pub async fn get_guide_subscriptions(
+    extractor: State<'_, Arc<InnertubeClient>>,
+) -> Result<Vec<ChannelSummary>, ErrorResponse> {
+    extractor
+        .browse_guide_subscriptions()
+        .await
+        .map_err(ErrorResponse::from)
 }
 
 /// One page of the account's subscriptions feed (`FEsubscriptions`):

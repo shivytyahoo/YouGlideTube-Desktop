@@ -45,11 +45,11 @@ use tauri::Manager;
 use api::innertube::InnertubeClient;
 use commands::account::{
     add_video_to_server_playlist, add_videos_to_server_playlist, clear_server_history,
-    create_server_playlist, delete_server_playlist, get_liked_videos, get_server_history,
-    get_server_home_feed, get_server_playlists, get_server_subscriptions, get_watch_later,
-    merge_watch_history, remove_video_from_server_playlist, remove_videos_from_server_playlist,
-    rename_server_playlist, set_channel_subscribed, set_video_disliked, set_video_liked,
-    set_video_watch_later,
+    create_server_playlist, delete_server_playlist, get_guide_subscriptions, get_liked_videos,
+    get_server_history, get_server_home_feed, get_server_playlists, get_server_subscriptions,
+    get_watch_later, merge_watch_history, remove_video_from_server_playlist,
+    remove_videos_from_server_playlist, rename_server_playlist, set_channel_subscribed,
+    set_video_disliked, set_video_liked, set_video_watch_later,
 };
 use commands::app_window::{AppWindowSession, AppWindowState, app_window_session, open_app_window};
 use commands::auth::{
@@ -648,6 +648,7 @@ pub fn run() {
             get_auth_status,
             get_account_info,
             get_server_subscriptions,
+            get_guide_subscriptions,
             get_server_home_feed,
             set_channel_subscribed,
             set_video_liked,

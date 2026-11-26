@@ -8,6 +8,7 @@ import type { VideoSummary } from "../types/video";
 
 const getAccountSignedIn = vi.fn();
 const getServerSubscriptions = vi.fn();
+const getGuideSubscriptions = vi.fn();
 const listen = vi.fn();
 const unlisten = vi.fn();
 
@@ -15,6 +16,7 @@ vi.mock("./api/account", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./api/account")>()),
   getAccountSignedIn: (...args: unknown[]) => getAccountSignedIn(...args),
   getServerSubscriptions: (...args: unknown[]) => getServerSubscriptions(...args),
+  getGuideSubscriptions: (...args: unknown[]) => getGuideSubscriptions(...args),
 }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: (...args: unknown[]) => listen(...args) }));
 vi.mock("./useGoogleAccount", () => ({
@@ -58,6 +60,7 @@ async function renderHarness() {
 beforeEach(() => {
   vi.clearAllMocks();
   getAccountSignedIn.mockResolvedValue(true);
+  getGuideSubscriptions.mockResolvedValue([]);
   listen.mockResolvedValue(unlisten);
   root = createRoot(document.createElement("div"));
 });
@@ -77,6 +80,7 @@ describe("useServerSubscriptions", () => {
     expect(latest.status).toBe("signed-out");
     expect(latest.videos).toEqual([]);
     expect(getServerSubscriptions).not.toHaveBeenCalled();
+    expect(getGuideSubscriptions).not.toHaveBeenCalled();
   });
 
   it("loads the first page and dedupes repeated videos across pages", async () => {
@@ -189,5 +193,37 @@ describe("useServerSubscriptions", () => {
     });
     await vi.waitFor(() => expect(latest.loadMoreFailed).toBe(true));
     expect(latest.videos.map((item) => item.id)).toEqual(["v1"]);
+  });
+
+  it("loads the guide list alongside the feed when signed in", async () => {
+    getServerSubscriptions.mockResolvedValue(page({}));
+    getGuideSubscriptions.mockResolvedValue([
+      {
+        channelId: "UC999",
+        name: "Guide Channel",
+        avatarUrl: "https://i.ytimg.com/guide.jpg",
+      },
+    ]);
+
+    await renderHarness();
+
+    await vi.waitFor(() =>
+      expect(latest.guideChannels).toEqual([
+        { id: "UC999", name: "Guide Channel", avatarUrl: "https://i.ytimg.com/guide.jpg" },
+      ]),
+    );
+    expect(getGuideSubscriptions).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the feed channels when the guide load fails", async () => {
+    getServerSubscriptions.mockResolvedValue(
+      page({ channels: [{ channelId: "UC111", name: "Server Channel" }] }),
+    );
+    getGuideSubscriptions.mockRejectedValue(new Error("guide down"));
+
+    await renderHarness();
+
+    await vi.waitFor(() => expect(latest.guideChannels).toEqual([]));
+    expect(latest.channels).toEqual([{ id: "UC111", name: "Server Channel" }]);
   });
 });

@@ -1,0 +1,12 @@
+YOUGLIDETUBE DESKTOP CHANGE LOG
+VERSION: 1.0.3
+DATE: 2026-11-26
+STATUS: RELEASE
+
+ABOUT
+YouGlideTube Desktop is the desktop version of the YouGlideTube Android app - the same fast, buttery-smooth YouTube client, with the same look, feel and features, rebuilt for the desktop. No ads, no analytics, no telemetry. Sign in with your Google account, or use it without one. This is a fixes-only release on top of 1.0.2.
+
+FIXES IN THIS BUILD
+- Channel page crash fixed: opening any channel — for example from Subscriptions — no longer crashes with React error #310. The page called one more hook after its data loaded than it did while loading, so React refused to render it.
+- Subscribed channels now appear in the Subscriptions list at once: subscribing shows the channel in the list immediately, and unsubscribing removes it at once, instead of waiting for the server feed to refresh.
+- The subscription list is now complete: it comes from the guide — every channel the account follows — instead of the subscription feed, which only ever samples the list. The feed's channels stay as the fallback when the guide carries nothing. (Port of the Android app's fix.)

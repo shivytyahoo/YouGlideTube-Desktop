@@ -13,6 +13,7 @@ const serverFeed = vi.hoisted(() => ({
   videos: [] as unknown[],
   shorts: [] as unknown[],
   channels: [] as unknown[],
+  guideChannels: [] as unknown[],
   continuation: null,
   hasMore: false,
   loading: false,
@@ -63,6 +64,7 @@ beforeEach(() => {
   serverFeed.videos = [];
   serverFeed.shorts = [];
   serverFeed.channels = [];
+  serverFeed.guideChannels = [];
   window.localStorage.removeItem("mock_setting_subscriptions");
   useSubscriptionStore.setState({
     subscriptions: [],
@@ -140,5 +142,22 @@ describe("Subscriptions page", () => {
     await waitForLocalLoad();
     expect(host.textContent).toContain("Server Channel");
     expect(host.textContent).not.toContain("Just Unsubscribed Channel");
+  });
+
+  it("shows the guide's complete list instead of the feed's sample when signed in", async () => {
+    serverFeed.status = "signed-in";
+    serverFeed.channels = [{ id: "UC111", name: "Server Channel" }] as unknown[];
+    serverFeed.guideChannels = [{ id: "UC999", name: "Guide Channel" }] as unknown[];
+    window.localStorage.setItem(
+      "mock_setting_subscriptions",
+      JSON.stringify([{ id: "UC111", name: "Server Channel" }]),
+    );
+    await act(async () => {
+      root.render(createElement(MemoryRouter, null, createElement(Subscriptions)));
+    });
+    await waitForLocalLoad();
+    expect(host.textContent).toContain("Guide Channel");
+    expect(host.textContent).toContain("Server Channel");
+    expect(host.textContent?.split("Server Channel").length).toBe(2);
   });
 });
