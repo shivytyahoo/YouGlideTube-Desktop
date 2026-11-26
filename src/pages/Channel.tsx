@@ -184,6 +184,29 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
 
   const closeAbout = useCallback(() => setAboutOpen(false), []);
 
+  // Hooks must stay above the early returns below: a hook after them runs
+  // only once the page has loaded, and React then throws "Rendered more
+  // hooks than during the previous render" on the first loaded render.
+  // The Shorts tab's own queue: the sort chip the tab is showing (its index
+  // in the channel's sort bar) and the page token to continue from.
+  const shortsQueue = useMemo(() => {
+    if (layout !== "shorts" || !channelId) return null;
+    let sortIndex = 0;
+    for (const group of feed.feed?.filters ?? []) {
+      const selected = group.options.findIndex((option) => option.selected);
+      if (selected >= 0) {
+        sortIndex = selected;
+        break;
+      }
+    }
+    return {
+      channelId,
+      sortIndex,
+      tabParams: request?.params ?? null,
+      pageToken: feed.feed?.nextPageToken ?? null,
+    };
+  }, [layout, channelId, feed.feed, request]);
+
   if (loading && !details) return <ChannelPageSkeleton />;
 
   if (failed || !details) {
@@ -208,25 +231,6 @@ export const Channel: React.FC<ChannelProps> = ({ onPlay, onAddToQueue }) => {
     setActiveSearch("");
   };
   const items = feed.feed?.items ?? [];
-  // The Shorts tab's own queue: the sort chip the tab is showing (its index
-  // in the channel's sort bar) and the page token to continue from.
-  const shortsQueue = useMemo(() => {
-    if (layout !== "shorts" || !channelId) return null;
-    let sortIndex = 0;
-    for (const group of feed.feed?.filters ?? []) {
-      const selected = group.options.findIndex((option) => option.selected);
-      if (selected >= 0) {
-        sortIndex = selected;
-        break;
-      }
-    }
-    return {
-      channelId,
-      sortIndex,
-      tabParams: request?.params ?? null,
-      pageToken: feed.feed?.nextPageToken ?? null,
-    };
-  }, [layout, channelId, feed.feed, request]);
 
   return (
     <div className="relative flex-grow bg-background pb-24">

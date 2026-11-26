@@ -39,6 +39,14 @@ interface SubscriptionState {
   /** False until the saved groups were read, so an empty list is not mistaken for "no groups". */
   subscriptionGroupsLoaded: boolean;
   loading: boolean;
+  /**
+   * Channels unsubscribed on this device while the signed-in Subscriptions page still shows
+   * the last server feed, which only reloads on refresh. The page hides these from the
+   * server list until the feed catches up; subscribing (or Undo) clears the id again.
+   * Android keeps one list and removes the channel at once — the desktop keeps two lists
+   * (local + server feed), so this is the half that makes an unsubscribe visible at once.
+   */
+  recentlyUnsubscribedIds: Set<string>;
   loadSubscriptions: () => Promise<void>;
   /** `learn` tells the recommendation engine; bulk imports and music artists leave it off. */
   subscribe: (channelId: string, channelName: string, avatarUrl?: string, options?: FollowOptions) => Promise<void>;
@@ -128,6 +136,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
   subscriptionGroups: [],
   subscriptionGroupsLoaded: false,
   loading: false,
+  recentlyUnsubscribedIds: new Set(),
 
   loadSubscriptions: async () => {
     set({ loading: true });
@@ -158,6 +167,11 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     const cleanId = cleanChannelId(channelId);
     const existing = subscriptions.find((c) => c.id === cleanId);
     await clearTombstone(cleanId);
+    if (get().recentlyUnsubscribedIds.has(cleanId)) {
+      const ids = new Set(get().recentlyUnsubscribedIds);
+      ids.delete(cleanId);
+      set({ recentlyUnsubscribedIds: ids });
+    }
     if (existing) {
       if (avatarUrl && !existing.avatarUrl) {
         await get().updateSubscription(cleanId, { avatarUrl });
@@ -198,6 +212,9 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
     set({ subscriptions: updated });
     await persistSubscriptions(updated);
     await recordUnsubscribe(cleanId);
+    const ids = new Set(get().recentlyUnsubscribedIds);
+    ids.add(cleanId);
+    set({ recentlyUnsubscribedIds: ids });
     set({ subscriptionGroups: updatedGroups });
     await persistGroups(updatedGroups);
     if (options?.learn) {
@@ -208,6 +225,11 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
   restoreSubscription: async ({ channel, groupNames }, options) => {
     const { subscriptions, subscriptionGroups } = get();
     await clearTombstone(channel.id);
+    if (get().recentlyUnsubscribedIds.has(channel.id)) {
+      const ids = new Set(get().recentlyUnsubscribedIds);
+      ids.delete(channel.id);
+      set({ recentlyUnsubscribedIds: ids });
+    }
     if (!subscriptions.some((c) => c.id === channel.id)) {
       const updated = [...subscriptions, { ...channel, subscribedAt: Date.now() }];
       set({ subscriptions: updated });

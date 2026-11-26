@@ -181,20 +181,34 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ onPlay, onAddToQue
 
   const query = searchQuery.trim().toLowerCase();
 
+  const recentlyUnsubscribedIds = useSubscriptionStore((s) => s.recentlyUnsubscribedIds);
+  const enrichedLocal = useMemo<SubscribedChannel[]>(
+    () =>
+      subscriptions.map((channel) => {
+        const details = channelDetails[channel.id];
+        return {
+          ...channel,
+          name: details?.name || channel.name,
+          avatarUrl: getAvatarUrl(channel.avatarUrl) || getAvatarUrl(details?.avatarUrl),
+          subscriberCountText: details?.subscriberCountText || channel.subscriberCountText,
+        };
+      }),
+    [subscriptions, channelDetails],
+  );
+
   const enrichedChannels = useMemo<SubscribedChannel[]>(() => {
-    // Signed in, the rail is the server feed's channels (its own rail, else
-    // the channels of its videos); the local list is the signed-out fallback.
-    if (signedIn) return serverFeed.channels;
-    return subscriptions.map((channel) => {
-      const details = channelDetails[channel.id];
-      return {
-        ...channel,
-        name: details?.name || channel.name,
-        avatarUrl: getAvatarUrl(channel.avatarUrl) || getAvatarUrl(details?.avatarUrl),
-        subscriberCountText: details?.subscriberCountText || channel.subscriberCountText,
-      };
-    });
-  }, [signedIn, serverFeed.channels, channelDetails, subscriptions]);
+    if (!signedIn) return enrichedLocal;
+    // Signed in, the rail is the server feed's channels (its own rail, else the channels of
+    // its videos) — but the feed only reloads on refresh, so a subscribe/unsubscribe here
+    // would not show until then. Android updates its one list at once; the desktop keeps
+    // two, so the local list is applied on top: locally subscribed channels the feed has
+    // not returned yet join, and channels unsubscribed here leave until the feed catches up.
+    const serverIds = new Set(serverFeed.channels.map((channel) => channel.id));
+    return [
+      ...serverFeed.channels.filter((channel) => !recentlyUnsubscribedIds.has(channel.id)),
+      ...enrichedLocal.filter((channel) => !serverIds.has(channel.id)),
+    ];
+  }, [signedIn, serverFeed.channels, enrichedLocal, recentlyUnsubscribedIds]);
 
   const selectedGroup = useMemo(() => {
     if (!selectedGroupName) return null;
