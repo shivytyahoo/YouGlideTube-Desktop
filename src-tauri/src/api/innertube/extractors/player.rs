@@ -106,6 +106,123 @@ fn walk_order(
     order
 }
 
+/// Keep the refusal that tells the user most, once the ladder is exhausted:
+/// a bot wall is only reported when nothing else was said.
+fn record_refusal(
+    deferred_restriction: &mut Option<LadderReport>,
+    refusal: Refusal,
+    fresh_identity_walled: bool,
+) {
+    if is_better_report(
+        deferred_restriction.as_ref().map(|report| &report.refusal),
+        &refusal,
+    ) {
+        *deferred_restriction = Some(LadderReport {
+            refusal,
+            fresh_identity_walled,
+        });
+    }
+}
+
+/// A content refusal the clients agree on: the video itself is refused, not
+/// the viewer — so SABR or Tizen is its only source. Live streams are
+/// excluded: a refused live video is a premiere or an offline slate, which
+/// ends the ladder on its own.
+fn is_unplayable_refusal(refusal: &Refusal) -> bool {
+    let status = refusal.playability["status"].as_str().unwrap_or_default();
+    status.eq_ignore_ascii_case("UNPLAYABLE")
+        && !refusal.playability["liveStreamability"].is_object()
+}
+
+/// The two sides of the SABR-vs-Tizen race, from the clients the walk has
+/// not tried yet: the un-demoted web clients and an un-demoted Tizen. None
+/// when either side is missing — a race with one side is just the walk, and
+/// a demoted client stays demoted instead of being pulled forward.
+fn race_participants(
+    remaining: &[&'static clients::YouTubeClient],
+    gated: impl Fn(&str) -> bool,
+) -> Option<(
+    Vec<&'static clients::YouTubeClient>,
+    &'static clients::YouTubeClient,
+)> {
+    // Clients are `const`s, so each `&clients::X` is a fresh promotion with
+    // its own address — identity is the name, as in `walk_order`, never the
+    // pointer.
+    let web: Vec<&'static clients::YouTubeClient> = remaining
+        .iter()
+        .copied()
+        .filter(|client| {
+            SABR_UPGRADE_CLIENTS
+                .iter()
+                .any(|web| client.name == web.name)
+                && !gated(client.name)
+        })
+        .collect();
+    let tizen = remaining
+        .iter()
+        .copied()
+        .find(|client| client.name == clients::TV_TIZEN.name && !gated(client.name))?;
+    if web.is_empty() {
+        return None;
+    }
+    Some((web, tizen))
+}
+
+#[cfg(test)]
+mod unplayable_race_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn refusal(status: &str, live: bool) -> Refusal {
+        let mut playability = json!({ "status": status, "reason": "This video is not available" });
+        if live {
+            playability["liveStreamability"] = json!({});
+        }
+        Refusal {
+            playability,
+            has_video_details: true,
+        }
+    }
+
+    #[test]
+    fn unplayable_with_details_is_a_race_trigger() {
+        assert!(is_unplayable_refusal(&refusal("UNPLAYABLE", false)));
+        assert!(is_unplayable_refusal(&refusal("unplayable", false)));
+    }
+
+    #[test]
+    fn walls_premieres_and_live_streams_are_not() {
+        assert!(!is_unplayable_refusal(&refusal("LOGIN_REQUIRED", false)));
+        assert!(!is_unplayable_refusal(&refusal(
+            "LIVE_STREAM_OFFLINE",
+            true
+        )));
+        assert!(!is_unplayable_refusal(&refusal("UNPLAYABLE", true)));
+    }
+
+    #[test]
+    fn the_race_needs_an_open_web_client_and_an_open_tizen() {
+        let remaining = [&clients::MWEB, &clients::WEB, &clients::TV_TIZEN];
+        let (web, tizen) = race_participants(&remaining, |_| false).expect("both sides open");
+        assert_eq!(web.len(), 2);
+        assert_eq!(tizen.name, clients::TV_TIZEN.name);
+    }
+
+    #[test]
+    fn the_race_does_not_run_without_tizen_or_without_a_web_client() {
+        assert!(race_participants(&[&clients::MWEB, &clients::WEB], |_| false).is_none());
+        assert!(race_participants(&[&clients::TV_TIZEN], |_| false).is_none());
+        assert!(race_participants(LIVE_MANIFEST_CLIENTS, |_| false).is_none());
+    }
+
+    #[test]
+    fn demoted_clients_stay_out_of_the_race() {
+        let remaining = [&clients::MWEB, &clients::WEB, &clients::TV_TIZEN];
+        assert!(race_participants(&remaining, |name| matches!(name, "MWEB" | "WEB")).is_none());
+        assert!(race_participants(&remaining, |name| name == "TVHTML5").is_none());
+    }
+}
+
 /// A direct ladder that tops out below this height likely has its higher rungs
 /// served only over SABR, so the web clients are asked too (the Android app's
 /// `SabrRoutingPolicy`).
@@ -1380,7 +1497,11 @@ fn preroll_wait(ad_placements: &Value) -> Duration {
 /// formats get their solved signature, and every URL its `n` solved, both by the
 /// remote decoder. A format either step could not solve is left as it was, which
 /// the stream collector then skips.
-async fn solve_formats(response: &mut Value, player: &remote_decoder::DecoderPlayer) {
+async fn solve_formats(
+    video_id: &str,
+    response: &mut Value,
+    player: &remote_decoder::DecoderPlayer,
+) {
     let streaming = &mut response["streamingData"];
     let formats = || {
         ["formats", "adaptiveFormats"]
@@ -1388,12 +1509,15 @@ async fn solve_formats(response: &mut Value, player: &remote_decoder::DecoderPla
             .filter_map(|key| streaming[*key].as_array())
             .flatten()
     };
+    let total = formats().count();
     let signatures: Vec<String> = formats()
         .filter_map(signed_format)
         .map(|cipher| cipher.signature)
         .collect();
+    let ciphers = signatures.len();
     let solved_signatures =
         remote_decoder::decode(player, remote_decoder::Challenge::Signature, &signatures).await;
+    let solved = solved_signatures.len();
     let urls: Vec<Option<String>> = formats()
         .map(|format| match signed_format(format) {
             Some(cipher) => solved_signatures
@@ -1412,6 +1536,7 @@ async fn solve_formats(response: &mut Value, player: &remote_decoder::DecoderPla
     let solved_n = remote_decoder::decode(player, remote_decoder::Challenge::N, &challenges).await;
 
     let mut urls = urls.into_iter();
+    let mut written = 0;
     for key in ["formats", "adaptiveFormats"] {
         let Some(formats) = streaming[key].as_array_mut() else {
             continue;
@@ -1424,11 +1549,56 @@ async fn solve_formats(response: &mut Value, player: &remote_decoder::DecoderPla
                 continue;
             };
             format["url"] = Value::String(url);
+            written += 1;
             if let Some(object) = format.as_object_mut() {
                 object.remove("signatureCipher");
                 object.remove("cipher");
             }
         }
+    }
+    if let Some(summary) = decipher_drop_summary(total, ciphers, solved, written) {
+        warn!(video_id = %video_id, "{summary}");
+    }
+}
+
+/// The decipher summary for the diagnostics log, when any format was
+/// dropped: a silent drop used to read as "0/N formats playable" with no
+/// cause attached (the Android app's #69). None when every format survived.
+fn decipher_drop_summary(
+    total: usize,
+    ciphers: usize,
+    solved: usize,
+    written: usize,
+) -> Option<String> {
+    let dropped = total.saturating_sub(written);
+    if dropped == 0 {
+        return None;
+    }
+    Some(format!(
+        "decipher dropped {dropped}/{total} formats (ciphers={ciphers}, solved={solved})"
+    ))
+}
+
+#[cfg(test)]
+mod decipher_drop_tests {
+    use super::*;
+
+    #[test]
+    fn no_drop_means_no_summary() {
+        assert_eq!(decipher_drop_summary(25, 25, 25, 25), None);
+        assert_eq!(decipher_drop_summary(0, 0, 0, 0), None);
+    }
+
+    #[test]
+    fn a_drop_names_the_counts() {
+        assert_eq!(
+            decipher_drop_summary(25, 25, 0, 0).as_deref(),
+            Some("decipher dropped 25/25 formats (ciphers=25, solved=0)")
+        );
+        assert_eq!(
+            decipher_drop_summary(10, 4, 3, 9).as_deref(),
+            Some("decipher dropped 1/10 formats (ciphers=4, solved=3)")
+        );
     }
 }
 
@@ -1677,7 +1847,17 @@ impl InnertubeClient {
         let mut visitor_data = visitor_data;
         let mut identity_refreshed = false;
         let mut fresh_identity_walled = false;
-        for client in walk_order(ladder, is_gated) {
+        // Every refusal so far was the video itself being refused, not the
+        // viewer: the race below only runs for such videos (the Android app's
+        // `allUnplayable`, #69).
+        let mut all_refusals_unplayable = true;
+        // The race consumes the web clients and Tizen, so the walk runs over
+        // an index it can advance past them.
+        let mut order = walk_order(ladder, is_gated);
+        let mut index = 0;
+        while index < order.len() {
+            let client = order[index];
+            index += 1;
             let mut outcome = self
                 .attempt_client(video_id, client, visitor_data.as_deref())
                 .await;
@@ -1712,23 +1892,107 @@ impl InnertubeClient {
                         "Player client refused, trying the next one"
                     );
                     let ends = ends_the_ladder(&refusal);
-                    if is_better_report(
-                        deferred_restriction.as_ref().map(|report| &report.refusal),
-                        &refusal,
-                    ) {
-                        *deferred_restriction = Some(LadderReport {
-                            refusal,
-                            fresh_identity_walled,
-                        });
-                    }
+                    all_refusals_unplayable &= is_unplayable_refusal(&refusal);
+                    record_refusal(&mut *deferred_restriction, refusal, fresh_identity_walled);
                     if ends {
                         return None;
+                    }
+                    if all_refusals_unplayable
+                        && let Some((web, tizen)) = race_participants(&order[index..], is_gated)
+                    {
+                        if let Some(winner) = self
+                            .race_sabr_vs_tizen(
+                                video_id,
+                                visitor_data.as_deref(),
+                                &web,
+                                tizen,
+                                &mut *deferred_restriction,
+                                fresh_identity_walled,
+                            )
+                            .await
+                        {
+                            info!(video_id = %video_id, client = winner.client.name, version = winner.client.version, "Player ladder resolved");
+                            return Some(winner);
+                        }
+                        // The race already tried these clients — the guard
+                        // above guarantees they are all still ahead of the
+                        // walk — so the walk continues past them.
+                        order.retain(|candidate| {
+                            !std::ptr::eq(*candidate, tizen)
+                                && !web.iter().any(|raced| std::ptr::eq(*candidate, *raced))
+                        });
                     }
                 }
                 ClientOutcome::Unusable => {}
             }
         }
         None
+    }
+
+    /// Race the web SABR clients against TV_TIZEN for a video every client so
+    /// far refused as UNPLAYABLE (the Android app's #69).
+    ///
+    /// A working SABR still wins in ~1s, and a failing one no longer costs
+    /// its full time before Tizen starts: walking them in order paid a
+    /// PO-token mint plus a 10s player budget per web client before Tizen was
+    /// even asked. Both branches run under their existing timeouts; the first
+    /// playable answer wins and the loser is dropped outright. Each branch
+    /// keeps its own refusal for the ladder's error report — the loser's is
+    /// unknown while it is still running, so it is recorded only once the
+    /// branch has finished.
+    async fn race_sabr_vs_tizen(
+        &self,
+        video_id: &str,
+        visitor_data: Option<&str>,
+        web: &[&'static clients::YouTubeClient],
+        tizen: &'static clients::YouTubeClient,
+        deferred_restriction: &mut Option<LadderReport>,
+        fresh_identity_walled: bool,
+    ) -> Option<PlayerAttempt> {
+        info!(video_id = %video_id, "Fast clients refused UNPLAYABLE; racing SABR against Tizen");
+        let sabr = async {
+            let mut refusal = None;
+            for client in web.iter().copied() {
+                match self.attempt_client(video_id, client, visitor_data).await {
+                    ClientOutcome::Won(attempt) => return (Some(attempt), None),
+                    ClientOutcome::Refused(latest) => refusal = Some(latest),
+                    ClientOutcome::Unusable => {}
+                }
+            }
+            (None, refusal)
+        };
+        let tizen_attempt = async {
+            match self.attempt_client(video_id, tizen, visitor_data).await {
+                ClientOutcome::Won(attempt) => (Some(attempt), None),
+                ClientOutcome::Refused(refusal) => (None, Some(refusal)),
+                ClientOutcome::Unusable => (None, None),
+            }
+        };
+        tokio::pin!(sabr);
+        tokio::pin!(tizen_attempt);
+        // The first branch to finish decides: a winner ends the race at
+        // once, a failure waits on the other branch.
+        let (first_attempt, first_refusal, sabr_finished_first) = tokio::select! {
+            (attempt, refusal) = &mut sabr => (attempt, refusal, true),
+            (attempt, refusal) = &mut tizen_attempt => (attempt, refusal, false),
+        };
+        if let Some(refusal) = first_refusal {
+            record_refusal(&mut *deferred_restriction, refusal, fresh_identity_walled);
+        }
+        match first_attempt {
+            Some(attempt) => Some(attempt),
+            None => {
+                let (attempt, refusal) = if sabr_finished_first {
+                    (&mut tizen_attempt).await
+                } else {
+                    (&mut sabr).await
+                };
+                if let Some(refusal) = refusal {
+                    record_refusal(&mut *deferred_restriction, refusal, fresh_identity_walled);
+                }
+                attempt
+            }
+        }
     }
 
     /// One client's turn on the ladder: request, then judge the answer by what
@@ -1829,7 +2093,7 @@ impl InnertubeClient {
         }
 
         if let Some(player) = decoder_player.as_ref() {
-            solve_formats(&mut response, player).await;
+            solve_formats(video_id, &mut response, player).await;
         }
 
         let playable = if has_live_manifest(&response) {
