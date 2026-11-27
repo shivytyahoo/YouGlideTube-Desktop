@@ -78,7 +78,7 @@ icu_segmenter = { version = "2", default-features = false, features = ["compiled
 hkdf = "0.13"
 hmac = "0.13"
 # SAPISIDHASH for Google sign-in (SHA-1 of "<unix-seconds> <SAPISID> <origin>").
-sha1 = "0.10"
+sha1 = "0.11"
 sha2 = "0.11"
 rand = "0.10"
 hex = "0.4"
