@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 
-import { revealDownload, type DownloadProgress } from "./api/downloads";
+import { exportDownloadAsSingleFile, revealDownload, type DownloadProgress } from "./api/downloads";
 import { downloadArtwork, downloadRecordToSong, downloadRecordToVideo, findDownloadedRecord } from "./useDownloads";
 import { getString } from "./i18n/index";
 import { useDownloadsLibraryStore } from "../store/useDownloadsLibraryStore";
@@ -23,6 +23,20 @@ export function useDownloadItemArtwork(progress: DownloadProgress): string | nul
     );
     return record ? downloadArtwork(record) : progress.thumbnailUrl;
   });
+}
+
+/** Saves a finished download as one file beside the downloads; the toast says where it went. */
+export function exportSingleFileById(downloadId: number): void {
+  const showToast = useUiStore.getState().showToast;
+  void exportDownloadAsSingleFile(downloadId)
+    .then(({ filePath }) => {
+      const name = filePath.split(/[\\/]/).filter(Boolean).pop() ?? filePath;
+      showToast({ message: getString("download_export_saved", name) });
+    })
+    .catch((error) => {
+      console.error("Failed to save the download as one file", error);
+      showToast({ message: getString("download_export_failed"), variant: "error" });
+    });
 }
 
 /** What a finished download's card can do: play the saved file, or show it on disk. */
@@ -57,5 +71,17 @@ export function useDownloadItemActions() {
     });
   };
 
-  return { play, reveal };
+  /** Saves a finished download as one file beside the downloads, named after its title. */
+  const exportSingleFile = (progress: DownloadProgress) => {
+    const record = progress.videoId
+      ? findDownloadedRecord(progress.videoId, libraryKind(progress))
+      : undefined;
+    if (!record?.id) {
+      showToast({ message: getString("download_export_failed"), variant: "error" });
+      return;
+    }
+    exportSingleFileById(record.id);
+  };
+
+  return { play, reveal, exportSingleFile };
 }

@@ -339,6 +339,8 @@ export const SETTINGS = {
   DOWNLOAD_LYRICS_FILE: "download_lyrics_file",
   AUTO_DOWNLOAD_OPENED_VIDEOS: "auto_download_opened_videos",
   AUTO_DOWNLOAD_LIKED_MUSIC: "auto_download_liked_music",
+  /** `{ channelId: opt-in epoch seconds }` — channels whose new uploads are saved. */
+  AUTO_DOWNLOAD_CHANNELS: "auto_download_channels",
   LOCAL_MEDIA_HIDE_RECORDINGS: "local_media_hide_recordings",
   LOCAL_MEDIA_MIN_AUDIO_SECONDS: "local_media_min_audio_seconds",
 
@@ -501,7 +503,7 @@ export const SETTING_DEFINITIONS = [
   num(SETTINGS.AUTOPLAY_COUNTDOWN_SECONDS, "player", 0, "wired", 0, 30),
   bool(SETTINGS.VIDEO_LOOP_ENABLED, "player", false, "wired"),
   bool(SETTINGS.STABLE_VOLUME_ENABLED, "player", false, "wired"),
-  bool(SETTINGS.VIDEO_LOUDNESS_NORMALIZATION, "player", false, "wired"),
+  bool(SETTINGS.VIDEO_LOUDNESS_NORMALIZATION, "player", true, "wired"),
   bool(SETTINGS.ALLOW_VOLUME_BOOST, "player", false, "wired"),
   num(SETTINGS.PLAYER_VOLUME, "player", 1, "wired", 0, 1, "internal"),
   num(SETTINGS.PLAYER_VOLUME_BOOST, "player", 1, "wired", 1, 2, "internal"),
@@ -772,6 +774,7 @@ export const SETTING_DEFINITIONS = [
   bool(SETTINGS.DOWNLOAD_LYRICS_FILE, "downloads", true, "wired"),
   bool(SETTINGS.AUTO_DOWNLOAD_OPENED_VIDEOS, "downloads", false, "wired"),
   bool(SETTINGS.AUTO_DOWNLOAD_LIKED_MUSIC, "downloads", false, "wired"),
+  json(SETTINGS.AUTO_DOWNLOAD_CHANNELS, "downloads", "{}", "wired"),
   bool(SETTINGS.LOCAL_MEDIA_HIDE_RECORDINGS, "downloads", true, "wired"),
   num(SETTINGS.LOCAL_MEDIA_MIN_AUDIO_SECONDS, "downloads", 60, "wired", 0, 3600),
 

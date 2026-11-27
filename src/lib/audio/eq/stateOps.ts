@@ -4,6 +4,7 @@ import { GraphicEq, sanitizeCurve } from "./limits";
 import {
   band,
   EQ_PROCESSING_OFF,
+  EQ_SPATIAL_SOUNDS,
   EQ_STATE_VERSION,
   EqLimits,
   type EqBand,
@@ -11,9 +12,11 @@ import {
   type EqMode,
   type EqPreset,
   type EqProcessingSpec,
+  type EqSpatialSound,
   type EqState,
   type EqWorkingCopy,
 } from "./models";
+import { clampBalance } from "./spatial";
 
 /**
  * Every change the equalizer supports, as pure functions of `EqState`, ported from Android's
@@ -29,6 +32,8 @@ export function defaultEqState(): EqState {
     autoPreamp: true,
     bassBoost: 0,
     spatialSound: "OFF",
+    balance: 0,
+    nightMode: false,
     userPresets: [],
   };
 }
@@ -58,6 +63,8 @@ export const statesEqual = (a: EqState, b: EqState): boolean =>
   a.autoPreamp === b.autoPreamp &&
   a.bassBoost === b.bassBoost &&
   a.spatialSound === b.spatialSound &&
+  a.balance === b.balance &&
+  a.nightMode === b.nightMode &&
   a.userPresets.length === b.userPresets.length &&
   a.userPresets.every((p, i) => {
     const q = b.userPresets[i];
@@ -120,6 +127,9 @@ export function changesSound(state: EqState): boolean {
   return (
     state.enabled &&
     (state.bassBoost > 0 ||
+      state.spatialSound !== "OFF" ||
+      state.balance !== 0 ||
+      state.nightMode ||
       curve.bands.some((b) => !isBypassed(b, REFERENCE_SAMPLE_RATE)) ||
       (!state.autoPreamp && curve.preamp !== 0))
   );
@@ -225,6 +235,18 @@ export const withBassBoost = (state: EqState, db: number): EqState => ({
   bassBoost: Math.max(0, Math.min(EqLimits.MAX_BASS_BOOST, db)),
 });
 
+export const withSpatialSound = (state: EqState, spatialSound: EqSpatialSound): EqState => ({
+  ...state,
+  spatialSound,
+});
+
+export const withBalance = (state: EqState, balance: number): EqState => ({
+  ...state,
+  balance: clampBalance(balance),
+});
+
+export const withNightMode = (state: EqState, nightMode: boolean): EqState => ({ ...state, nightMode });
+
 export const withManualPreamp = (state: EqState, db: number): EqState =>
   withActiveCurve(state, { ...activeCopy(state).curve, preamp: db });
 
@@ -292,6 +314,9 @@ export function sanitizeState(state: EqState): EqState {
     parametric: { ...state.parametric, curve: sanitizeCurve(state.parametric.curve) },
     graphic: { ...state.graphic, curve: sanitizedFor("GRAPHIC", state.graphic.curve) },
     bassBoost: Number.isFinite(state.bassBoost) ? Math.max(0, Math.min(EqLimits.MAX_BASS_BOOST, state.bassBoost)) : 0,
+    spatialSound: EQ_SPATIAL_SOUNDS.includes(state.spatialSound) ? state.spatialSound : "OFF",
+    balance: clampBalance(state.balance),
+    nightMode: state.nightMode === true,
     userPresets: state.userPresets
       .filter((p) => p.id.trim() !== "" && p.name.trim() !== "")
       .filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)))

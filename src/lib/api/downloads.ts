@@ -1,6 +1,6 @@
 import { invokeBackend } from "./errors";
 import type { MusicAudioQuality } from "./music";
-import type { CaptionTrack } from "../../types/video";
+import type { CaptionTrack, VideoSummary } from "../../types/video";
 
 export type DownloadMediaKind = "video" | "music" | "audio";
 export type DownloadStatus =
@@ -263,6 +263,40 @@ export interface RetagResult {
 
 export function retagOlderDownloads(): Promise<RetagResult> {
   return invokeBackend<RetagResult>("retag_older_downloads");
+}
+
+export interface ChannelAutoDownloadCheck {
+  candidates: VideoSummary[];
+  failedChannelIds: string[];
+}
+
+/** Checks opted-in channels for new uploads since opt-in that are not already saved. */
+export function checkChannelAutoDownloads(): Promise<ChannelAutoDownloadCheck> {
+  return invokeBackend<ChannelAutoDownloadCheck>("check_channel_auto_downloads");
+}
+
+export interface ExportedDownload {
+  filePath: string;
+}
+
+/** Copies a finished download to one file beside the downloads, named after its title. */
+export function exportDownloadAsSingleFile(downloadId: number): Promise<ExportedDownload> {
+  return invokeBackend<ExportedDownload>("export_download_as_single_file", { downloadId });
+}
+
+export interface MoveDownloadFolderResult {
+  movedFiles: number;
+  movedCollections: number;
+  newFolder: string;
+  movedKinds: DownloadMediaKind[];
+}
+
+/** Moves a download folder's saved files to a new location, rolling back on failure. */
+export function moveDownloadFolder(
+  mediaKind: DownloadMediaKind,
+  newFolder: string,
+): Promise<MoveDownloadFolderResult> {
+  return invokeBackend<MoveDownloadFolderResult>("move_download_folder", { mediaKind, newFolder });
 }
 
 export interface OfflineStreamInfo {

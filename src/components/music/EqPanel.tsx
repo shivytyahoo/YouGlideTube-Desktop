@@ -10,6 +10,7 @@ import { Chip } from "../ui/Chip";
 import { Slider } from "../ui/Slider";
 import { ToggleSwitch } from "../ui/ToggleSwitch";
 import { EqResponseGraph } from "./eq/EqResponseGraph";
+import { EqStereoSection } from "./eq/EqStereoSection";
 import { formatDb } from "./eq/eqFormat";
 import { MusicAudioOptions } from "./MusicAudioOptions";
 
@@ -114,6 +115,8 @@ export function EqPanel({
                 {formatDb(eq.state.bassBoost)}
               </span>
             </div>
+
+            <EqStereoSection />
           </div>
 
           <button

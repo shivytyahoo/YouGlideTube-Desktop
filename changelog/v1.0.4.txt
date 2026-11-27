@@ -9,3 +9,9 @@ YouGlideTube Desktop is the desktop version of the YouGlideTube Android app - th
 FEATURES IN THIS BUILD
 - Playback method selector: pick how a video is played — Auto, DASH, SABR, HLS or Direct — from the player settings menu or Settings → Quality. A pick moves that method to the front and the rest stay as fallback, so a video still plays when the picked method has nothing for it; the choice applies to the next video from Settings and reloads the current video at its position from the player.
 - Read further ahead: a new toggle in Settings → Network that lets the player buffer up to 120 seconds of the top quality, so 8K and other heavy videos keep playing through network dips instead of stalling.
+- Video loudness matching is now on by default, so videos play at an even volume; turn it off in Settings → Player if you prefer the raw levels.
+- Home key scrolls the page to the top on Home, Search, Watch and playlist pages; Home inside a text field still moves the caret.
+- Equalizer gains stereo width, balance and night mode, for music and video alike.
+- Per-channel auto-download: turn on "Save new videos" for a channel in Settings → Downloads and new uploads from that channel download automatically.
+- "Save as one file" export on a finished download copies the video to a single self-contained file beside the downloads folder.
+- Move download folder: relocate the whole downloads folder from Settings → Downloads, with rollback if anything fails.

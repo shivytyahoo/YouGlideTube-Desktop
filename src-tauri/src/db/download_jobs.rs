@@ -49,6 +49,18 @@ pub async fn set_status(
     Ok(())
 }
 
+/// Points an unfinished download at its file's new home after the download folder
+/// moves, so a paused or failed job resumes and retries from the new location.
+pub async fn update_file_path(pool: &SqlitePool, id: &str, file_path: &str) -> AppResult<()> {
+    sqlx::query("UPDATE download_jobs SET file_path = ? WHERE id = ?")
+        .bind(file_path)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(AppError::from)?;
+    Ok(())
+}
+
 pub async fn delete_job(pool: &SqlitePool, id: &str) -> AppResult<()> {
     sqlx::query("DELETE FROM download_jobs WHERE id = ?")
         .bind(id)
@@ -104,6 +116,17 @@ mod tests {
         assert_eq!(list_jobs(&pool).await.unwrap().len(), 1);
         delete_job(&pool, "j1").await.unwrap();
         assert!(job(&pool, "j1").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn a_moved_job_retries_from_its_new_path() {
+        let pool = pool().await;
+        insert_job(&pool, "j3", "{}", "/v/c.mp4").await.unwrap();
+        update_file_path(&pool, "j3", "/new/c.mp4").await.unwrap();
+        assert_eq!(
+            job(&pool, "j3").await.unwrap().unwrap().file_path,
+            "/new/c.mp4"
+        );
     }
 
     #[tokio::test]

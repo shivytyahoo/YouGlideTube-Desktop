@@ -6,7 +6,7 @@ import { useLikesStore } from '../../store/useLikesStore';
 import { useBlockedRevealStore } from '../../lib/blockedContent';
 import { BlockedVideoCard } from './BlockedVideoCard';
 import { useLiveStore } from '../../store/useLiveStore';
-import { Plus, Ban, Bell, BellRing, Check, Copy, Info, ListStart, MoreVertical, Trash2, GripHorizontal, Eye, EyeOff, Clock, ListPlus, ListVideo, Download, User, Share2, ThumbsUp } from 'lucide-react';
+import { Plus, Ban, Bell, BellRing, Check, Copy, Info, ListStart, MoreVertical, Trash2, GripHorizontal, Eye, EyeOff, Clock, ListPlus, ListVideo, Download, FileDown, User, Share2, ThumbsUp } from 'lucide-react';
 import type { VideoSummary } from '../../types/video';
 import { Button } from '../ui/Button';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -45,6 +45,7 @@ import { usePlayerStore } from '../../store/usePlayerStore';
 import { useDownloadStore } from '../../store/useDownloadStore';
 import { useDownloadsLibraryStore } from '../../store/useDownloadsLibraryStore';
 import { findDownloadedRecord, useIsDownloaded } from '../../lib/useDownloads';
+import { exportSingleFileById } from '../../lib/useDownloadItem';
 import { extractDominantColorFromImage, type Rgb } from '../../lib/useDominantColor';
 import { formatUploadDate, formatYouTubeRelativeTime } from '../../lib/publishedDate';
 import { useDateDisplaySettings } from '../../lib/useDateDisplaySettings';
@@ -510,6 +511,15 @@ function VideoCardComponent({
     });
   };
 
+  const handleExportSingleFile = () => {
+    const record = findDownloadedRecord(video.id, "video");
+    if (!record?.id) {
+      showToast({ variant: "error", message: getString("download_export_failed") });
+      return;
+    }
+    exportSingleFileById(record.id);
+  };
+
   // ── Menu dropdown ───
   const handleShare = async () => {
     const result = await shareLink(displayTitle, youtubeWatchUrl(video.id));
@@ -595,6 +605,13 @@ function VideoCardComponent({
       },
     ...(isDownloaded
       ? [{
+        id: "export-single-file",
+        label: getString("download_save_as_one_file"),
+        icon: <FileDown size={16} />,
+        group: "library" as const,
+        onSelect: handleExportSingleFile,
+      },
+      {
         id: "remove-download",
         label: getString("video_remove_download"),
         icon: <Trash2 size={16} />,

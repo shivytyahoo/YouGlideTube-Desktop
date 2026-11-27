@@ -7,6 +7,7 @@ import { useUiStore } from '../../store/useUiStore';
 import { useAppSettingsStore } from '../../store/useAppSettingsStore';
 import { SETTINGS } from '../../lib/settings/schema';
 import { ScrollContainerContext } from '../../lib/useScrollContainer';
+import { isEditableTarget, scrollPageToTop } from '../../lib/scrollPageToTop';
 import { usePageEnterMotion } from '../../lib/usePageEnterMotion';
 import { SIDEBAR_MENU_BUTTON_ID } from './Topbar';
 import { recalledScroll, rememberScroll, restoreScroll } from '../../lib/tabs/scrollMemory';
@@ -116,6 +117,18 @@ export function PageWrapper() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isWatchSidebarOpen, setWatchSidebarOpen]);
+
+  // Home takes the page back to the top without reloading it. The shell never scrolls, so the
+  // browser's own Home has nowhere to go; text fields keep it, where it moves the caret.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Home' || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isEditableTarget(event.target)) return;
+      if (scrollPageToTop(mainRef.current)) event.preventDefault();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   return (
     <div className="app-shell flex h-full flex-col bg-background text-chrome-zinc-100 overflow-hidden font-sans">

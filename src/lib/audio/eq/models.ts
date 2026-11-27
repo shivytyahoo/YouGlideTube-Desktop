@@ -37,6 +37,8 @@ export const EqLimits = {
   MAX_PREAMP: 24,
   MAX_BANDS: 20,
   MAX_BASS_BOOST: 15,
+  MIN_BALANCE: -1,
+  MAX_BALANCE: 1,
   DEFAULT_PEAK_Q: 1.41,
   /** Butterworth Q: the slope WebAudio's shelves always have, whatever Q they are given. */
   DEFAULT_SHELF_Q: 0.707,
@@ -68,7 +70,7 @@ export interface EqWorkingCopy {
   curve: EqCurve;
 }
 
-/** How strongly stereo is widened, as Android stores it. Desktop doesn't play it yet but keeps it. */
+/** How strongly stereo is widened, as Android stores it. The chain plays it as a mid/side matrix. */
 export type EqSpatialSound = "OFF" | "LOW" | "MEDIUM" | "HIGH";
 export const EQ_SPATIAL_SOUNDS: readonly EqSpatialSound[] = ["OFF", "LOW", "MEDIUM", "HIGH"];
 
@@ -81,6 +83,10 @@ export interface EqState {
   autoPreamp: boolean;
   bassBoost: number;
   spatialSound: EqSpatialSound;
+  /** Stereo balance, −1 fully left to +1 fully right; 0 is centred. Desktop-only. */
+  balance: number;
+  /** Night mode: compress the dynamics so quiet parts stay audible. Desktop-only. */
+  nightMode: boolean;
   userPresets: EqPreset[];
 }
 

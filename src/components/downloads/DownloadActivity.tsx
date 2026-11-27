@@ -26,6 +26,7 @@ import {
 } from "../../lib/api/downloads";
 import { formatBytes, formatSpeed, formatTimeLeft } from "../../lib/downloadOptions";
 import { getString } from "../../lib/i18n/index";
+import { useChannelAutoDownloads } from "../../lib/channelAutoDownload";
 import { useDownloadConcurrency } from "../../lib/useDownloadConcurrency";
 import { useDownloadEvents } from "../../lib/useDownloadEvents";
 import { useDownloadItemActions, useDownloadItemArtwork } from "../../lib/useDownloadItem";
@@ -245,12 +246,13 @@ function DockCard({
         </div>
         {detail ? <div className="mt-0.5 truncate font-mono text-xs text-chrome-neutral-500">{detail}</div> : null}
         {item.status === "completed" ? (
-          <div className="mt-1.5 flex gap-1">
+          <div className="mt-1.5 flex flex-wrap gap-1">
             <TextAction primary onClick={() => actions.play(item)}>
               <Play size={13} />
               {getString("download_play")}
             </TextAction>
             <TextAction onClick={() => actions.reveal(item)}>{getString("download_show_in_folder")}</TextAction>
+            <TextAction onClick={() => actions.exportSingleFile(item)}>{getString("download_save_as_one_file")}</TextAction>
           </div>
         ) : failed ? (
           <div className="mt-1.5 flex gap-1">
@@ -439,6 +441,7 @@ export function DownloadActivity() {
   const runs = useCollectionDownloadStore((state) => state.runs);
   const dismissRun = useCollectionDownloadStore((state) => state.dismissRun);
   useDownloadEvents();
+  useChannelAutoDownloads();
   useDownloadConcurrency();
 
   if (dialog) return null;

@@ -43,7 +43,7 @@ export function PlayerTab() {
   const [backgroundPlay, setBackgroundPlay] = useBoolPref(SETTINGS.BACKGROUND_PLAY, true);
   const [startPaused, setStartPaused] = useBoolPref(SETTINGS.START_PAUSED, false);
   const [stableVolume, setStableVolume] = useBoolPref(SETTINGS.STABLE_VOLUME_ENABLED, false);
-  const [videoLoudness, setVideoLoudness] = useBoolPref(SETTINGS.VIDEO_LOUDNESS_NORMALIZATION, false);
+  const [videoLoudness, setVideoLoudness] = useBoolPref(SETTINGS.VIDEO_LOUDNESS_NORMALIZATION, true);
   const [volumeBoost, setVolumeBoost] = useBoolPref(SETTINGS.ALLOW_VOLUME_BOOST, false);
 
   const [rememberSpeed, setRememberSpeed] = useBoolPref(SETTINGS.REMEMBER_PLAYBACK_SPEED, false);

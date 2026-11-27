@@ -40,6 +40,9 @@ describe("EqStateJson", () => {
       "autoPreamp",
       "bassBoost",
       "spatialSound",
+      // Desktop-only; Android's decoder ignores unknown keys.
+      "balance",
+      "nightMode",
       "userPresets",
     ]);
     expect(parsed.parametric).toEqual({ presetId: "builtin:flat", curve: { preamp: 0, bands: [] } });
@@ -62,6 +65,18 @@ describe("EqStateJson", () => {
     const saved = JSON.parse(encodeEqState({ ...state, bassBoost: 4 }));
     expect(saved.spatialSound).toBe("HIGH");
     expect(decodeEqState(ANDROID_JSON)!.spatialSound).toBe("OFF");
+  });
+
+  it("round-trips balance and night mode, defaulting them when absent", () => {
+    const state = decodeEqState(ANDROID_JSON)!;
+    expect(state.balance).toBe(0);
+    expect(state.nightMode).toBe(false);
+    const saved = JSON.parse(encodeEqState({ ...state, balance: -0.5, nightMode: true }));
+    expect(saved.balance).toBe(-0.5);
+    expect(saved.nightMode).toBe(true);
+    expect(decodeEqState(JSON.stringify(saved))).toEqual({ ...state, balance: -0.5, nightMode: true });
+    expect(decodeEqState(`{"balance":"left"}`)).toBeNull();
+    expect(decodeEqState(`{"nightMode":"yes"}`)).toBeNull();
   });
 });
 

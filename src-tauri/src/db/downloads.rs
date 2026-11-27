@@ -188,6 +188,17 @@ pub async fn downloads_by_ids(pool: &SqlitePool, ids: &[i64]) -> AppResult<Vec<D
     statement.fetch_all(pool).await.map_err(AppError::from)
 }
 
+/// Points a saved download at its file's new home after the download folder moves.
+pub async fn update_file_path(pool: &SqlitePool, id: i64, file_path: &str) -> AppResult<()> {
+    sqlx::query("UPDATE downloads SET file_path = ? WHERE id = ?")
+        .bind(file_path)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(AppError::from)?;
+    Ok(())
+}
+
 pub async fn delete_downloads(pool: &SqlitePool, ids: &[i64]) -> AppResult<()> {
     if ids.is_empty() {
         return Ok(());
@@ -316,6 +327,25 @@ mod tests {
         assert_eq!(saved.album.as_deref(), Some("Hurry Up, We're Dreaming"));
         assert_eq!((saved.track_number, saved.track_total), (Some(2), Some(22)));
         assert_eq!(saved.container.as_deref(), Some("m4a"));
+    }
+
+    #[tokio::test]
+    async fn a_moved_download_keeps_its_row() {
+        let pool = pool().await;
+        upsert_download(&pool, &song(None)).await.unwrap();
+        let saved = download_by_video_id(&pool, "abc123def45", &["music"])
+            .await
+            .unwrap()
+            .unwrap();
+        update_file_path(&pool, saved.id.unwrap(), "/new/Song.m4a")
+            .await
+            .unwrap();
+        let moved = download_by_video_id(&pool, "abc123def45", &["music"])
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(moved.file_path, "/new/Song.m4a");
+        assert_eq!(moved.title, "Song");
     }
 
     #[tokio::test]

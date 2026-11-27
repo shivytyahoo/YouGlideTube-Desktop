@@ -1,3 +1,4 @@
+import { spatialWidth } from "./spatial";
 import { isBypassed } from "./filterMath";
 import { EqLimits, type EqBand, type EqCurve, type EqState } from "./models";
 import { processingSpec } from "./stateOps";
@@ -5,15 +6,29 @@ import { processingSpec } from "./stateOps";
 /** Filters in the WebAudio chain. Unused ones sit flat, so adding a band never rewires the graph. */
 export const EQ_FILTER_POOL = EqLimits.MAX_BANDS;
 
-/** What one player's equalizer chain runs: the curve, bass boost on its own shelf, and the preamp. */
+/**
+ * What one player's equalizer chain runs: the curve, bass boost on its own shelf, the preamp,
+ * and the stereo stage — width from the stored spatial sound, balance, and night mode.
+ */
 export interface EqGraphSpec {
   enabled: boolean;
   preampDb: number;
   bands: EqBand[];
   bassBoostDb: number;
+  balance: number;
+  width: number;
+  nightMode: boolean;
 }
 
-export const EQ_GRAPH_OFF: EqGraphSpec = { enabled: false, preampDb: 0, bands: [], bassBoostDb: 0 };
+export const EQ_GRAPH_OFF: EqGraphSpec = {
+  enabled: false,
+  preampDb: 0,
+  bands: [],
+  bassBoostDb: 0,
+  balance: 0,
+  width: 1,
+  nightMode: false,
+};
 
 /**
  * The chain's settings for `state`. The preamp is Android's `processingSpec`, so auto preamp
@@ -28,6 +43,9 @@ export function graphSpec(state: EqState, bypass: boolean, preview?: EqCurve | n
     preampDb: spec.preampDb,
     bands: boosted ? spec.bands.slice(0, -1) : spec.bands,
     bassBoostDb: boosted ? state.bassBoost : 0,
+    balance: state.balance,
+    width: spatialWidth(state.spatialSound),
+    nightMode: state.nightMode,
   };
 }
 
@@ -35,7 +53,12 @@ export function graphSpec(state: EqState, bypass: boolean, preview?: EqCurve | n
 export function graphChangesSound(spec: EqGraphSpec, sampleRate: number): boolean {
   return (
     spec.enabled &&
-    (spec.preampDb !== 0 || spec.bassBoostDb > 0 || spec.bands.some((b) => !isBypassed(b, sampleRate)))
+    (spec.preampDb !== 0 ||
+      spec.bassBoostDb > 0 ||
+      spec.balance !== 0 ||
+      spec.width !== 1 ||
+      spec.nightMode ||
+      spec.bands.some((b) => !isBypassed(b, sampleRate)))
   );
 }
 

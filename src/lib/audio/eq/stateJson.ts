@@ -117,6 +117,8 @@ export function decodeEqState(raw: string): EqState | null {
       autoPreamp: field(o, "autoPreamp", bool, () => defaults.autoPreamp),
       bassBoost: field(o, "bassBoost", num, () => defaults.bassBoost),
       spatialSound: field(o, "spatialSound", spatialSound, () => defaults.spatialSound),
+      balance: field(o, "balance", num, () => defaults.balance),
+      nightMode: field(o, "nightMode", bool, () => defaults.nightMode),
       userPresets: field(o, "userPresets", list(readPreset), () => defaults.userPresets),
     });
   } catch {
@@ -140,6 +142,8 @@ export function encodeEqState(state: EqState): string {
     autoPreamp: state.autoPreamp,
     bassBoost: state.bassBoost,
     spatialSound: state.spatialSound,
+    balance: state.balance,
+    nightMode: state.nightMode,
     userPresets: state.userPresets.map((p) => ({
       id: p.id,
       name: p.name,

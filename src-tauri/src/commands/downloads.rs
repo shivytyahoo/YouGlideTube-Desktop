@@ -23,19 +23,26 @@ use crate::security::validation::validate_video_id;
 use crate::services::youtube_service::YoutubeService;
 use crate::streaming::proxy::StreamingManager;
 
+mod auto;
 mod cover;
+mod export;
 mod job;
 mod metadata;
 mod muxer;
 mod naming;
 mod progress;
 mod recovery;
+mod relocate;
 mod segment_clip;
 mod sidecars;
 mod source;
 mod subtitles;
 pub mod tags;
 mod transfer;
+
+pub use auto::check_channel_auto_downloads;
+pub use export::export_download_as_single_file;
+pub use relocate::move_download_folder;
 
 use job::DownloadJob;
 use progress::{DownloadProgress, DownloadStatus, ProgressEmitter};
@@ -178,6 +185,15 @@ impl DownloadManager {
             });
         }
         *current = limit;
+    }
+
+    /// True while any download is queued, running or paused — the folder
+    /// cannot move then.
+    pub fn has_active_downloads(&self) -> bool {
+        self.registry
+            .lock()
+            .map(|registry| !registry.controls.is_empty())
+            .unwrap_or(false)
     }
 
     fn lock(&self) -> Result<MutexGuard<'_, DownloadRegistry>, ErrorResponse> {

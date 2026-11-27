@@ -23,6 +23,18 @@ describe("graphPlan", () => {
     expect(graphChangesSound(graphSpec(defaultEqState(), false), RATE)).toBe(false);
   });
 
+  it("carries the stereo stage, which alone engages the graph", () => {
+    const state = { ...defaultEqState(), spatialSound: "HIGH" as const };
+    const spec = graphSpec(state, false);
+    expect(spec.width).toBe(2);
+    expect(graphChangesSound(spec, RATE)).toBe(true);
+    expect(graphSpec({ ...defaultEqState(), balance: -0.5 }, false).balance).toBe(-0.5);
+    expect(graphChangesSound(graphSpec({ ...defaultEqState(), balance: -0.5 }, false), RATE)).toBe(true);
+    expect(graphSpec({ ...defaultEqState(), nightMode: true }, false).nightMode).toBe(true);
+    expect(graphChangesSound(graphSpec({ ...defaultEqState(), nightMode: true }, false), RATE)).toBe(true);
+    expect(graphSpec(defaultEqState(), false).width).toBe(1);
+  });
+
   it("hands WebAudio its own Q forms", () => {
     expect(filterSetting(band(1_000, 3, 2), RATE)).toEqual({ type: "peaking", frequency: 1_000, q: 2, gain: 3 });
     expect(filterSetting(band(80, 4, 0.707, "LOW_SHELF"), RATE)?.type).toBe("lowshelf");

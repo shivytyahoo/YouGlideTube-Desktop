@@ -72,6 +72,17 @@ pub async fn find_collection(
         .map_err(AppError::from)
 }
 
+/// Points a collection at its folder's new home after the download folder moves.
+pub async fn update_folder_path(pool: &SqlitePool, id: i64, folder_path: &str) -> AppResult<()> {
+    sqlx::query("UPDATE download_collections SET folder_path = ? WHERE id = ?")
+        .bind(folder_path)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(AppError::from)?;
+    Ok(())
+}
+
 pub async fn set_total_count(pool: &SqlitePool, id: i64, total_count: i64) -> AppResult<()> {
     sqlx::query("UPDATE download_collections SET total_count = ? WHERE id = ?")
         .bind(total_count)
@@ -153,4 +164,45 @@ pub async fn delete_collections(pool: &SqlitePool, ids: &[i64]) -> AppResult<()>
     }
     statement.execute(pool).await.map_err(AppError::from)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn pool() -> SqlitePool {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        pool
+    }
+
+    #[tokio::test]
+    async fn a_moved_collection_keeps_its_folder() {
+        let pool = pool().await;
+        let record = DownloadCollectionRecord {
+            id: None,
+            collection_id: "PL1".into(),
+            kind: "playlist".into(),
+            title: "List".into(),
+            author: None,
+            thumbnail_url: None,
+            folder_path: "/old/List".into(),
+            total_count: 3,
+            created_at: String::new(),
+            downloaded_count: 0,
+            cover_url: None,
+        };
+        let id = insert_collection(&pool, &record).await.unwrap();
+        update_folder_path(&pool, id, "/new/List").await.unwrap();
+        let moved = find_collection(&pool, "PL1", "playlist")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(moved.folder_path, "/new/List");
+        assert_eq!(moved.title, "List");
+    }
 }

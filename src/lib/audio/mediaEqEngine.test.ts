@@ -44,6 +44,24 @@ class FakeContext extends EventTarget {
   createWaveShaper() {
     return Object.assign(new FakeNode(), { curve: null });
   }
+  createChannelSplitter() {
+    return new FakeNode();
+  }
+  createChannelMerger() {
+    return new FakeNode();
+  }
+  createStereoPanner() {
+    return Object.assign(new FakeNode(), { pan: new FakeParam() });
+  }
+  createDynamicsCompressor() {
+    return Object.assign(new FakeNode(), {
+      threshold: new FakeParam(),
+      knee: new FakeParam(),
+      ratio: new FakeParam(),
+      attack: new FakeParam(),
+      release: new FakeParam(),
+    });
+  }
   createAnalyser() {
     return Object.assign(new FakeNode(), {
       fftSize: 64,

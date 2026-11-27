@@ -24,6 +24,7 @@ import { EqGraphicSliders } from "./EqGraphicSliders";
 import { EqImportExport } from "./EqImportExport";
 import { EqPresetBar } from "./EqPresetBar";
 import { EqResponseGraph } from "./EqResponseGraph";
+import { EqStereoSection } from "./EqStereoSection";
 import { formatDb } from "./eqFormat";
 
 const SECTION_LABEL = "text-xs font-semibold uppercase tracking-widest text-chrome-neutral-500";
@@ -230,6 +231,11 @@ function EqualizerEditor({ onClose }: { onClose: () => void }) {
               </span>
             </div>
           </div>
+        </section>
+
+        <section className="flex flex-col gap-2 rounded-xl border border-chrome-neutral-800 p-3">
+          <span className={SECTION_LABEL}>{getString("eq_stereo")}</span>
+          <EqStereoSection />
         </section>
 
         <section className="flex flex-col gap-2">

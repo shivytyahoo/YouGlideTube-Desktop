@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { FolderOpen } from 'lucide-react';
 import { DownloadStorageGroup } from './DownloadStorageGroup';
 import { LocalMediaSettings } from '../LocalMediaSettings';
@@ -12,6 +13,9 @@ import { SETTINGS } from '../../../lib/settings/schema';
 import { isSettingDisabledUntilWired } from '../../../lib/settings/values';
 import { autoCodec } from '../../../lib/downloadOptions';
 import { useDownloadRecovery } from '../../../lib/useDownloadRecovery';
+import { useDownloadFolderMove } from '../../../lib/useDownloadFolderMove';
+import { parseAutoDownloadChannels, withAutoDownloadChannel } from '../../../lib/channelAutoDownload';
+import { useSubscriptionStore } from '../../../store/useSubscriptionStore';
 import { Button } from '../../ui/Button';
 import { IS_MACOS_RUNTIME } from '../../../lib/platform';
 
@@ -44,6 +48,16 @@ export function DownloadsTab() {
   const [autoOpened, setAutoOpened] = useBoolPref(SETTINGS.AUTO_DOWNLOAD_OPENED_VIDEOS, false);
   const [autoLiked, setAutoLiked] = useBoolPref(SETTINGS.AUTO_DOWNLOAD_LIKED_MUSIC, false);
   const recovery = useDownloadRecovery();
+  const folderMove = useDownloadFolderMove();
+  const subscriptions = useSubscriptionStore((state) => state.subscriptions);
+  const loadSubscriptions = useSubscriptionStore((state) => state.loadSubscriptions);
+  const [channelsRaw, setChannelsRaw] = usePreference(SETTINGS.AUTO_DOWNLOAD_CHANNELS, '{}');
+  const channels = parseAutoDownloadChannels(channelsRaw);
+  const videoChannels = subscriptions.filter((channel) => !channel.isMusic);
+
+  useEffect(() => {
+    void loadSubscriptions();
+  }, [loadSubscriptions]);
 
   const downloadLocationDisabled = isSettingDisabledUntilWired(SETTINGS.DOWNLOAD_LOCATION);
   const musicDownloadLocationDisabled = isSettingDisabledUntilWired(SETTINGS.MUSIC_DOWNLOAD_LOCATION);
@@ -56,6 +70,21 @@ export function DownloadsTab() {
   const browseMusicFolder = async () => {
     const path = await pickFolder(getString('settings_music_download_folder'));
     if (path) setMusicPath(path);
+  };
+
+  /** Moves one folder's saved files, then points new downloads of every kind the move rewrote there. */
+  const moveVideoFolder = async () => {
+    const result = await folderMove.moveFolder('video', downloadPath);
+    if (!result) return;
+    if (result.movedKinds.includes('video')) setDownloadPath(result.newFolder);
+    if (result.movedKinds.includes('music')) setMusicPath(result.newFolder);
+  };
+
+  const moveMusicFolder = async () => {
+    const result = await folderMove.moveFolder('music', musicPath);
+    if (!result) return;
+    if (result.movedKinds.includes('music')) setMusicPath(result.newFolder);
+    if (result.movedKinds.includes('video')) setDownloadPath(result.newFolder);
   };
 
   return (
@@ -137,6 +166,22 @@ export function DownloadsTab() {
         </SettingItem>
       </SettingsGroup>
 
+      <SettingsGroup title={getString('settings_auto_download_channels')}>
+        <p className="px-5 py-4 text-xs leading-relaxed text-chrome-neutral-400">{getString('settings_auto_download_channels_desc')}</p>
+        {videoChannels.length === 0 ? (
+          <p className="px-5 py-4 text-sm text-chrome-neutral-400">{getString('settings_auto_download_channels_empty')}</p>
+        ) : (
+          videoChannels.map((channel) => (
+            <SettingItem key={channel.id} title={channel.name}>
+              <ToggleSwitch
+                checked={channels[channel.id] != null}
+                onChange={(next) => setChannelsRaw(JSON.stringify(withAutoDownloadChannel(channels, channel.id, next)))}
+              />
+            </SettingItem>
+          ))
+        )}
+      </SettingsGroup>
+
       <SettingsGroup title={getString('settings_group_your_downloads')}>
         <SettingItem title={getString('settings_find_earlier_downloads')} description={getString('settings_find_earlier_downloads_desc')}>
           <Button type="button" variant="secondary" size="sm" disabled={recovery.running !== null} onClick={() => void recovery.findEarlier()}>
@@ -154,16 +199,26 @@ export function DownloadsTab() {
 
       <SettingsGroup title={getString('settings_group_storage_paths')}>
         <SettingItem title={getString('settings_video_download_folder')} description={downloadPath || getString('settings_system_default_videos')} disabled={downloadLocationDisabled}>
-          <Button type="button" variant="secondary" size="sm" onClick={browseVideoFolder} disabled={downloadLocationDisabled}>
-            <FolderOpen size={14} />
-            {getString('settings_browse')}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={browseVideoFolder} disabled={downloadLocationDisabled}>
+              <FolderOpen size={14} />
+              {getString('settings_browse')}
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => void moveVideoFolder()} disabled={downloadLocationDisabled || folderMove.moving !== null}>
+              {getString(folderMove.moving === 'video' ? 'downloads_move_running' : 'settings_move_folder')}
+            </Button>
+          </div>
         </SettingItem>
         <SettingItem title={getString('settings_music_download_folder')} description={musicPath || getString('settings_system_default_music')} disabled={musicDownloadLocationDisabled}>
-          <Button type="button" variant="secondary" size="sm" onClick={browseMusicFolder} disabled={musicDownloadLocationDisabled}>
-            <FolderOpen size={14} />
-            {getString('settings_browse')}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={browseMusicFolder} disabled={musicDownloadLocationDisabled}>
+              <FolderOpen size={14} />
+              {getString('settings_browse')}
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => void moveMusicFolder()} disabled={musicDownloadLocationDisabled || folderMove.moving !== null}>
+              {getString(folderMove.moving === 'music' ? 'downloads_move_running' : 'settings_move_folder')}
+            </Button>
+          </div>
         </SettingItem>
       </SettingsGroup>
 

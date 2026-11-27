@@ -26,9 +26,12 @@ import {
   statesEqual,
   userPreset,
   withActiveCurve,
+  withBalance,
   withBand,
   withBassBoost,
   withManualPreamp,
+  withNightMode,
+  withSpatialSound,
 } from "./stateOps";
 
 // Ported from Android's EqStateOpsTest.
@@ -154,6 +157,9 @@ describe("EqStateOps", () => {
     expect(changesSound({ ...selectPreset(state(), rock), enabled: false })).toBe(false);
     expect(changesSound(withBassBoost(state(), 3))).toBe(true);
     expect(changesSound(addBand(state(), band(1_000, 0)))).toBe(false);
+    expect(changesSound(withSpatialSound(state(), "HIGH"))).toBe(true);
+    expect(changesSound(withBalance(state(), -0.5))).toBe(true);
+    expect(changesSound(withNightMode(state(), true))).toBe(true);
   });
 
   it("names are unique regardless of case, including built-in names", () => {
