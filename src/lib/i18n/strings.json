@@ -3348,6 +3348,8 @@
   "settings_card_like_buttons_desc": "Show like and dislike buttons on video cards",
   "settings_card_mark_watched": "Mark watched on video cards",
   "settings_card_mark_watched_desc": "Show a mark-watched button on video cards",
+  "settings_card_feedback_row": "Feedback buttons on video cards",
+  "settings_card_feedback_row_desc": "Show 'I want more like this' and 'Not interested' buttons on video cards",
   "settings_subs_shorts_shelf": "Shorts shelf on Subscriptions",
   "settings_subs_shorts_shelf_desc": "Show a Shorts shelf on the Subscriptions page",
   "settings_home_layout": "Home layout",

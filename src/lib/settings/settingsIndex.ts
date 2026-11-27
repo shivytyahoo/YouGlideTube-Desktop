@@ -92,6 +92,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     { title: "theme_file", summary: "theme_file_description" },
     { title: "settings_card_like_buttons", summary: "settings_card_like_buttons_desc" },
     { title: "settings_card_mark_watched", summary: "settings_card_mark_watched_desc" },
+    { title: "settings_card_feedback_row", summary: "settings_card_feedback_row_desc" },
     { title: "settings_hide_nav_on_scroll", summary: "settings_hide_nav_on_scroll_desc" },
     { title: "settings_animated_backgrounds", summary: "settings_animated_backgrounds_desc" },
     { title: "settings_interface_mode", summary: "settings_interface_mode_desc" },

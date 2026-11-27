@@ -190,6 +190,7 @@ function VideoCardComponent({
 
   const showCardLikeButtons = useAppSettingsStore((s) => s.values[SETTINGS.CARD_LIKE_BUTTONS] === 'true');
   const showCardMarkWatched = useAppSettingsStore((s) => s.values[SETTINGS.CARD_MARK_WATCHED] === 'true');
+  const showCardFeedback = useAppSettingsStore((s) => s.values[SETTINGS.CARD_FEEDBACK_ROW] === 'true');
   const toggleCardLike = useLikesStore((s) => s.toggleVideo);
   const isCardLiked = useLikesStore((s) => s.isLikedVideo(video.id));
 
@@ -1137,7 +1138,7 @@ function VideoCardComponent({
           {reasonLine && <p className="truncate text-[13px] text-chrome-neutral-500">{reasonLine}</p>}
           <CardPills video={video} />
           {/* A card with its own menu — a file that isn't on YouTube — carries no feedback row either. */}
-          {(variant === 'default' || variant === 'grid') && !ownMenuActions && (
+          {(variant === 'default' || variant === 'grid') && !ownMenuActions && showCardFeedback && (
             <VideoCardFeedback video={video} isWatched={isWatched} />
           )}
         </div>

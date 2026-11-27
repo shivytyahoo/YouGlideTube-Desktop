@@ -354,3 +354,59 @@ describe("VideoCard watch progress", () => {
     expect(barWidth()).toBeNull();
   });
 });
+
+describe("VideoCard feedback row", () => {
+  let host: HTMLDivElement;
+  let root: Root;
+
+  const render = () =>
+    act(() =>
+      root.render(
+        createElement(
+          MemoryRouter,
+          null,
+          createElement(VideoCard, {
+            video: { id: freshId(), title: "A video", channelName: "A channel" } as VideoSummary,
+            onPlay: vi.fn(),
+          }),
+        ),
+      ),
+    );
+
+  const setCardFeedback = (enabled: boolean) => {
+    useAppSettingsStore.setState({
+      values: { ...useAppSettingsStore.getState().values, [SETTINGS.CARD_FEEDBACK_ROW]: String(enabled) },
+    });
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("IntersectionObserver", FakeObserver);
+    useSettingsStore.setState({ dearrowEnabled: true });
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+    setCardFeedback(false);
+  });
+
+  it("hides the feedback row by default", async () => {
+    render();
+    await flush();
+    expect(host.textContent).not.toContain("I want more like this");
+    expect(host.textContent).not.toContain("Not interested");
+  });
+
+  it("shows the feedback row once the setting is on", async () => {
+    setCardFeedback(true);
+    render();
+    await flush();
+    expect(host.textContent).toContain("I want more like this");
+    expect(host.textContent).toContain("Not interested");
+  });
+});

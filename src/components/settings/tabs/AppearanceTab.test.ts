@@ -85,3 +85,45 @@ describe("AppearanceTab system theme mode", () => {
     expect(useAppSettingsStore.getState().values[SETTINGS.THEME_VARIANT]).toBe("dark");
   });
 });
+
+describe("AppearanceTab card feedback row", () => {
+  const feedbackSwitch = () =>
+    host.querySelector(
+      `[data-setting-title="${getString("settings_card_feedback_row")}"] button[role="switch"]`,
+    );
+
+  beforeEach(() => {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: false,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    // The store is a singleton: put the feedback setting back to its default between tests.
+    useAppSettingsStore.setState((state) => ({
+      values: { ...state.values, [SETTINGS.CARD_FEEDBACK_ROW]: "false" },
+    }));
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  });
+
+  it("is off by default", () => {
+    expect(useAppSettingsStore.getState().values[SETTINGS.CARD_FEEDBACK_ROW]).toBe("false");
+    renderTab();
+    expect(feedbackSwitch()?.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("turning it on persists the setting", async () => {
+    renderTab();
+    await act(async () => {
+      feedbackSwitch()!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(useAppSettingsStore.getState().values[SETTINGS.CARD_FEEDBACK_ROW]).toBe("true");
+  });
+});

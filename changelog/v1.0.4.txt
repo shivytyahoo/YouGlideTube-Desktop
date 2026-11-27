@@ -15,3 +15,4 @@ FEATURES IN THIS BUILD
 - Per-channel auto-download: turn on "Save new videos" for a channel in Settings → Downloads and new uploads from that channel download automatically.
 - "Save as one file" export on a finished download copies the video to a single self-contained file beside the downloads folder.
 - Move download folder: relocate the whole downloads folder from Settings → Downloads, with rollback if anything fails.
+- Feedback buttons on video cards can be turned off in Settings → Appearance → Cards (off by default).

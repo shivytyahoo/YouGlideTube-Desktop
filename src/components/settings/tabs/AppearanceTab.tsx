@@ -54,6 +54,7 @@ export function AppearanceTab() {
   const [dateMode, setDateMode] = usePreference(SETTINGS.DATE_DISPLAY_MODE, "relative");
   const [cardLikeButtons, setCardLikeButtons] = useBoolPref(SETTINGS.CARD_LIKE_BUTTONS, false);
   const [cardMarkWatched, setCardMarkWatched] = useBoolPref(SETTINGS.CARD_MARK_WATCHED, false);
+  const [cardFeedbackRow, setCardFeedbackRow] = useBoolPref(SETTINGS.CARD_FEEDBACK_ROW, false);
   const [hideNavOnScroll, setHideNavOnScroll] = useBoolPref(SETTINGS.HIDE_NAV_ON_SCROLL, false);
   const [animatedBackgrounds, setAnimatedBackgrounds] = useBoolPref(SETTINGS.ANIMATED_BACKGROUNDS, true);
   const [interfaceMode, setInterfaceMode] = usePreference(SETTINGS.INTERFACE_MODE, "automatic");
@@ -268,6 +269,9 @@ export function AppearanceTab() {
           </SettingItem>
           <SettingItem title={getString("settings_card_mark_watched")} description={getString("settings_card_mark_watched_desc")}>
             <ToggleSwitch checked={cardMarkWatched} onChange={setCardMarkWatched} />
+          </SettingItem>
+          <SettingItem title={getString("settings_card_feedback_row")} description={getString("settings_card_feedback_row_desc")}>
+            <ToggleSwitch checked={cardFeedbackRow} onChange={setCardFeedbackRow} />
           </SettingItem>
         </SettingsGroup>
 
