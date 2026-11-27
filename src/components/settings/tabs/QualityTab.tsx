@@ -27,6 +27,7 @@ const CODECS: Array<{ value: string; family: VideoCodecFamily }> = [
 
 export function QualityTab() {
   const [qualityWifi, setQualityWifi] = usePreference(SETTINGS.DEFAULT_QUALITY_WIFI, '1080p');
+  const [playbackMethod, setPlaybackMethod] = usePreference(SETTINGS.PLAYBACK_METHOD, 'auto');
   const [codec, setCodec] = usePreference(SETTINGS.DEFAULT_VIDEO_CODEC, 'H.264');
   const [fallbackCodec, setFallbackCodec] = usePreference(SETTINGS.FALLBACK_VIDEO_CODEC, 'Auto');
   const [groupedQualitySelector, setGroupedQualitySelector] = useBoolPref(SETTINGS.GROUPED_QUALITY_SELECTOR, false);
@@ -65,6 +66,18 @@ export function QualityTab() {
       <SettingsGroup title={getString('settings_group_video_quality')}>
         <SettingItem title={getString('settings_default_resolution')} description={getString('settings_default_resolution_desc')}>
           <Select value={qualityWifi} onChange={setQualityWifi} options={QUALITY_OPTIONS} />
+        </SettingItem>
+        <SettingItem
+          title={getString('settings_playback_method')}
+          description={getString('settings_playback_method_desc')}
+        >
+          <Select value={playbackMethod} onChange={setPlaybackMethod} options={[
+            { value: 'auto', label: getString('settings_playback_method_auto') },
+            { value: 'dash', label: getString('settings_playback_method_dash') },
+            { value: 'sabr', label: getString('settings_playback_method_sabr') },
+            { value: 'hls', label: getString('settings_playback_method_hls') },
+            { value: 'direct', label: getString('settings_playback_method_direct') },
+          ]} />
         </SettingItem>
         <SettingItem
           title={getString('settings_preferred_codec')}

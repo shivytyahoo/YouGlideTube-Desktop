@@ -321,6 +321,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ]),
   ...rows("quality", [
     { title: "settings_default_resolution", summary: "settings_default_resolution_desc" },
+    { title: "settings_playback_method", summary: "settings_playback_method_desc", keywords: ["dash", "sabr", "hls", "direct", "source"] },
     { title: "settings_preferred_codec" },
     { title: "settings_fallback_codec", summary: "settings_fallback_codec_desc" },
     { title: "settings_fast_quality_switch", summary: "settings_fast_quality_switch_desc" },
@@ -337,6 +338,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     { title: "settings_max_buffer", summary: "settings_max_buffer_desc" },
     { title: "settings_startup_prebuffer", summary: "settings_startup_prebuffer_desc" },
     { title: "settings_disk_read_ahead", summary: "settings_disk_read_ahead_desc" },
+    { title: "settings_long_read_ahead", summary: "settings_long_read_ahead_desc", keywords: ["buffer", "8k", "smooth"] },
     { title: "settings_rebuffer_recovery", summary: "settings_rebuffer_recovery_desc" },
     { title: "settings_cache_artwork", summary: "settings_cache_artwork_desc", keywords: ["images", "thumbnails", "storage", "clear"] },
     { title: "settings_cache_lyrics", summary: "settings_cache_lyrics_desc", keywords: ["storage", "clear"] },

@@ -41,6 +41,7 @@ import { proxiedImage } from "../../lib/imageProxy";
 import { useImageProxyStore } from "../../store/useImageProxyStore";
 import { AutoplaySwitch } from "./AutoplaySwitch";
 import { PlayerSettingsMenu, qualityLabel, type SettingsPane } from "./PlayerSettingsMenu";
+import type { PlaybackMethod, SourceMode } from "../../lib/useVideoStream";
 import { PLAYER_MENU_OWNER_ATTR } from "../../lib/playerMenuDismiss";
 import { SponsorBlockSubmitDialog } from "./SponsorBlockSubmitDialog";
 import {
@@ -83,6 +84,9 @@ export interface PlayerControlsProps {
   isDashPlayback?: boolean;
   isLive?: boolean;
   onSelectQuality?: (variant: StreamVariant | "auto") => void;
+  onSelectSourceMode?: (method: PlaybackMethod) => void;
+  availableSourceModes?: SourceMode[];
+  playbackMethod?: PlaybackMethod;
 
   captions?: CaptionTrack[];
   selectedCaptionId: string;
@@ -178,6 +182,9 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   isDashPlayback = false,
   isLive = false,
   onSelectQuality,
+  onSelectSourceMode,
+  availableSourceModes = [],
+  playbackMethod = "auto",
   captions = [],
   selectedCaptionId,
   setSelectedCaptionId,
@@ -1269,6 +1276,9 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
         activeQualityLabel={activeQualityLabel}
         isDashPlayback={isDashPlayback}
         onSelectQuality={onSelectQuality}
+        onSelectSourceMode={onSelectSourceMode}
+        availableSourceModes={availableSourceModes}
+        playbackMethod={playbackMethod}
         captions={captions}
         selectedCaptionId={selectedCaptionId}
         setSelectedCaptionId={setSelectedCaptionId}

@@ -64,4 +64,47 @@ describe("player settings menu", () => {
     expect(switches).toHaveLength(4);
     expect(rows.slice(-4)).toEqual(switches);
   });
+
+  it("shows the playback method under Quality on the root pane", () => {
+    const menu = host.querySelector('[role="menu"]')!;
+    const rows = [...menu.querySelectorAll("button")];
+    const qualityIndex = rows.findIndex((row) => row.textContent?.includes(getString("player_menu_quality")));
+    const methodIndex = rows.findIndex((row) => row.textContent?.includes(getString("player_menu_playback_method")));
+    expect(methodIndex).toBeGreaterThan(qualityIndex);
+    expect(rows[methodIndex]?.textContent).toContain(getString("settings_playback_method_auto"));
+  });
+
+  it("lists the video's methods and reports the pick", () => {
+    const onSelectSourceMode = vi.fn();
+    act(() =>
+      root.render(
+        createElement(PlayerSettingsMenu, {
+          open: true,
+          pane: "method",
+          onPaneChange: () => {},
+          onClose: () => {},
+          qualities: [],
+          selectedQualityId: "auto",
+          isDashPlayback: false,
+          availableSourceModes: ["dash-native", "sabr-dash", "hls", "direct"],
+          playbackMethod: "dash",
+          onSelectSourceMode,
+          captions: [],
+          selectedCaptionId: "off",
+          setSelectedCaptionId: () => {},
+          audioTracks: [],
+          setSelectedAudioTrackId: () => {},
+          speedOptions: [1],
+          speedSliderEnabled: false,
+          playbackRate: 1,
+          onSelectPlaybackRate: () => {},
+        }),
+      ),
+    );
+    const text = host.textContent ?? "";
+    for (const label of ["Auto", "DASH", "SABR", "HLS", "Direct"]) expect(text).toContain(label);
+    const sabr = [...host.querySelectorAll("button")].find((button) => button.textContent?.trim() === "SABR");
+    act(() => sabr?.click());
+    expect(onSelectSourceMode).toHaveBeenCalledWith("sabr");
+  });
 });

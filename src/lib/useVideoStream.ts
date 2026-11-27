@@ -19,7 +19,8 @@ import { shouldRecordWatchHistory } from "./deepGlide";
 import { recoveryPosition } from "./playerProgress";
 import { recordAutoReResolve, shouldAutoReResolve, type ReResolveHistory } from "./videoRecoveryPolicy";
 import { isFinishedPosition, resumeStartSeconds } from "./resumePolicy";
-import { useAppSettingsStore } from "../store/useAppSettingsStore";
+import { useAppSettingsStore, setSettingValue } from "../store/useAppSettingsStore";
+import { logToBackend } from "./diagnostics";
 import type {
   AudioTrack,
   CaptionTrack,
@@ -157,6 +158,50 @@ const computeAvailableSourceModes = (info: StreamInfo): SourceMode[] => {
   return modes;
 };
 
+/** Which stream supplies the video. A preference over the computed source list,
+ * never a hard requirement: a picked method that a video doesn't offer falls
+ * back to the Auto order instead of stranding the video. */
+export type PlaybackMethod = "auto" | "dash" | "sabr" | "hls" | "direct";
+
+export const PLAYBACK_METHOD_VALUES: readonly PlaybackMethod[] = ["auto", "dash", "sabr", "hls", "direct"];
+
+export const normalizePlaybackMethod = (value: string | undefined | null): PlaybackMethod =>
+  (PLAYBACK_METHOD_VALUES as readonly string[]).includes(value ?? "")
+    ? (value as PlaybackMethod)
+    : "auto";
+
+/** The source modes a method prefers, in order. DASH covers both DASH
+ * transports: the native manifest first, SABR's manifest second. */
+const playbackMethodModes = (method: PlaybackMethod): SourceMode[] => {
+  switch (method) {
+    case "dash":
+      return ["dash-native", "sabr-dash"];
+    case "sabr":
+      return ["sabr-dash"];
+    case "hls":
+      return ["hls"];
+    case "direct":
+      return ["direct"];
+    default:
+      return [];
+  }
+};
+
+/** Move the method's modes to the front of the available list, keeping the
+ * rest in Auto order as fallback. Auto, and a method with nothing to move,
+ * return the list unchanged. */
+export const orderSourceModesByMethod = (available: SourceMode[], method: PlaybackMethod): SourceMode[] => {
+  const preferred = playbackMethodModes(method).filter((mode) => available.includes(mode));
+  if (preferred.length === 0) return [...available];
+  return [...preferred, ...available.filter((mode) => !preferred.includes(mode))];
+};
+
+/** The method's modes for one video, or null when the video offers none of them. */
+export const availableMethodModes = (available: SourceMode[], method: PlaybackMethod): SourceMode[] | null => {
+  const modes = playbackMethodModes(method).filter((mode) => available.includes(mode));
+  return modes.length > 0 ? modes : null;
+};
+
 const pickDirectVariantUrl = (info: StreamInfo, qualityId: string, preferredCodec: string): string | null => {
   const canUseAdaptive = (info.audioTracks || []).some((track) => !!track.localUrl);
   let chosen: StreamVariant | null = null;
@@ -196,6 +241,10 @@ export interface VideoStream {
   hlsManifestUrl: string | null;
   isLive: boolean;
   sourceMode: SourceMode;
+  /** The modes this video offers, in Auto order; the player menu lists these. */
+  availableSourceModes: SourceMode[];
+  /** The saved playback-method preference ("auto" when unset or unknown). */
+  playbackMethod: PlaybackMethod;
   selectedQualityId: string;
   resumeTime: number;
   loadingStream: boolean;
@@ -207,6 +256,9 @@ export interface VideoStream {
   /** Reports a published playback position, which recoveries resume from. */
   notePlaybackTime: (time: number) => void;
   onSelectQuality: (variant: StreamVariant | "auto") => void;
+  /** Persists the method and reloads the current video at its position on it
+   * (or its fallback when the video doesn't offer it). */
+  onSelectSourceMode: (method: PlaybackMethod) => void;
   onRetrySource: (reason: string) => void;
   onHardRetry: () => void;
 }
@@ -223,6 +275,9 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
   const captionsInStore = usePlayerStore((s) => s.captions);
   const preferredQuality = useAppSettingsStore((s) => s.values[SETTINGS.DEFAULT_QUALITY_WIFI] ?? "1080p");
   const preferredCodec = useAppSettingsStore((s) => s.values[SETTINGS.DEFAULT_VIDEO_CODEC] ?? "H.264");
+  const playbackMethod = normalizePlaybackMethod(
+    useAppSettingsStore((s) => s.values[SETTINGS.PLAYBACK_METHOD] ?? "auto"),
+  );
 
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [streamVideoId, setStreamVideoId] = useState<string | null>(null);
@@ -236,6 +291,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
   const [hlsManifestUrl, setHlsManifestUrl] = useState<string | null>(null);
   const [isLive, setIsLive] = useState(false);
   const [sourceMode, setSourceMode] = useState<SourceMode>("unavailable");
+  const [availableSourceModes, setAvailableSourceModes] = useState<SourceMode[]>([]);
   const [selectedQualityId, setSelectedQualityId] = useState<string>("auto");
   const [resumeTime, setResumeTime] = useState(0);
   const reResolveHistoryRef = useRef<ReResolveHistory | null>(null);
@@ -270,6 +326,47 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
     pendingResumeRef.current = null;
   }, []);
 
+  /** Read at resolve time, not from the effect closure: a method picked in
+   * Settings applies to the next resolve without reloading the playing video. */
+  const currentPlaybackMethod = () =>
+    normalizePlaybackMethod(useAppSettingsStore.getState().values[SETTINGS.PLAYBACK_METHOD] ?? "auto");
+
+  /** Point the element at one source mode of an already-resolved video. */
+  const setSourceForMode = useCallback((info: StreamInfo, mode: SourceMode, qualityId: string, codec: string) => {
+    if (mode === "hls") {
+      setHlsManifestUrl(info.hlsManifestUrl || null);
+      setDashManifestUrl(null);
+      setStreamUrl(null);
+    } else if (mode === "dash-native") {
+      setHlsManifestUrl(null);
+      setDashManifestUrl(info.dashManifestUrl || null);
+      setStreamUrl(info.dashManifestUrl || null);
+    } else if (mode === "sabr-dash") {
+      setHlsManifestUrl(null);
+      setDashManifestUrl(info.sabr?.manifestUrl || null);
+      setStreamUrl(info.sabr?.manifestUrl || null);
+    } else {
+      setHlsManifestUrl(null);
+      setDashManifestUrl(null);
+      setStreamUrl(pickDirectVariantUrl(info, qualityId, codec));
+    }
+  }, []);
+
+  /** The Auto order with the saved method preferred; warns (throttled) when
+   * the method has nothing to prefer for this video. */
+  const orderModesForVideo = useCallback((info: StreamInfo): SourceMode[] => {
+    const available = computeAvailableSourceModes(info);
+    const method = currentPlaybackMethod();
+    if (method !== "auto" && !availableMethodModes(available, method)) {
+      void logToBackend("warn", "playback method unavailable for this video, using auto order", {
+        method,
+        videoId: info.streamId,
+        available,
+      });
+    }
+    return orderSourceModesByMethod(available, method);
+  }, []);
+
   const publishCaptions = useCallback(
     (tracks: CaptionTrack[]) => {
       setCaptions(tracks);
@@ -288,6 +385,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
       streamInfoRef.current = null;
       attemptedModesRef.current = new Set(["direct"]);
       setSelectedQualityId("auto");
+      setAvailableSourceModes(["direct"]);
       if (!video.title) {
         usePlayerStore.getState().enrichCurrentVideo(video.id, {
           title: local.title,
@@ -331,6 +429,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
       setStreamVideoId(null);
       setDashManifestUrl(null);
       setHlsManifestUrl(null);
+      setAvailableSourceModes([]);
       setAudioTracks([]);
       setStoryboard([]);
       setProjection(null);
@@ -373,6 +472,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
             streamInfoRef.current = null;
             attemptedModesRef.current = new Set(["direct"]);
             setSelectedQualityId("auto");
+            setAvailableSourceModes(["direct"]);
             const offlineHandoff = resolveHandoff(currentVideo, false);
             handResumeToSource(offlineHandoff.resumeTime);
             setSourceMode("direct");
@@ -426,7 +526,8 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         const handoff = resolveHandoff(currentVideo, !!info.isLive);
         handResumeToSource(handoff.resumeTime);
 
-        const availableModes = computeAvailableSourceModes(info);
+        const availableModes = orderModesForVideo(info);
+        setAvailableSourceModes(computeAvailableSourceModes(info));
         const initialMode: SourceMode = availableModes[0] || "unavailable";
         attemptedModesRef.current.add(initialMode);
         setSourceMode(initialMode);
@@ -438,23 +539,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
           return;
         }
 
-        if (initialMode === "hls") {
-          setHlsManifestUrl(info.hlsManifestUrl || null);
-          setDashManifestUrl(null);
-          setStreamUrl(null);
-        } else if (initialMode === "dash-native") {
-          setHlsManifestUrl(null);
-          setDashManifestUrl(info.dashManifestUrl || null);
-          setStreamUrl(info.dashManifestUrl || null);
-        } else if (initialMode === "sabr-dash") {
-          setHlsManifestUrl(null);
-          setDashManifestUrl(info.sabr?.manifestUrl || null);
-          setStreamUrl(info.sabr?.manifestUrl || null);
-        } else {
-          setHlsManifestUrl(null);
-          setDashManifestUrl(null);
-          setStreamUrl(pickDirectVariantUrl(info, initialQualityId, preferredCodec));
-        }
+        setSourceForMode(info, initialMode, initialQualityId, preferredCodec);
         setStreamVideoId(currentVideo.id);
 
         setIsPlaying(handoff.playing);
@@ -485,6 +570,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         setLoudnessDb(null);
         setDashManifestUrl(null);
         setHlsManifestUrl(null);
+        setAvailableSourceModes([]);
         setIsLive(false);
         setSelectedQualityId("auto");
         const info = classifyPlayerError(err);
@@ -500,7 +586,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
 
     void loadStream();
     return () => { ++loadTokenRef.current; };
-  }, [currentVideo?.id, videoId, setIsPlaying, publishCaptions, preferredCodec, preferredQuality, handResumeToSource, playLocalFile]);
+  }, [currentVideo?.id, videoId, setIsPlaying, publishCaptions, preferredCodec, preferredQuality, handResumeToSource, playLocalFile, orderModesForVideo, setSourceForMode]);
 
   const onSelectQuality = useCallback(
     (variant: StreamVariant | "auto") => {
@@ -547,7 +633,9 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
       }
       const info = streamInfoRef.current;
       if (!info || hardRetryInFlightRef.current) return;
-      const available = computeAvailableSourceModes(info);
+      // The fallback walk follows the saved method's order, so a preferred
+      // mode that failed is retried only after its siblings are exhausted.
+      const available = orderModesForVideo(info);
       const resumeAt = positionNow();
 
       attemptedModesRef.current.add(sourceMode);
@@ -603,25 +691,9 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
       attemptedModesRef.current.add(next);
       handResumeToSource(info.isLive ? 0 : resumeAt);
       setSourceMode(next);
-      if (next === "hls") {
-        setHlsManifestUrl(info.hlsManifestUrl || null);
-        setDashManifestUrl(null);
-        setStreamUrl(null);
-      } else if (next === "dash-native") {
-        setHlsManifestUrl(null);
-        setDashManifestUrl(info.dashManifestUrl || null);
-        setStreamUrl(info.dashManifestUrl || null);
-      } else if (next === "sabr-dash") {
-        setHlsManifestUrl(null);
-        setDashManifestUrl(info.sabr?.manifestUrl || null);
-        setStreamUrl(info.sabr?.manifestUrl || null);
-      } else {
-        setHlsManifestUrl(null);
-        setDashManifestUrl(null);
-        setStreamUrl(pickDirectVariantUrl(info, selectedQualityId || "auto", preferredCodec));
-      }
+      setSourceForMode(info, next, selectedQualityId || "auto", preferredCodec);
     },
-    [sourceMode, selectedQualityId, preferredCodec, handResumeToSource],
+    [sourceMode, selectedQualityId, preferredCodec, handResumeToSource, orderModesForVideo, setSourceForMode],
   );
 
   const onHardRetry = useCallback(() => {
@@ -687,7 +759,8 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         setStreamErrorKind(null);
         handResumeToSource(resumeAt);
 
-        const mode = computeAvailableSourceModes(info)[0] || "unavailable";
+        const mode = orderModesForVideo(info)[0] || "unavailable";
+        setAvailableSourceModes(computeAvailableSourceModes(info));
         attemptedModesRef.current.add(mode);
         setSourceMode(mode);
         if (mode === "unavailable") {
@@ -696,22 +769,8 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
           setStreamError(NO_SOURCE_MESSAGE);
           setStreamErrorKind("streaming");
           recordPlayerEvent("video hard retry produced no source");
-        } else if (mode === "hls") {
-          setHlsManifestUrl(info.hlsManifestUrl || null);
-          setDashManifestUrl(null);
-          setStreamUrl(null);
-        } else if (mode === "dash-native") {
-          setHlsManifestUrl(null);
-          setDashManifestUrl(info.dashManifestUrl || null);
-          setStreamUrl(info.dashManifestUrl || null);
-        } else if (mode === "sabr-dash") {
-          setHlsManifestUrl(null);
-          setDashManifestUrl(info.sabr?.manifestUrl || null);
-          setStreamUrl(info.sabr?.manifestUrl || null);
         } else {
-          setHlsManifestUrl(null);
-          setDashManifestUrl(null);
-          setStreamUrl(pickDirectVariantUrl(info, initialQualityId, preferredCodec));
+          setSourceForMode(info, mode, initialQualityId, preferredCodec);
         }
       })
       .catch((err) => {
@@ -727,8 +786,36 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
         hardRetryInFlightRef.current = false;
         setLoadingStream(false);
       });
-  }, [currentVideo, preferredCodec, preferredQuality, publishCaptions, handResumeToSource, playLocalFile]);
+  }, [currentVideo, preferredCodec, preferredQuality, publishCaptions, handResumeToSource, playLocalFile, orderModesForVideo, setSourceForMode]);
   hardRetryRef.current = onHardRetry;
+
+  /** A method pick from the player menu: persist it, then jump the current
+   * video to it at its position. A method the video doesn't offer lands on
+   * the Auto order instead; picking the mode already playing is a no-op. */
+  const onSelectSourceMode = useCallback(
+    (method: PlaybackMethod) => {
+      const normalized = normalizePlaybackMethod(method);
+      void setSettingValue(SETTINGS.PLAYBACK_METHOD, normalized);
+      const info = streamInfoRef.current;
+      if (!info || isLocalMediaId(usePlayerStore.getState().currentVideo?.id)) return;
+      const ordered = orderSourceModesByMethod(computeAvailableSourceModes(info), normalized);
+      const target = ordered[0];
+      if (!target || target === sourceMode) return;
+      if (normalized !== "auto" && !availableMethodModes(computeAvailableSourceModes(info), normalized)) {
+        void logToBackend("warn", "playback method unavailable for this video, using auto order", {
+          method: normalized,
+          videoId: info.streamId,
+          available: computeAvailableSourceModes(info),
+        });
+      }
+      attemptedModesRef.current = new Set([target]);
+      handResumeToSource(info.isLive ? 0 : positionNow());
+      setSourceMode(target);
+      setSourceForMode(info, target, selectedQualityId || "auto", preferredCodec);
+      recordPlayerEvent(`video source method selected: ${normalized} -> ${target}`);
+    },
+    [sourceMode, selectedQualityId, preferredCodec, handResumeToSource, setSourceForMode],
+  );
 
   return {
     streamUrl,
@@ -744,6 +831,8 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
     hlsManifestUrl,
     isLive,
     sourceMode,
+    availableSourceModes,
+    playbackMethod,
     selectedQualityId,
     resumeTime,
     loadingStream,
@@ -753,6 +842,7 @@ export function useVideoStream(videoId: string | undefined): VideoStream {
     setResumeTime,
     notePlaybackTime,
     onSelectQuality,
+    onSelectSourceMode,
     onRetrySource,
     onHardRetry,
   };

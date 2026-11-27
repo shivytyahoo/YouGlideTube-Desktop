@@ -6,6 +6,7 @@ import { PlayerErrorState } from "../ui/PlayerErrorState";
 import { CurrentVideoReminderButton } from "../watch/UpcomingReminderButton";
 import type { PlayerErrorInfo } from "../../lib/playerError";
 import { getString } from "../../lib/i18n/index";
+import type { PlaybackMethod, SourceMode } from "../../lib/useVideoStream";
 import { SUBTITLE_FONT_SCALES, usePlayerStore } from "../../store/usePlayerStore";
 import { useSettingsStore, type SponsorBlockCategory } from "../../store/useSettingsStore";
 import type {
@@ -145,6 +146,11 @@ type PlayerProps = {
   selectedQualityId?: string | null;
   resumeTime?: number;
   onSelectQuality?: (variant: StreamVariant | "auto") => void;
+  onSelectSourceMode?: (method: PlaybackMethod) => void;
+  /** The modes the current video offers, in Auto order; the menu lists these. */
+  availableSourceModes?: SourceMode[];
+  /** The saved playback-method preference. */
+  playbackMethod?: PlaybackMethod;
   onEnded?: () => void;
   onTimeUpdate?: (currentTime: number, duration: number) => void;
   onRetry?: () => void;
@@ -326,6 +332,9 @@ export const Player: React.FC<PlayerProps> = ({
   selectedQualityId,
   resumeTime = 0,
   onSelectQuality,
+  onSelectSourceMode,
+  availableSourceModes = [],
+  playbackMethod = "auto",
   onEnded,
   onTimeUpdate,
   onRetry,
@@ -441,6 +450,7 @@ export const Player: React.FC<PlayerProps> = ({
   const miniPlayerShowNextPrevControls = useAppSettingsStore((state) => state.values[SETTINGS.MINI_PLAYER_SHOW_NEXT_PREV_CONTROLS] !== "false");
   const showFullscreenTitle = useAppSettingsStore((state) => state.values[SETTINGS.SHOW_FULLSCREEN_TITLE] === "true");
   const bufferProfile = useAppSettingsStore((state) => state.values[SETTINGS.BUFFER_PROFILE] ?? "STABLE");
+  const longReadAhead = useAppSettingsStore((state) => state.values[SETTINGS.LONG_READ_AHEAD] === "true");
   const minBufferSetting = useAppSettingsStore((state) => state.values[SETTINGS.MIN_BUFFER_MS] ?? "30000");
   const maxBufferSetting = useAppSettingsStore((state) => state.values[SETTINGS.MAX_BUFFER_MS] ?? "50000");
   const startupBufferSetting = useAppSettingsStore((state) => state.values[SETTINGS.BUFFER_FOR_PLAYBACK_MS] ?? "2500");
@@ -480,7 +490,10 @@ export const Player: React.FC<PlayerProps> = ({
     };
     const selected = profiles[bufferProfile] ?? stable;
     const minMs = Number.isFinite(selected.minMs) ? selected.minMs : stable.minMs;
-    const maxMs = Number.isFinite(selected.maxMs) ? selected.maxMs : stable.maxMs;
+    // MSE buffers are memory-backed, unlike a disk-backed player, so the
+    // read-ahead ceiling is the 120 s the custom range already allows — never
+    // the reference app's 300 s, which no MSE SourceBuffer can hold at 8K.
+    const maxMs = longReadAhead ? 120000 : Number.isFinite(selected.maxMs) ? selected.maxMs : stable.maxMs;
     const startupMs = Number.isFinite(selected.startupMs) ? selected.startupMs : stable.startupMs;
     const rebufferMs = Number.isFinite(selected.rebufferMs) ? selected.rebufferMs : stable.rebufferMs;
     const normalizedMinMs = Math.min(120000, Math.max(5000, minMs));
@@ -492,7 +505,7 @@ export const Player: React.FC<PlayerProps> = ({
       startupSeconds: Math.min(5, Math.max(0.5, startupMs / 1000)),
       rebufferSeconds: Math.min(10, Math.max(2.5, rebufferMs / 1000)),
     };
-  }, [bufferProfile, maxBufferSetting, minBufferSetting, rebufferSetting, startupBufferSetting]);
+  }, [bufferProfile, longReadAhead, maxBufferSetting, minBufferSetting, rebufferSetting, startupBufferSetting]);
 
   const [controlsVisible, setControlsVisible] = useState(true);
   const [cursorHidden, setCursorHidden] = useState(false);
@@ -2903,6 +2916,9 @@ export const Player: React.FC<PlayerProps> = ({
         isDashPlayback={isDashPlayback}
         isLive={isLive}
         onSelectQuality={onSelectQuality}
+        onSelectSourceMode={onSelectSourceMode}
+        availableSourceModes={availableSourceModes}
+        playbackMethod={playbackMethod}
         captions={captions}
         selectedCaptionId={selectedCaptionId}
         setSelectedCaptionId={setSelectedCaptionId}

@@ -2,7 +2,7 @@ import { act, createElement, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SETTINGS } from "./settings/schema";
-import { useVideoStream } from "./useVideoStream";
+import { orderSourceModesByMethod, useVideoStream } from "./useVideoStream";
 import { usePlayerStore } from "../store/usePlayerStore";
 import { useDownloadsLibraryStore } from "../store/useDownloadsLibraryStore";
 import { useAppSettingsStore } from "../store/useAppSettingsStore";
@@ -12,7 +12,11 @@ import { getLocalStream } from "./api/localMedia";
 import { clearStreamInfoCache } from "./streamResolution";
 
 vi.mock("./api/youtube", () => ({ getStreamInfo: vi.fn() }));
-vi.mock("./api/db", () => ({ addWatchRecord: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("./api/db", () => ({
+  addWatchRecord: vi.fn().mockResolvedValue(undefined),
+  getSetting: vi.fn().mockResolvedValue(null),
+  setSetting: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("./api/localMedia", () => ({ getLocalStream: vi.fn(), getLocalCover: vi.fn().mockResolvedValue(null) }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 afterEach(() => { vi.unstubAllGlobals(); clearStreamInfoCache(); localStorage.clear(); });
@@ -383,5 +387,111 @@ describe("a library file in the video player", () => {
       expect(latest().streamUrl).toBe(local.url);
       expect(getStreamInfo).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("playback method preference", () => {
+  const fullInfo = {
+    streamId: "s", localUrl: "video", expiresAt: "", captions: [],
+    isLive: false,
+    dashManifestUrl: "manifest",
+    hlsManifestUrl: "hls-manifest",
+    sabr: { available: true, manifestUrl: "sabr-manifest", requiresPoToken: false },
+    variants: [{ id: "v", localUrl: "video", mimeType: 'video/mp4; codecs="avc1.4d401f"', qualityLabel: "720p", isPlayable: true, isDefault: true, hasAudio: true, isVideoOnly: false, deliveryMethod: "progressive" }],
+    audioTracks: [{ id: "a", label: "Original", localUrl: "audio", mimeType: 'audio/mp4; codecs="mp4a.40.2"', isDefault: true, available: true }],
+  };
+
+  async function mountWithMethod(method: string | undefined, info: typeof fullInfo = fullInfo) {
+    vi.stubGlobal("MediaSource", { isTypeSupported: () => true });
+    useDownloadsLibraryStore.setState({ loaded: true, records: [] });
+    useAppSettingsStore.setState({ values: method === undefined ? {} : { [SETTINGS.PLAYBACK_METHOD]: method } });
+    usePlayerStore.setState({ currentVideo: { id: "method-video", title: "", channelName: "" }, currentTime: 0 });
+    vi.mocked(getStreamInfo).mockReset().mockResolvedValue(info);
+    const state = { latest: null as unknown as ReturnType<typeof useVideoStream> };
+    function Harness() { state.latest = useVideoStream("method-video"); return null; }
+    const root = createRoot(document.createElement("div"));
+    await act(async () => root.render(createElement(Harness)));
+    return { state, root };
+  }
+
+  it("moves the preferred mode to the front and keeps the rest as fallback", () => {
+    const auto = ["dash-native", "direct", "sabr-dash", "hls"] as const;
+    expect(orderSourceModesByMethod([...auto], "hls")).toEqual(["hls", "dash-native", "direct", "sabr-dash"]);
+    expect(orderSourceModesByMethod([...auto], "dash")).toEqual(["dash-native", "sabr-dash", "direct", "hls"]);
+    expect(orderSourceModesByMethod([...auto], "sabr")).toEqual(["sabr-dash", "dash-native", "direct", "hls"]);
+    expect(orderSourceModesByMethod([...auto], "direct")).toEqual(["direct", "dash-native", "sabr-dash", "hls"]);
+    expect(orderSourceModesByMethod([...auto], "auto")).toEqual([...auto]);
+  });
+
+  it("starts on the preferred mode and lists the video's modes in Auto order", async () => {
+    const { state, root } = await mountWithMethod("hls");
+    try {
+      expect(state.latest.sourceMode).toBe("hls");
+      expect(state.latest.hlsManifestUrl).toBe("hls-manifest");
+      expect(state.latest.availableSourceModes).toEqual(["dash-native", "direct", "sabr-dash", "hls"]);
+      expect(state.latest.playbackMethod).toBe("hls");
+    } finally { await act(async () => root.unmount()); }
+  });
+
+  it("falls back to Auto order when the preferred mode is absent", async () => {
+    const { state, root } = await mountWithMethod("sabr", { ...fullInfo, sabr: undefined } as never);
+    try {
+      expect(state.latest.sourceMode).toBe("dash-native");
+      expect(state.latest.availableSourceModes).toEqual(["dash-native", "direct", "hls"]);
+    } finally { await act(async () => root.unmount()); }
+  });
+
+  it("keeps live constraints: Direct is unavailable, HLS stays first", async () => {
+    const { state, root } = await mountWithMethod("direct", { ...fullInfo, isLive: true });
+    try {
+      expect(state.latest.sourceMode).toBe("hls");
+      expect(state.latest.isLive).toBe(true);
+    } finally { await act(async () => root.unmount()); }
+  });
+
+  it("walks the fallback in the preferred order after the preferred mode fails", async () => {
+    const { state, root } = await mountWithMethod("dash");
+    try {
+      expect(state.latest.sourceMode).toBe("dash-native");
+      await act(async () => state.latest.onRetrySource("media-error"));
+      // DASH covers both DASH transports: native first, SABR second.
+      expect(state.latest.sourceMode).toBe("sabr-dash");
+      expect(getStreamInfo).toHaveBeenCalledTimes(1);
+    } finally { await act(async () => root.unmount()); }
+  });
+
+  it("persists a menu pick and reloads the video at its position on it", async () => {
+    const { state, root } = await mountWithMethod("auto");
+    try {
+      expect(state.latest.sourceMode).toBe("dash-native");
+      await act(async () => state.latest.notePlaybackTime(60));
+      await act(async () => state.latest.onSelectSourceMode("hls"));
+      expect(state.latest.sourceMode).toBe("hls");
+      expect(state.latest.resumeTime).toBe(60);
+      expect(getStreamInfo).toHaveBeenCalledTimes(1);
+      expect(useAppSettingsStore.getState().values[SETTINGS.PLAYBACK_METHOD]).toBe("hls");
+    } finally { await act(async () => root.unmount()); }
+  });
+
+  it("persists an unavailable pick but keeps the Auto order playing", async () => {
+    const { state, root } = await mountWithMethod("auto", { ...fullInfo, sabr: undefined } as never);
+    try {
+      expect(state.latest.sourceMode).toBe("dash-native");
+      await act(async () => state.latest.onSelectSourceMode("sabr"));
+      expect(state.latest.sourceMode).toBe("dash-native");
+      expect(getStreamInfo).toHaveBeenCalledTimes(1);
+      expect(useAppSettingsStore.getState().values[SETTINGS.PLAYBACK_METHOD]).toBe("sabr");
+    } finally { await act(async () => root.unmount()); }
+  });
+
+  it("picking the mode already playing changes nothing", async () => {
+    const { state, root } = await mountWithMethod("auto");
+    try {
+      await act(async () => state.latest.notePlaybackTime(60));
+      await act(async () => state.latest.onSelectSourceMode("dash"));
+      expect(state.latest.sourceMode).toBe("dash-native");
+      expect(state.latest.resumeTime).toBe(0);
+      expect(getStreamInfo).toHaveBeenCalledTimes(1);
+    } finally { await act(async () => root.unmount()); }
   });
 });

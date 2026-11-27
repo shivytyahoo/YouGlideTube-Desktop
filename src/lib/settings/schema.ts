@@ -288,6 +288,8 @@ export const SETTINGS = {
 
   DEFAULT_QUALITY_WIFI: "default_quality_wifi",
   DEFAULT_VIDEO_CODEC: "default_video_codec",
+  PLAYBACK_METHOD: "playback_method",
+  LONG_READ_AHEAD: "long_read_ahead",
   FAST_QUALITY_SWITCH_ENABLED: "fast_quality_switch_enabled",
   SHORTS_QUALITY_WIFI: "shorts_quality_wifi",
   MUSIC_AUDIO_QUALITY: "music_audio_quality",
@@ -707,6 +709,7 @@ export const SETTING_DEFINITIONS = [
   num(SETTINGS.SEARCH_HISTORY_RETENTION_DAYS, "content", 90, "wired", 1, 3650),
 
   str(SETTINGS.DEFAULT_QUALITY_WIFI, "quality", "1080p", "wired", QUALITY_VALUES),
+  str(SETTINGS.PLAYBACK_METHOD, "quality", "auto", "wired", ["auto", "dash", "sabr", "hls", "direct"]),
   str(SETTINGS.FALLBACK_VIDEO_CODEC, "quality", "Auto", "wired", ["Auto", "H.264", "VP9", "AV1"]),
   bool(SETTINGS.GROUPED_QUALITY_SELECTOR, "quality", false, "wired"),
   str(SETTINGS.FEED_PREVIEW_QUALITY, "quality", "auto", "wired", ["auto", "low", "high"]),
@@ -740,6 +743,7 @@ export const SETTING_DEFINITIONS = [
   num(SETTINGS.BUFFER_FOR_PLAYBACK_MS, "network", 2500, "partial", 500, 5000),
   num(SETTINGS.BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS, "network", 5000, "partial", 2500, 10000),
   bool(SETTINGS.REMOTE_SIGNATURE_FALLBACK, "network", true, "wired"),
+  bool(SETTINGS.LONG_READ_AHEAD, "network", false, "wired"),
   bool(SETTINGS.DISK_READ_AHEAD, "network", true, "wired"),
   bool(SETTINGS.PREFER_IPV4, "network", false, "wired"),
   bool(SETTINGS.PROXY_ENABLED, "network", false, "wired"),

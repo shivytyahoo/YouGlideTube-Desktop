@@ -17,6 +17,7 @@ export function NetworkTab() {
   const [playbackBuffer, setPlaybackBuffer] = useNumberPref(SETTINGS.BUFFER_FOR_PLAYBACK_MS, 2500);
   const [rebufferBuffer, setRebufferBuffer] = useNumberPref(SETTINGS.BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS, 5000);
   const [diskReadAhead, setDiskReadAhead] = useBoolPref(SETTINGS.DISK_READ_AHEAD, true);
+  const [longReadAhead, setLongReadAhead] = useBoolPref(SETTINGS.LONG_READ_AHEAD, false);
   const [remoteSignatures, setRemoteSignatures] = useBoolPref(SETTINGS.REMOTE_SIGNATURE_FALLBACK, true);
   const [preferIpv4, setPreferIpv4] = useBoolPref(SETTINGS.PREFER_IPV4, false);
   const [proxyEnabled, setProxyEnabled] = useBoolPref(SETTINGS.PROXY_ENABLED, false);
@@ -39,6 +40,9 @@ export function NetworkTab() {
         </SettingItem>
         <SettingItem title={getString('settings_disk_read_ahead')} description={getString('settings_disk_read_ahead_desc')}>
           <ToggleSwitch checked={diskReadAhead} onChange={setDiskReadAhead} />
+        </SettingItem>
+        <SettingItem title={getString('settings_long_read_ahead')} description={getString('settings_long_read_ahead_desc')}>
+          <ToggleSwitch checked={longReadAhead} onChange={setLongReadAhead} />
         </SettingItem>
       </SettingsGroup>
 

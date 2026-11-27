@@ -88,4 +88,19 @@ describe("QualityTab codec choices", () => {
     render();
     expect(document.body.textContent).toContain("AV1 can't play on this device, so YouGlideTube uses another codec.");
   });
+
+  it("offers the playback method next to the codec rows", () => {
+    render();
+    expect(document.body.textContent).toContain("Playback method");
+    expect(document.body.textContent).toContain("Which stream to play first");
+    // The first "Auto" select is the playback method; the fallback codec's follows it.
+    const button = [...document.body.querySelectorAll("button")].find(
+      (item) => item.textContent?.trim() === "Auto",
+    );
+    act(() => button?.click());
+    const options = [...document.body.querySelectorAll<HTMLButtonElement>('[role="option"]')];
+    for (const label of ["DASH", "SABR", "HLS", "Direct"]) {
+      expect(options.some((item) => item.textContent?.includes(label))).toBe(true);
+    }
+  });
 });

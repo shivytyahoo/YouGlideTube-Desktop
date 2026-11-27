@@ -372,6 +372,9 @@ export function PlayerCore({ videoId, videoDetails, onEnded }: PlayerCoreProps) 
       category={category}
       onRetrySource={stream.onRetrySource}
       onSelectQuality={stream.onSelectQuality}
+      onSelectSourceMode={stream.onSelectSourceMode}
+      availableSourceModes={stream.availableSourceModes}
+      playbackMethod={stream.playbackMethod}
       onTimeUpdate={handleTimeUpdate}
       onEnded={handleEnded}
       onRetry={stream.onHardRetry}

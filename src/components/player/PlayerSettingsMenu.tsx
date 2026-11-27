@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Gauge,
+  Layers,
   Monitor,
   Repeat,
   Scaling,
@@ -40,6 +41,7 @@ import { useAppSettingsStore } from "../../store/useAppSettingsStore";
 import { getString } from "../../lib/i18n/index";
 import { LOOK_SPEEDS } from "../../lib/spherical/view";
 import { useLookSpeed } from "../../lib/spherical/useLookSpeed";
+import type { PlaybackMethod, SourceMode } from "../../lib/useVideoStream";
 import { MOTION_EASE, motionMs } from "../../lib/motion";
 import { PLAYER_MENU_ATTR } from "../../lib/playerMenuDismiss";
 import { VIDEO_FIT_LABELS, VIDEO_FITS } from "../../lib/videoFit";
@@ -49,6 +51,7 @@ export type SettingsPane =
   | "root"
   | "speed"
   | "quality"
+  | "method"
   | "captions"
   | "captions-translate"
   | "captions-customize"
@@ -62,6 +65,7 @@ const PANE_DEPTH: Record<SettingsPane, number> = {
   root: 0,
   speed: 1,
   quality: 1,
+  method: 1,
   captions: 1,
   audio: 1,
   sleep: 1,
@@ -75,6 +79,7 @@ const PANE_SLIDE_PX = 16;
 const PANE_TITLE = {
   speed: "player_menu_speed",
   quality: "player_menu_quality",
+  method: "player_menu_playback_method",
   captions: "player_menu_subtitles",
   "captions-translate": "player_captions_auto_translate",
   "captions-customize": "player_menu_subtitle_style",
@@ -104,6 +109,38 @@ export function qualityLabel(selectedQualityId: string, qualities: StreamVariant
   return qualities.find((q) => q.id === selectedQualityId)?.qualityLabel || getString("player_menu_quality_auto");
 }
 
+/** The method a source mode belongs to in the menu. DASH and SABR stay
+ * separate rows even though the DASH preference covers both transports. */
+export function sourceModeMethod(mode: SourceMode): PlaybackMethod {
+  switch (mode) {
+    case "dash-native":
+      return "dash";
+    case "sabr-dash":
+      return "sabr";
+    case "hls":
+      return "hls";
+    case "direct":
+      return "direct";
+    default:
+      return "auto";
+  }
+}
+
+export function playbackMethodLabel(method: PlaybackMethod): string {
+  switch (method) {
+    case "dash":
+      return getString("settings_playback_method_dash");
+    case "sabr":
+      return getString("settings_playback_method_sabr");
+    case "hls":
+      return getString("settings_playback_method_hls");
+    case "direct":
+      return getString("settings_playback_method_direct");
+    default:
+      return getString("settings_playback_method_auto");
+  }
+}
+
 interface PlayerSettingsMenuProps {
   open: boolean;
   pane: SettingsPane;
@@ -114,6 +151,11 @@ interface PlayerSettingsMenuProps {
   activeQualityLabel?: string;
   isDashPlayback: boolean;
   onSelectQuality?: (variant: StreamVariant | "auto") => void;
+  /** The modes this video offers, in Auto order; the method pane lists these. */
+  availableSourceModes?: SourceMode[];
+  /** The saved playback-method preference. */
+  playbackMethod?: PlaybackMethod;
+  onSelectSourceMode?: (method: PlaybackMethod) => void;
   captions: CaptionTrack[];
   selectedCaptionId: string;
   setSelectedCaptionId: (id: string) => void;
@@ -140,6 +182,9 @@ export function PlayerSettingsMenu({
   activeQualityLabel,
   isDashPlayback,
   onSelectQuality,
+  availableSourceModes = [],
+  playbackMethod = "auto",
+  onSelectSourceMode,
   captions,
   selectedCaptionId,
   setSelectedCaptionId,
@@ -229,6 +274,14 @@ export function PlayerSettingsMenu({
     null;
   const audioPlayable = (quality: StreamVariant) =>
     isDashPlayback || quality.hasAudio || audioTracks.some((track) => !!track.localUrl);
+
+  /** Auto plus one row per method this video offers, in Auto order. */
+  const methodOptions: PlaybackMethod[] = [
+    "auto",
+    ...availableSourceModes
+      .map(sourceModeMethod)
+      .filter((method, index, all) => method !== "auto" && all.indexOf(method) === index),
+  ];
 
   /** One quality row; grouped mode shows the codec as the row's label under its resolution header. */
   const qualityRow = (quality: StreamVariant, label: string, sublabel?: string | null) => {
@@ -329,6 +382,12 @@ export function PlayerSettingsMenu({
               qualityLabel(selectedQualityId, qualities, activeQualityLabel),
               <Monitor size={18} />,
               () => onPaneChange("quality"),
+            )}
+            {settingRow(
+              getString("player_menu_playback_method"),
+              playbackMethodLabel(playbackMethod),
+              <Layers size={18} />,
+              () => onPaneChange("method"),
             )}
             {settingRow(
               getString("player_menu_subtitles"),
@@ -498,6 +557,22 @@ export function PlayerSettingsMenu({
                 return qualityRow(quality, quality.qualityLabel, codec || undefined);
               })
             )}
+          </div>
+        )}
+
+        {pane === "method" && (
+          <div className={LIST}>
+            {methodOptions.map((method) => (
+              <button
+                key={method}
+                type="button"
+                onClick={() => pick(() => onSelectSourceMode?.(method), true)}
+                className={cx(ROW, "hover:bg-chrome-white/10")}
+              >
+                <span>{playbackMethodLabel(method)}</span>
+                {check(playbackMethod === method)}
+              </button>
+            ))}
           </div>
         )}
 
