@@ -61,15 +61,18 @@ const WEB_PLAYER_TIMEOUT: Duration = Duration::from_secs(10);
 /// 1. `VISIONOS`: direct URLs with neither a PO token nor an `n` parameter, so it
 ///    reaches first frame fastest. It needs `visitorData` on the request; without
 ///    it the answer is a bot wall.
-/// 2. `MWEB`, then `WEB`: a `BotGuard` token on the request buys a SABR session, which
+/// 2. `IOS_PRODUCER`: the same plain direct links, H.264 and AAC only (up to
+///    1080p). It serves videos VISIONOS refuses, so it goes right after it.
+/// 3. `MWEB`, then `WEB`: a `BotGuard` token on the request buys a SABR session, which
 ///    is playable once its endpoint's `n` is solved from the player script.
-/// 3. The `ANDROID_VR` builds, newest first: unattested direct URLs that still
+/// 4. The `ANDROID_VR` builds, newest first: unattested direct URLs that still
 ///    answer some videos the others are walled on, though googlevideo can stop
 ///    serving them partway in.
-/// 4. `ANDROID`: last resort. It usually answers with ciphered formats only, which
+/// 5. `ANDROID`: last resort. It usually answers with ciphered formats only, which
 ///    the playability check below skips without paying for them.
 const PLAYER_CLIENT_LADDER: &[&clients::YouTubeClient] = &[
     &clients::VISIONOS,
+    &clients::IOS_PRODUCER,
     &clients::MWEB,
     &clients::WEB,
     // Past the walls the gated clients below stop at a minute, and the source
@@ -122,6 +125,23 @@ fn record_refusal(
             fresh_identity_walled,
         });
     }
+}
+
+/// Direct clients that answer with plain URLs and no attestation: VISIONOS
+/// and IOS_PRODUCER. The SABR-vs-Tizen race pays a PO-token mint plus a 10s
+/// budget per web client, so it waits until both fast clients have refused —
+/// a video VISIONOS calls unplayable is often one IOS_PRODUCER serves.
+const FAST_DIRECT_CLIENTS: &[&str] = &["VISIONOS", "IOS_PRODUCER"];
+
+/// Whether an untried, un-gated fast client is still ahead in the walk. A
+/// gated one sits at the end of the order and must not hold the race up.
+fn has_open_fast_client(
+    remaining: &[&'static clients::YouTubeClient],
+    gated: impl Fn(&str) -> bool,
+) -> bool {
+    remaining
+        .iter()
+        .any(|client| FAST_DIRECT_CLIENTS.contains(&client.name) && !gated(client.name))
 }
 
 /// A content refusal the clients agree on: the video itself is refused, not
@@ -206,6 +226,24 @@ mod unplayable_race_tests {
         let (web, tizen) = race_participants(&remaining, |_| false).expect("both sides open");
         assert_eq!(web.len(), 2);
         assert_eq!(tizen.name, clients::TV_TIZEN.name);
+    }
+
+    #[test]
+    fn the_race_waits_for_an_open_fast_client() {
+        let remaining = [
+            &clients::IOS_PRODUCER,
+            &clients::MWEB,
+            &clients::WEB,
+            &clients::TV_TIZEN,
+        ];
+        assert!(has_open_fast_client(&remaining, |_| false));
+        assert!(!has_open_fast_client(&remaining, |name| {
+            name == "IOS_PRODUCER"
+        }));
+        assert!(!has_open_fast_client(
+            &[&clients::MWEB, &clients::WEB, &clients::TV_TIZEN],
+            |_| false
+        ));
     }
 
     #[test]
@@ -1898,6 +1936,7 @@ impl InnertubeClient {
                         return None;
                     }
                     if all_refusals_unplayable
+                        && !has_open_fast_client(&order[index..], is_gated)
                         && let Some((web, tizen)) = race_participants(&order[index..], is_gated)
                     {
                         if let Some(winner) = self
@@ -2828,14 +2867,15 @@ mod walk_order_tests {
         let order = walk_order(PLAYER_CLIENT_LADDER, |_| false);
         assert_eq!(order.len(), PLAYER_CLIENT_LADDER.len());
         assert_eq!(order[0].name, "VISIONOS");
-        assert_eq!(order[1].name, "MWEB");
+        assert_eq!(order[1].name, "IOS_PRODUCER");
+        assert_eq!(order[2].name, "MWEB");
     }
 
     #[test]
     fn a_walled_visitor_goes_to_tv_tizen_before_the_web_clients() {
         let order = walk_order(PLAYER_CLIENT_LADDER, |name| name == "VISIONOS");
         let order = names(&order);
-        assert_eq!(&order[..3], ["TVHTML5", "MWEB", "WEB"]);
+        assert_eq!(&order[..3], ["TVHTML5", "IOS_PRODUCER", "MWEB"]);
         assert_eq!(order.last(), Some(&"VISIONOS"));
     }
 
@@ -2854,7 +2894,7 @@ mod walk_order_tests {
         let order = walk_order(PLAYER_CLIENT_LADDER, |name| {
             matches!(name, "VISIONOS" | "TVHTML5")
         });
-        assert_eq!(order[0].name, "MWEB");
+        assert_eq!(order[0].name, "IOS_PRODUCER");
     }
 }
 

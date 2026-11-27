@@ -86,8 +86,9 @@ pub struct YouTubeClient {
     pub platform: Option<&'static str>,
     /// `context.client.originalUrl`, sent only by WEB.
     pub original_url: Option<&'static str>,
-    /// Whether the User-Agent is repeated inside `context.client`. Only MWEB does this;
-    /// sending it for any other client is a fingerprint inconsistency.
+    /// Whether the User-Agent is repeated inside `context.client`. MWEB does this,
+    /// and so does IOS_PRODUCER — the Studio app's own context carries its UA;
+    /// for every other client sending it would be a fingerprint inconsistency.
     pub send_ua_in_context: bool,
     /// Its formats are all signed, solvable only by the remote decoder, whose
     /// player's signature timestamp the request must carry.
@@ -251,6 +252,31 @@ pub const VISIONOS: YouTubeClient = YouTubeClient {
     platform: None,
     original_url: None,
     send_ua_in_context: false,
+    remote_signed: false,
+};
+
+/// YouTube Studio's iPhone app: plain direct links like VISIONOS, H.264 and
+/// AAC only (up to 1080p), whole videos. After VISIONOS when it can't play a
+/// video, before ANDROID_VR — the Android app measured it serving videos
+/// VISIONOS refuses. Added in yt-dlp 2026-11.
+pub const IOS_PRODUCER: YouTubeClient = YouTubeClient {
+    name: "IOS_PRODUCER",
+    version: "0.147.945",
+    client_id: "92",
+    user_agent: "com.google.ios.youtubeproducer/0.147.945 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)",
+    os_name: Some("iPhone"),
+    os_version: Some("18.3.2.22D82"),
+    device_make: Some("Apple"),
+    device_model: Some("iPhone16,2"),
+    android_sdk_version: None,
+    use_signature_timestamp: false,
+    is_embedded: false,
+    use_web_po_tokens: false,
+    login_supported: false,
+    attestation: AttestationPlatform::IosGuard,
+    platform: None,
+    original_url: None,
+    send_ua_in_context: true,
     remote_signed: false,
 };
 
@@ -487,6 +513,7 @@ pub const TV_TIZEN: YouTubeClient = YouTubeClient {
 /// Every client the registry knows, for reverse lookup by name.
 const ALL: &[YouTubeClient] = &[
     VISIONOS,
+    IOS_PRODUCER,
     ANDROID_VR,
     ANDROID,
     ANDROID_CREATOR,
@@ -520,6 +547,7 @@ mod tests {
         // Android's YouTubeClient.kt: the clients that never log in 400 when a
         // valid session is sent on them, so they must stay anonymous.
         assert!(!VISIONOS.login_supported);
+        assert!(!IOS_PRODUCER.login_supported);
         assert!(!IOS.login_supported);
         assert!(!IPADOS.login_supported);
         assert!(!ANDROID_VR.login_supported);

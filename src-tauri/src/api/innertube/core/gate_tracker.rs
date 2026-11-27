@@ -68,7 +68,7 @@ pub fn classify_denial(url: &str, now_secs: u64, link_age: Duration) -> Denial {
 /// client that minted it unless the link was expired or old.
 /// The app clients googlevideo walls per visitor rather than per client: a fresh visitor is
 /// served on them again, so a gate on one asks for a new identity as well (the Android app #921).
-const VISITOR_WALLED_CLIENTS: [&str; 2] = ["VISIONOS", "ANDROID_VR"];
+const VISITOR_WALLED_CLIENTS: [&str; 3] = ["VISIONOS", "IOS_PRODUCER", "ANDROID_VR"];
 
 static IDENTITY_WALLED: AtomicBool = AtomicBool::new(false);
 
@@ -194,6 +194,19 @@ mod tests {
             FRESH,
         );
         assert!(is_gated("VISIONOS"));
+        assert!(take_identity_walled());
+        assert!(!take_identity_walled());
+    }
+
+    #[test]
+    fn a_walled_ios_producer_asks_for_a_new_identity_once() {
+        let _turn = serial();
+        let far = now_secs() + 3600;
+        record_refused_url(
+            &format!("https://rr1.googlevideo.com/videoplayback?expire={far}&c=IOS_PRODUCER"),
+            FRESH,
+        );
+        assert!(is_gated("IOS_PRODUCER"));
         assert!(take_identity_walled());
         assert!(!take_identity_walled());
     }
