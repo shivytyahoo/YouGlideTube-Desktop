@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.4 — 2026-11-27
+
+A features release on top of 1.0.3.
+
+- Playback method selector: pick how a video is played — Auto, DASH, SABR, HLS or Direct — from the player settings menu or Settings → Quality; a pick moves that method to the front and the rest stay as fallback
+- Read further ahead: a new toggle in Settings → Network that lets the player buffer up to 120 seconds of the top quality, so heavy videos keep playing through network dips instead of stalling
+
 ## 1.0.3 — 2026-11-26
 
 A fixes-only release on top of 1.0.2.
